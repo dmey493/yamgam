@@ -34,8 +34,7 @@ A hub of ten single-file browser math games for middle schoolers, disguised as p
     { "name": "Blind Builder", "one_liner": "Asymmetric co-op: one sees the blueprint, one builds, messages go by pigeon — precise communication under a word budget.", "status": "shipped" },
     { "name": "Rewind", "one_liner": "Evidence-based sequencing mystery — read the scene backwards, stamp the true order of events.", "status": "shipped" },
     { "name": "Family Tree Detective", "one_liner": "Cozy deduction campaign — rebuild families from letters and ledgers; transitive inference in a records office.", "status": "shipped" },
-    { "name": "The Cartographer's Apprentice", "one_liner": "Turn travelers' spoken 'on my left' testimony into a top-down map — perspective-taking and spatial orientation.", "status": "shipped" },
-    { "name": "Orchard Cottage", "one_liner": "Endless fruit-window slicing — cut fair shares by eye, graded by true volume; the banana lies about its size.", "status": "shipped" }
+    { "name": "The Cartographer's Apprentice", "one_liner": "Turn travelers' spoken 'on my left' testimony into a top-down map — perspective-taking and spatial orientation.", "status": "shipped" }
   ],
   "updated_at": "2026-07-10"
 }
