@@ -1,0 +1,2100 @@
+<!doctype html>
+<!--
+  FAMILY TREE DETECTIVE — a cozy deduction mystery in great-aunt Greta's records office
+  Twelve families of Bramblewick across three acts, each a tangle of letters,
+  ledgers and photographs (Act 3 adds unreliable "gossip" cards — one lie per case).
+  Drag portraits onto the branches of an empty family tree; clue cards fade as the
+  board explains them; when you believe the whole family is accounted for, commit
+  with Greta's brass stamp. Wrong stamps highlight the CONTRADICTED CLUE, never the
+  answer. Stamps are ceremonially scarce (3 wax slips per case) — think freely,
+  commit carefully.
+
+  CORE LOOP (~15-40s): read a card -> place/move a portrait -> watch which cards
+  fade (what is still unexplained?) -> chain the next inference -> STAMP.
+  Draft is free and infinitely revisable; the stamp is the scarce commitment.
+
+  COGNITIVE FUNCTIONS TARGETED (never named in-game):
+    input        systematic exploration — the auto-dimming cards are a "what have I
+                 not used yet?" tracker; case 6 removes auto-dim (cheap ink) and the
+                 player marks cards themselves
+    elaboration  relational + transitive inference — uncle/aunt/grandmother clues
+                 force the intermediate link ("an uncle is somebody's brother —
+                 whose?"); birth-year chains (a older than b, b before c) are
+                 transitivity; elimination ("no card names Reed at all")
+    output       restrained trial-and-error — limited stamp slips; wrong stamp
+                 shows the conflict, costs a slip, and the tree stays editable
+  MATH BRIDGE (invisible): transitive order relations = proto-inequalities
+  (6.NS.C.7 ordering, MP1 persevere, MP3 argue from evidence, MP6 precision,
+  MP7 structure). Logical AND across cards; negation; unique-solution reasoning.
+
+  MISCONCEPTIONS / THINKING TRAPS AMBUSHED:
+    - "an uncle is just any older man" -> case 4's uncle is the youngest adult;
+      placing Birch in the grandparent row contradicts on stamp
+    - relations read one way -> "X is Y's father" reversed placements pulse red
+    - "first mentioned = oldest / leftmost" -> case 5's age cards mention the
+      younger person first, both of them
+    - "I placed everyone, so I'm done" -> bright (unfaded) cards remain; stamping
+      past them is the classified input error
+    - trusting looks over records -> the distractor portrait (case 5) looks the
+      part but no year fits him
+
+  ERROR CLASSIFICATION (feeds the casebook profile, cozy labels, never a grade):
+    input  = stamped while readable cards were still unaccounted (rushed past data)
+    elab   = all cards accounted/marked yet the tree is wrong (case 6 manual mode)
+    output = near-miss — one swap from a correct tree (right idea, slipped hand)
+  Strategy naming after cases 2/4/6 ("How did you crack it?"), bridging musings on
+  end screens 3/6. Profile lives in the Casebook on the office shelf.
+
+  TEACHER TALK CARDS (5, Act 1 — kept here, invisible to students):
+    1. Which card did you trust first, and why that one?
+    2. What does "uncle" tell you that "brother" doesn't?
+    3. When the stamp came back wrong, what did you re-read first?
+    4. How did the ledger years help when no card named the person?
+    5. What did you do when a portrait had no card about it at all?
+
+  AUDIO IDENTITY (distinct in the suite — glassy music-box, NOT the woody kitchen,
+  breathy coast, rubber yard, or mechanical office of the sister games):
+    world    a lamplit records office on a rainy evening — paper, brass, a music
+             box, a sleepy cat
+    timbre   glassy/bell primary (sine + soft partial, fast attack, long decay);
+             woody paper accents (page rustle, felt-and-wood stamp thunk)
+    key      F major pentatonic (F G A C D) — heirloom-warm
+    success  rising 5-6-1 "inking cadence" C-D-F; case solve = little music-box
+             arpeggio F-A-C-D-F with a waltz lilt
+    failure  the cadence's fall: F down to D, damped, under a paper rustle
+    signature the office cat's "prrp" (pitch-bent chirp) — case close + petting
+    music    none; ambience = rain on the window + rare fire crackle (toggleable)
+
+  SESSION SHAPE: one case = 3-7 min; Act 1 = 6 cases (~25 min arc, resumable).
+  Replay any solved case from its frame. Progress saved locally when storage
+  allows (keys ftd.*), silently in-memory otherwise.
+
+  House style: single file, no dependencies, Fredoka + Nunito (+ Caveat strictly
+  for Greta's handwriting), one warm paper palette, gold/brass = the player's
+  hand, coral = contradiction. Engine is pure and console-testable: FTD.verify()
+  brute-forces every case and reports solution counts (expected: 2 apiece — the
+  two founders may swap sides of their marriage bar, which is the same tree).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Family Tree Detective — every family keeps a secret</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F50E;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /* ---- One palette: aged paper, walnut ink, brass = you, coral = contradiction ---- */
+  :root{
+    --room:#251b12; --room2:#1a120b;          /* the office around the desk */
+    --paper:#f3e7cf; --paper2:#e9d8b6;        /* board + cards */
+    --ink:#3b2f22; --ink-soft:#7c6b52;        /* walnut ink, faded ink */
+    --brass:#c9973b; --brass-hi:#e8bd6d;      /* stamp, seals, the player */
+    --coral:#c4574a;                          /* contradiction / danger */
+    --moss:#7d8b5e;                           /* the plant, gentle confirmations */
+    --sepia:#b98d5f;
+    --radius:16px;
+    --shadow:0 14px 34px rgba(12,7,2,.55);
+    --shadow-sm:0 5px 14px rgba(12,7,2,.4);
+    --paper-shadow:0 3px 10px rgba(59,47,34,.22), 0 1px 3px rgba(59,47,34,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -8%, #3a2b1c 0%, var(--room) 48%, var(--room2) 100%);
+    color:var(--ink); font-family:Nunito,system-ui,sans-serif; letter-spacing:.2px;
+    overflow:hidden; user-select:none;-webkit-user-select:none;
+  }
+  button{font-family:inherit;color:inherit}
+  ::selection{background:var(--brass);color:var(--room)}
+
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;padding:16px;opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .32s ease,visibility .32s}
+  .screen.on{opacity:1;pointer-events:auto;visibility:visible}
+
+  /* ---- shared buttons ---- */
+  .btn{border:none;cursor:pointer;border-radius:14px;font-family:Fredoka;font-weight:600;
+    background:var(--paper);color:var(--ink);box-shadow:var(--shadow-sm);
+    transition:transform .13s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,filter .2s,opacity .2s}
+  .btn:hover{transform:translateY(-2px) scale(1.03)}
+  .btn:active{transform:scale(.94)}
+  .btn.primary{background:linear-gradient(180deg,var(--brass-hi),var(--brass));color:#3a2604;font-weight:700;
+    box-shadow:0 8px 24px rgba(201,151,59,.4),var(--shadow-sm)}
+  .btn.big{font-size:22px;padding:15px 42px;border-radius:18px}
+  .btn.ghostb{background:transparent;border:2px solid rgba(243,231,207,.28);box-shadow:none;color:#cbb691}
+  .btn:disabled{opacity:.45;pointer-events:none}
+  .btn:focus-visible,.icon-btn:focus-visible,.frame:focus-visible,.clue .pin:focus-visible{
+    outline:3px solid var(--brass-hi);outline-offset:2px}
+  .icon-btn{width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;flex:none;
+    background:rgba(243,231,207,.12);color:var(--paper);font-size:19px;box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s,background .2s}
+  .icon-btn:hover{background:rgba(243,231,207,.22)}
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn.off{opacity:.5}
+  #cornerui{position:fixed;top:12px;right:12px;z-index:60;display:flex;gap:8px}
+
+  /* ================= TITLE ================= */
+  #scr-title{text-align:center;color:var(--paper)}
+  .wordmark{font-family:Fredoka;font-weight:700;line-height:1.04;letter-spacing:.02em;
+    font-size:min(11vw,64px);color:var(--paper);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .wordmark em{font-style:normal;color:var(--brass-hi)}
+  .titleart{width:min(46vw,190px);margin:0 auto 10px;display:block}
+  .titleart .lens{transform-origin:118px 118px;animation:lenssway 5.2s ease-in-out infinite}
+  @keyframes lenssway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(5deg)}}
+  .tagline{font-family:Caveat,cursive;font-weight:600;font-size:clamp(20px,4.6vw,26px);
+    color:#d8c39a;margin:10px 0 26px;transform:rotate(-1.2deg)}
+  .titlebest{margin-top:22px;color:#a08a68;font-size:14px;font-weight:700}
+  .titlebest b{color:var(--brass-hi)}
+
+  /* ================= OFFICE ================= */
+  #scr-office{justify-content:flex-start;overflow-y:auto;padding:18px 14px 30px}
+  #scr-office .wrap{width:100%;max-width:880px;margin:0 auto}
+  .officehead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:var(--paper);
+    margin:2px 2px 14px}
+  .officehead h1{font-family:Fredoka;font-weight:700;font-size:clamp(22px,4.5vw,30px);margin:0}
+  .officehead h1 em{font-style:normal;color:var(--brass-hi)}
+  .sealcount{font-family:Fredoka;font-weight:600;font-size:15px;color:var(--brass-hi);white-space:nowrap}
+  .wall{position:relative;border-radius:22px;padding:22px 18px 18px;
+    background:linear-gradient(180deg,#4a3823 0%,#3c2c1a 100%);
+    box-shadow:inset 0 2px 14px rgba(0,0,0,.45), var(--shadow);
+    border:10px solid #2c1f12;border-bottom-width:14px}
+  .wallrail{position:absolute;left:26px;right:26px;top:12px;height:3px;border-radius:2px;background:#2c1f12}
+  .framegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:8px}
+  .frame{position:relative;border:none;cursor:pointer;border-radius:6px;padding:10px 10px 12px;text-align:left;
+    background:linear-gradient(160deg,#6d5433,#57431f);
+    box-shadow:0 3px 0 #241808, 0 10px 18px rgba(0,0,0,.45);
+    transition:transform .16s cubic-bezier(.34,1.56,.64,1)}
+  .frame::after{content:"";position:absolute;inset:6px;border-radius:4px;border:2px solid rgba(36,24,8,.55);pointer-events:none}
+  .frame:hover{transform:translateY(-3px) rotate(-.4deg)}
+  .frame:active{transform:scale(.97)}
+  .frame .mat{background:var(--paper);border-radius:3px;padding:9px 10px 8px;min-height:108px;
+    display:flex;flex-direction:column;gap:5px;box-shadow:inset 0 1px 5px rgba(59,47,34,.3)}
+  .frame.todo .mat{background:repeating-linear-gradient(45deg,#e5d3ae 0 10px,#dfcaa2 10px 20px)}
+  .frame .fnum{font-family:Fredoka;font-weight:700;font-size:12px;color:var(--ink-soft);letter-spacing:1.4px}
+  .frame .fname{font-family:Fredoka;font-weight:600;font-size:16.5px;color:var(--ink);line-height:1.15}
+  .frame .fsub{font-family:Caveat,cursive;font-weight:600;font-size:16px;color:var(--ink-soft)}
+  .frame .thumb{margin-top:auto}
+  .frame.locked{filter:saturate(.35) brightness(.7);cursor:not-allowed}
+  .frame.locked:hover{transform:none}
+  .frame .sealdot{position:absolute;top:-7px;right:-7px;width:34px;height:34px;border-radius:50%;
+    display:grid;place-items:center;font-size:15px;color:#fff7e2;
+    box-shadow:0 3px 8px rgba(0,0,0,.4);border:2px solid rgba(255,247,226,.5)}
+  .sealdot.gold{background:radial-gradient(circle at 32% 30%,#eec36a,#a8731c)}
+  .sealdot.silver{background:radial-gradient(circle at 32% 30%,#d9d4c6,#8e8878)}
+  .sealdot.bronze{background:radial-gradient(circle at 32% 30%,#c98d5f,#7d4d26)}
+  .sealdot.tea{background:radial-gradient(circle at 32% 30%,#b7a37e,#6f5c3a)}
+  .desk{display:flex;align-items:stretch;gap:14px;margin-top:16px;flex-wrap:wrap}
+  .journal{flex:1;min-width:230px;background:var(--paper);border-radius:12px;padding:12px 16px 13px;
+    box-shadow:var(--paper-shadow);transform:rotate(-.5deg);position:relative}
+  .journal::before{content:"";position:absolute;left:14px;right:14px;top:-6px;height:14px;border-radius:3px;
+    background:rgba(201,151,59,.35);transform:rotate(.8deg)}   /* tape */
+  .journal p{margin:0;font-family:Caveat,cursive;font-weight:600;font-size:19.5px;line-height:1.32;color:var(--ink)}
+  .journal p b{font-weight:700;color:#7a4a12}
+  .deskside{display:flex;flex-direction:column;gap:10px;align-items:center}
+  .catperch{position:relative;width:118px;height:96px;border:none;background:transparent;cursor:pointer;padding:0}
+  .catperch svg{width:100%;height:100%;display:block}
+  .catperch .tail{transform-origin:18px 74px;animation:tailsway 3.8s ease-in-out infinite}
+  @keyframes tailsway{0%,100%{transform:rotate(0deg)}45%{transform:rotate(-11deg)}70%{transform:rotate(4deg)}}
+  .catperch .body{transform-origin:60px 90px;animation:catbreathe 4.6s ease-in-out infinite}
+  @keyframes catbreathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.03)}}
+  .catheart{position:absolute;left:52%;top:-4px;font-size:17px;opacity:0;pointer-events:none}
+  .catheart.pop{animation:heartup 1s ease-out forwards}
+  @keyframes heartup{0%{opacity:0;transform:translateY(6px) scale(.6)}25%{opacity:1}
+    100%{opacity:0;transform:translateY(-26px) scale(1.15) rotate(9deg)}}
+  .plantpot{width:64px}
+  #btnBook{font-size:14.5px;padding:9px 14px}
+
+  /* ================= CASE SCREEN ================= */
+  #scr-case{justify-content:flex-start;padding:10px 12px 12px;overflow-y:auto}
+  .casewrap{width:100%;max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:10px;min-height:100%}
+  .casehead{display:flex;align-items:center;gap:10px;color:var(--paper);flex-wrap:wrap}
+  .casehead .back{font-size:14px;padding:8px 13px;background:rgba(243,231,207,.12);color:var(--paper);box-shadow:none}
+  .casehead .back:hover{background:rgba(243,231,207,.2)}
+  .casetitle{font-family:Fredoka;font-weight:600;font-size:clamp(17px,3.4vw,22px);margin-right:auto}
+  .casetitle b{color:var(--brass-hi);font-weight:700}
+  .slips{display:flex;gap:7px;align-items:center;margin-right:4px}
+  .slip{width:26px;height:26px;border-radius:50%;position:relative;flex:none;
+    background:radial-gradient(circle at 32% 30%,#e6cf9d,#c9ae6f);
+    box-shadow:inset 0 -2px 4px rgba(59,47,34,.35), 0 2px 5px rgba(0,0,0,.35);
+    transition:transform .2s,filter .3s}
+  .slip::after{content:"";position:absolute;inset:6px;border-radius:50%;border:2px dashed rgba(59,47,34,.35)}
+  .slip.used{filter:grayscale(.2) brightness(.82)}
+  .slip.used::before{content:"✕";position:absolute;inset:0;display:grid;place-items:center;
+    color:var(--coral);font-weight:900;font-size:16px;font-family:Fredoka}
+  .slip.used::after{border-color:rgba(196,87,74,.5)}
+  .slip.tea{background:radial-gradient(circle at 32% 30%,#cdb98d,#9a8256);filter:none}
+  .slip.pop{animation:slippop .45s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes slippop{0%{transform:scale(1)}40%{transform:scale(1.35) rotate(-8deg)}100%{transform:scale(1)}}
+  #btnHint{font-family:Caveat,cursive;font-weight:700;font-size:17px;padding:7px 14px;
+    background:rgba(243,231,207,.12);color:#e6d3a8;box-shadow:none;border:2px dashed rgba(230,211,168,.4)}
+  #btnHint:hover{background:rgba(243,231,207,.2)}
+  #btnHint.glow{animation:hintglow 1.6s ease-in-out infinite}
+  @keyframes hintglow{0%,100%{box-shadow:0 0 0 rgba(201,151,59,0)}50%{box-shadow:0 0 18px rgba(201,151,59,.75)}}
+
+  .journalstrip{background:var(--paper);border-radius:10px;padding:8px 14px;box-shadow:var(--paper-shadow);
+    font-family:Caveat,cursive;font-weight:600;font-size:clamp(17px,2.9vw,20px);line-height:1.3;color:var(--ink);
+    transform:rotate(-.35deg);position:relative;min-height:40px;display:flex;align-items:center;gap:10px}
+  .journalstrip .gsig{margin-left:auto;color:#7a4a12;font-weight:700;white-space:nowrap;font-size:.92em}
+  .journalstrip.note-in{animation:notein .5s ease}
+  @keyframes notein{0%{transform:rotate(-.35deg) translateY(-8px);opacity:0}100%{transform:rotate(-.35deg) translateY(0);opacity:1}}
+
+  .caselayout{display:grid;grid-template-columns:296px 1fr;gap:12px;align-items:start;flex:1}
+  @media (max-width:840px){
+    body{overflow:auto}
+    .caselayout{grid-template-columns:1fr}
+    .cluecol{order:2}
+  }
+
+  /* ---- clue cards ---- */
+  .cluecol{display:flex;flex-direction:column;gap:9px;max-height:calc(100vh - 190px);overflow-y:auto;
+    padding:4px 6px 12px 2px;scrollbar-width:thin}
+  @media (max-width:840px){.cluecol{max-height:none;overflow:visible}}
+  .collabel{font-family:Fredoka;font-weight:600;font-size:12px;letter-spacing:2px;color:#a08a68;
+    text-transform:uppercase;padding-left:4px}
+  .clue{position:relative;background:var(--paper);border-radius:10px;padding:11px 13px 11px 15px;
+    box-shadow:var(--paper-shadow);font-size:16px;line-height:1.42;color:var(--ink);font-weight:600;
+    transition:opacity .45s ease,filter .45s ease,transform .45s ease;cursor:default}
+  .clue:nth-child(odd){transform:rotate(.5deg)}
+  .clue:nth-child(even){transform:rotate(-.45deg)}
+  .clue::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:4px;border-radius:3px;
+    background:var(--brass);opacity:.5}
+  .clue b{font-weight:800;color:#6d4716}
+  .clue .src{display:block;margin-top:5px;font-family:Caveat,cursive;font-weight:600;font-size:14.5px;
+    color:var(--ink-soft);letter-spacing:.4px}
+  .clue.done{opacity:.42;filter:saturate(.55)}
+  .clue.done::before{background:var(--moss);opacity:.8}
+  .clue .pin{position:absolute;top:-7px;right:8px;width:30px;height:30px;border-radius:50%;border:none;
+    cursor:pointer;display:none;place-items:center;font-size:13px;color:var(--paper);
+    background:radial-gradient(circle at 35% 30%,#9c8a6b,#6d5c40);box-shadow:0 2px 5px rgba(0,0,0,.35);
+    transition:transform .15s,background .2s}
+  .clue.manual .pin{display:grid}
+  .clue .pin:hover{transform:scale(1.12)}
+  .clue.done .pin{background:radial-gradient(circle at 35% 30%,#98ab77,var(--moss))}
+  .clue .check{position:absolute;right:10px;bottom:7px;font-size:15px;color:var(--moss);opacity:0;
+    transform:scale(.4) rotate(-20deg);transition:opacity .35s,transform .35s cubic-bezier(.34,1.56,.64,1)}
+  .clue.done .check{opacity:1;transform:scale(1) rotate(0)}
+  .clue.conflict{animation:clueshake .5s ease}
+  .clue.conflict::before{background:var(--coral);opacity:1}
+  .clue.conflict .alert{opacity:1;transform:scale(1)}
+  .clue .alert{position:absolute;left:-8px;top:-8px;width:26px;height:26px;border-radius:50%;
+    background:var(--coral);color:#fff2ea;font-weight:900;display:grid;place-items:center;
+    font-family:Fredoka;font-size:15px;opacity:0;transform:scale(.4);transition:opacity .3s,transform .3s;
+    box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  @keyframes clueshake{0%,100%{translate:0 0}20%{translate:-5px 0}40%{translate:4px 0}60%{translate:-3px 0}80%{translate:2px 0}}
+  .clue.hintmark{box-shadow:0 0 0 3px var(--brass), var(--paper-shadow)}
+  .clue .photo{display:flex;gap:8px;margin:2px 0 7px;padding:7px;border-radius:6px;
+    background:linear-gradient(160deg,#e2ceaa,#d5bd92);box-shadow:inset 0 1px 4px rgba(59,47,34,.3)}
+  .clue .photo .pframe{width:58px;height:66px;border-radius:4px;overflow:hidden;flex:none;
+    background:#cbb18b;border:3px solid #fdf6e5;box-shadow:0 2px 5px rgba(59,47,34,.3);transform:rotate(-2deg)}
+  .clue .photo .pframe+.pframe{transform:rotate(2.2deg)}
+  .clue .photo svg{width:100%;height:100%;display:block}
+
+  /* ---- gossip / rumour cards ---- */
+  .clue.gossip{background:linear-gradient(165deg,#efe0c0,#e7d3ac);padding-bottom:40px}
+  .clue.gossip::before{background:var(--sepia);opacity:.55}
+  .clue.gossip .ctext{font-style:italic}
+  .clue .rumortag{display:inline-block;font-family:Fredoka;font-weight:600;font-size:10px;letter-spacing:1.6px;
+    text-transform:uppercase;color:#8a6a45;background:rgba(138,106,69,.16);border-radius:5px;padding:2px 7px;margin-bottom:5px}
+  .clue .doubt{position:absolute;right:9px;bottom:8px;border:2px solid rgba(138,106,69,.45);cursor:pointer;
+    background:rgba(255,250,235,.65);color:#6d4716;font-family:Fredoka;font-weight:600;font-size:12.5px;
+    border-radius:9px;padding:4px 10px;box-shadow:none;transition:transform .14s,background .2s,border-color .2s}
+  .clue .doubt:hover{transform:translateY(-1px);border-color:var(--coral)}
+  .clue.doubted{background:linear-gradient(165deg,#e7cfcb,#dcbdb8);opacity:1;filter:none}
+  .clue.doubted::before{background:var(--coral);opacity:.9}
+  .clue.doubted .ctext{text-decoration:line-through;text-decoration-color:rgba(196,87,74,.7);color:#8a4f48}
+  .clue.doubted .doubt{background:var(--coral);color:#fff2ea;border-color:var(--coral);font-weight:700}
+  .clue.doubted .check{display:none}
+  .clue.gossip.done .doubt{opacity:.9}
+
+  /* ---- board ---- */
+  .boardwrap{display:flex;flex-direction:column;gap:10px;min-width:0}
+  .board{position:relative;width:100%;aspect-ratio:1000/730;border-radius:14px;
+    background:
+      radial-gradient(130% 110% at 50% 0%, rgba(255,250,235,.65) 0%, rgba(255,250,235,0) 55%),
+      repeating-linear-gradient(93deg, rgba(59,47,34,.032) 0 3px, rgba(59,47,34,0) 3px 7px),
+      linear-gradient(168deg, var(--paper) 0%, var(--paper2) 100%);
+    box-shadow:inset 0 0 60px rgba(122,90,42,.22), var(--shadow);
+    touch-action:none}
+  .board::after{content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;
+    border:2px solid rgba(59,47,34,.18)}
+  .wires{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .wires path{fill:none;stroke:var(--ink);stroke-width:4.5;stroke-linecap:round;opacity:.28}
+  .wires path.inked{opacity:.9;stroke-width:5.5}
+  .slot{position:absolute;transform:translate(-50%,-50%);width:15.5%;border:none;background:transparent;
+    cursor:pointer;padding:0;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+  .slot .well{position:relative;width:100%;aspect-ratio:76/92;border-radius:46%/40%;
+    border:2.5px dashed rgba(59,47,34,.4);display:grid;place-items:center;
+    background:rgba(59,47,34,.045);transition:border-color .2s,background .2s,box-shadow .2s}
+  .slot .well .qm{font-family:Caveat,cursive;font-weight:700;font-size:clamp(18px,3.2vw,30px);color:rgba(59,47,34,.4)}
+  .slot.filled .well{border-color:transparent;background:transparent}
+  .slot .yeartag{position:absolute;left:50%;bottom:-8%;transform:translateX(-50%) rotate(-2deg);
+    font-family:Fredoka;font-weight:600;font-size:clamp(8px,1.35vw,12.5px);white-space:nowrap;
+    background:linear-gradient(180deg,#e3c98e,#cfa95f);color:#4a3106;border-radius:5px;
+    padding:1.5px 7px;box-shadow:0 2px 4px rgba(59,47,34,.35);pointer-events:none;z-index:3}
+  .slot.hot{transform:translate(-50%,-50%) scale(1.07)}
+  .slot.hot .well{border-color:var(--brass);background:rgba(201,151,59,.14);
+    box-shadow:0 0 0 5px rgba(201,151,59,.22);border-style:solid}
+  .slot.pickable .well{border-color:rgba(201,151,59,.75);animation:wellpulse 1.4s ease-in-out infinite}
+  @keyframes wellpulse{0%,100%{box-shadow:0 0 0 0 rgba(201,151,59,0)}50%{box-shadow:0 0 0 7px rgba(201,151,59,.2)}}
+  .slot.bad{animation:clueshake .5s ease}
+  .slot.bad .pcard .oval{box-shadow:0 0 0 4px var(--coral), var(--paper-shadow)}
+  .slot.lifted{transform:translate(-50%,-50%) translateY(-6px) scale(1.05);z-index:4}
+  .slot.lifted .pcard .oval{box-shadow:0 0 0 3px var(--brass), 0 10px 18px rgba(0,0,0,.3)}
+
+  /* ---- portrait cards ---- */
+  .pcard{width:100%;pointer-events:none;position:relative}
+  .pcard .oval{width:100%;aspect-ratio:76/92;border-radius:46%/40%;overflow:hidden;position:relative;
+    background:#d9c39c;box-shadow:var(--paper-shadow);border:3px solid #fdf6e5}
+  .pcard svg{position:absolute;inset:0;width:100%;height:100%;display:block;
+    filter:sepia(.55) saturate(.62) contrast(.96);transition:filter .8s ease}
+  .pcard.colored svg,.colored .pcard svg{filter:none}
+  .pcard .nm{position:absolute;left:50%;bottom:2%;transform:translateX(-50%);z-index:2;
+    font-family:Fredoka;font-weight:600;font-size:clamp(8.5px,1.5vw,13px);line-height:1;
+    background:linear-gradient(180deg,#5a4426,#3f2f17);color:#eddfbd;padding:2.5px 8px 3px;border-radius:4px;
+    white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.35)}
+  .placed-pop{animation:placepop .38s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes placepop{0%{transform:scale(.82)}55%{transform:scale(1.09)}100%{transform:scale(1)}}
+
+  /* ---- tray ---- */
+  .tray{position:relative;border-radius:12px;padding:10px 12px 12px;min-height:118px;
+    background:linear-gradient(180deg,#4f3d26,#3f2f1a);
+    box-shadow:inset 0 2px 10px rgba(0,0,0,.45), var(--shadow-sm)}
+  .tray .collabel{color:#c9b285}
+  .traycards{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;min-height:86px}
+  .tcard{position:relative;width:76px;border:none;background:transparent;padding:0;cursor:grab;
+    transition:transform .16s cubic-bezier(.34,1.56,.64,1);touch-action:none}
+  .tcard:nth-child(odd){rotate:1deg}
+  .tcard:nth-child(even){rotate:-1.2deg}
+  .tcard:hover{transform:translateY(-4px)}
+  .tcard .pcard{pointer-events:none}
+  .tcard.picked{animation:pickedpulse 1.1s ease-in-out infinite}
+  .tcard.ghosted{opacity:.3}
+  @keyframes pickedpulse{0%,100%{transform:translateY(-4px) scale(1.04)}50%{transform:translateY(-7px) scale(1.09)}}
+  .slot .pickup{cursor:grab}
+  .trayhint{font-family:Caveat,cursive;font-weight:600;font-size:16.5px;color:#cdbb92;margin:4px 2px 0}
+
+  /* ---- stamp ---- */
+  .stampdock{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:-2px}
+  .stampnote{font-family:Caveat,cursive;font-weight:600;font-size:17px;color:#d8c39a;transform:rotate(-1deg)}
+  #btnStamp{position:relative;border:none;cursor:pointer;background:transparent;padding:6px 4px 2px;
+    transition:transform .14s cubic-bezier(.34,1.56,.64,1)}
+  #btnStamp:hover{transform:translateY(-3px)}
+  #btnStamp:active{transform:translateY(4px) scale(.96)}
+  #btnStamp svg{width:92px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+  #btnStamp .stlabel{font-family:Fredoka;font-weight:700;font-size:12px;letter-spacing:2.5px;color:var(--brass-hi);
+    text-align:center;margin-top:3px}
+  #btnStamp.wob{animation:stampwob .4s ease}
+  @keyframes stampwob{0%,100%{rotate:0deg}25%{rotate:-6deg}60%{rotate:5deg}}
+  .stampfx{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:34%;max-width:230px;
+    pointer-events:none;opacity:0;z-index:8}
+  .stampfx.slam{animation:stampslam .62s cubic-bezier(.22,1.2,.36,1) forwards}
+  @keyframes stampslam{0%{opacity:0;transform:translate(-50%,-64%) scale(2.1) rotate(-14deg)}
+    28%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-3deg)}
+    38%{transform:translate(-50%,-50%) scale(1.06) rotate(-3deg)}
+    52%{transform:translate(-50%,-50%) scale(1) rotate(-3deg)}
+    82%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1) rotate(-3deg)}}
+  .inkring{position:absolute;left:50%;top:46%;width:120px;height:120px;border-radius:50%;pointer-events:none;
+    border:4px solid rgba(59,47,34,.5);transform:translate(-50%,-50%) scale(.3);opacity:0;z-index:7}
+  .inkring.go{animation:inkripple .7s ease-out forwards}
+  @keyframes inkripple{0%{opacity:.7;transform:translate(-50%,-50%) scale(.3)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)}}
+  .board.shake{animation:boardshake .28s ease}
+  @keyframes boardshake{0%,100%{translate:0 0}20%{translate:-7px 2px}45%{translate:6px -2px}70%{translate:-4px 1px}88%{translate:2px 0}}
+
+  /* ---- verdict / case complete overlay ---- */
+  .ovl{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:16px;
+    background:rgba(20,13,6,.62);opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .3s,visibility .3s}
+  .ovl.on{opacity:1;pointer-events:auto;visibility:visible}
+  .parch{width:100%;max-width:520px;max-height:88vh;overflow-y:auto;border-radius:18px;position:relative;
+    background:linear-gradient(170deg,var(--paper) 0%,var(--paper2) 100%);
+    box-shadow:var(--shadow);padding:26px 26px 22px;transform:translateY(14px) scale(.97);
+    transition:transform .34s cubic-bezier(.34,1.56,.64,1)}
+  .ovl.on .parch{transform:translateY(0) scale(1)}
+  .parch h2{font-family:Fredoka;font-weight:700;font-size:30px;margin:0 0 4px;color:var(--ink);
+    letter-spacing:.06em}
+  .parch h2.stampin{display:inline-block;animation:stampslam2 .5s cubic-bezier(.22,1.2,.36,1) both}
+  @keyframes stampslam2{0%{opacity:0;transform:scale(2) rotate(-9deg)}100%{opacity:1;transform:scale(1) rotate(-2deg)}}
+  .parch .sealbig{position:absolute;top:18px;right:20px;width:64px;height:64px;border-radius:50%;
+    display:grid;place-items:center;color:#fff7e2;font-size:26px;border:3px solid rgba(255,247,226,.55);
+    box-shadow:0 4px 10px rgba(0,0,0,.35);rotate:8deg}
+  .doneline{opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s;margin:9px 0;
+    font-size:16px;font-weight:700;color:var(--ink)}
+  .doneline.show{opacity:1;transform:none}
+  .doneline .gm{font-family:Caveat,cursive;font-weight:600;font-size:19px;color:var(--ink);line-height:1.3}
+  .doneline .gm i{color:#7a4a12;font-style:normal}
+  .gmphoto{display:flex;gap:6px;align-items:flex-end;background:linear-gradient(160deg,#e2ceaa,#d5bd92);
+    padding:10px;border-radius:8px;box-shadow:inset 0 1px 4px rgba(59,47,34,.3);margin:8px 0 2px}
+  .gmphoto .pframe{width:52px;height:60px;border-radius:4px;overflow:hidden;background:#cbb18b;
+    border:3px solid #fdf6e5;flex:none}
+  .gmphoto .pframe svg{width:100%;height:100%}
+  .gmphoto .pframe.gm{filter:blur(.6px) brightness(.85);transform:rotate(2deg)}
+  .stratrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .strat{border:2px solid rgba(59,47,34,.3);background:rgba(255,250,235,.6);border-radius:11px;cursor:pointer;
+    font-family:Fredoka;font-weight:500;font-size:14px;color:var(--ink);padding:8px 12px;
+    transition:transform .14s,background .2s,border-color .2s;box-shadow:none}
+  .strat:hover{transform:translateY(-2px);border-color:var(--brass)}
+  .strat.sel{background:var(--brass);border-color:var(--brass);color:#3a2604;font-weight:600}
+  .ovlbtns{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+  .ovlbtns .btn{font-size:17px;padding:12px 26px}
+  .ovlbtns .quiet{background:transparent;box-shadow:none;border:2px solid rgba(59,47,34,.3);font-size:14.5px}
+
+  /* ---- casebook ---- */
+  .bookrow{margin:13px 0}
+  .bookrow .blab{font-family:Caveat,cursive;font-weight:700;font-size:19px;color:var(--ink);margin-bottom:4px}
+  .bar{height:14px;border-radius:8px;background:rgba(59,47,34,.14);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--brass-hi),var(--brass));
+    width:0;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+  .bookfoot{font-family:Caveat,cursive;font-weight:600;font-size:17px;color:var(--ink-soft);margin-top:14px}
+  .stratlist{margin:4px 0 0;padding:0;list-style:none;font-size:14.5px;font-weight:700;color:var(--ink)}
+  .stratlist li{margin:3px 0}
+  .stratlist b{color:#6d4716}
+
+  /* ---- confetti / fx ---- */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
+  .bit{position:absolute;width:9px;height:13px;border-radius:2px;opacity:0;animation:bitfall var(--t,1.3s) ease-in forwards}
+  @keyframes bitfall{0%{opacity:1;transform:translate(0,0) rotate(0)}
+    100%{opacity:0;transform:translate(var(--dx,0px),var(--dy,140px)) rotate(var(--rot,220deg))}}
+  #dragGhost{position:fixed;z-index:100;pointer-events:none;width:86px;display:none;
+    filter:drop-shadow(0 14px 16px rgba(0,0,0,.4));transform-origin:50% 40%}
+  #dragGhost.live{display:block}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001s !important;transition-duration:.06s !important}
+  }
+</style>
+</head>
+<body>
+<div id="cornerui">
+  <button class="icon-btn" id="btnMusic" aria-label="toggle music" title="music &amp; rain">🎵</button>
+  <button class="icon-btn" id="btnMute" aria-label="toggle sound effects" title="sound effects">🔊</button>
+</div>
+
+<!-- ================= TITLE ================= -->
+<div class="screen on" id="scr-title">
+  <svg class="titleart" viewBox="0 0 200 168" aria-hidden="true">
+    <g stroke="#f3e7cf" stroke-width="4" fill="none" stroke-linecap="round" opacity=".9">
+      <path d="M62 38 Q64 37 100 38 Q138 37 138 39"/>
+      <path d="M100 39 Q101 52 100 60"/>
+      <path d="M56 78 Q57 68 62 44"/>
+      <path d="M138 42 Q142 62 141 74"/>
+    </g>
+    <g>
+      <ellipse cx="60" cy="30" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="3"/>
+      <ellipse cx="140" cy="30" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="3"/>
+      <circle cx="55" cy="27" r="2.4" fill="#3b2f22"/><circle cx="65" cy="27" r="2.4" fill="#3b2f22"/>
+      <path d="M55 34 Q60 37 65 34" stroke="#3b2f22" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle cx="135" cy="27" r="2.4" fill="#3b2f22"/><circle cx="145" cy="27" r="2.4" fill="#3b2f22"/>
+      <path d="M135 34 Q140 37 145 34" stroke="#3b2f22" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <ellipse cx="56" cy="88" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="3" opacity=".55"/>
+      <text x="56" y="95" text-anchor="middle" font-family="Caveat,cursive" font-size="26" font-weight="700" fill="#3b2f22" opacity=".7">?</text>
+    </g>
+    <g class="lens">
+      <circle cx="118" cy="118" r="34" fill="rgba(243,231,207,.14)" stroke="#c9973b" stroke-width="7"/>
+      <circle cx="118" cy="118" r="34" fill="none" stroke="#8a6a45" stroke-width="2" opacity=".6"/>
+      <rect x="139" y="139" width="34" height="13" rx="6.5" transform="rotate(45 139 139)" fill="#6d5433" stroke="#3b2f22" stroke-width="2.5"/>
+      <ellipse cx="141" cy="112" rx="17" ry="19" fill="#e9d8b6" stroke="#3b2f22" stroke-width="3"/>
+      <circle cx="136" cy="109" r="2.6" fill="#3b2f22"/><circle cx="147" cy="109" r="2.6" fill="#3b2f22"/>
+      <path d="M135 117 Q141 121 147 117" stroke="#3b2f22" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <div class="wordmark">Family Tree<br><em>Detective</em></div>
+  <div class="tagline">every family keeps a secret in the drawer</div>
+  <button class="btn primary big" id="btnPlay">Open the office</button>
+  <div class="titlebest" id="titleBest"></div>
+</div>
+
+<!-- ================= OFFICE ================= -->
+<div class="screen" id="scr-office">
+  <div class="wrap">
+    <div class="officehead">
+      <h1>Greta's <em>Records Office</em></h1>
+      <div class="sealcount" id="sealCount"></div>
+    </div>
+    <div class="wall">
+      <div class="wallrail"></div>
+      <div class="framegrid" id="frameGrid"></div>
+    </div>
+    <div class="desk">
+      <div class="journal"><p id="officeNote"></p></div>
+      <div class="deskside">
+        <button class="catperch" id="btnCat" aria-label="Biscuit, the office cat">
+          <span class="catheart" id="catHeart">♥</span>
+          <svg viewBox="0 0 120 96" aria-hidden="true">
+            <path class="tail" d="M20 74 Q4 66 10 48 Q13 40 20 42" fill="none" stroke="#241808" stroke-width="9" stroke-linecap="round"/>
+            <g class="body">
+              <ellipse cx="62" cy="70" rx="34" ry="24" fill="#241808"/>
+              <circle cx="84" cy="42" r="19" fill="#241808"/>
+              <path d="M70 30 L74 12 L84 26 Z" fill="#241808"/>
+              <path d="M88 25 L98 10 L100 28 Z" fill="#241808"/>
+              <circle cx="79" cy="40" r="2.6" fill="#e8bd6d"/><circle cx="91" cy="40" r="2.6" fill="#e8bd6d"/>
+              <path d="M78 49 Q84 53 90 49" stroke="#e8bd6d" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M40 88 Q62 92 86 88" stroke="#170f05" stroke-width="4" fill="none" stroke-linecap="round"/>
+            </g>
+          </svg>
+        </button>
+        <button class="btn" id="btnBook">Casebook</button>
+      </div>
+      <div class="deskside" id="plantSpot" hidden>
+        <svg class="plantpot" viewBox="0 0 64 84" aria-hidden="true">
+          <path d="M14 52 L50 52 L45 80 L19 80 Z" fill="#a8642f"/>
+          <g stroke="#7d8b5e" stroke-width="5" fill="none" stroke-linecap="round">
+            <path d="M32 52 Q32 30 32 22"/><path d="M32 40 Q20 32 16 20"/><path d="M32 42 Q44 34 50 24"/>
+          </g>
+          <circle cx="32" cy="18" r="6" fill="#7d8b5e"/><circle cx="15" cy="17" r="5" fill="#7d8b5e"/><circle cx="51" cy="21" r="5" fill="#7d8b5e"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CASE ================= -->
+<div class="screen" id="scr-case">
+  <div class="casewrap">
+    <div class="casehead">
+      <button class="btn back" id="btnBack">‹ Office</button>
+      <div class="casetitle" id="caseTitle"></div>
+      <div class="slips" id="slips" title="wax slips — each stamping uses one"></div>
+      <button class="btn" id="btnHint">Ask Greta…</button>
+    </div>
+    <div class="journalstrip" id="journal"><span id="journalTxt"></span><span class="gsig">— G.</span></div>
+    <div class="caselayout">
+      <div class="cluecol" id="clueCol"></div>
+      <div class="boardwrap">
+        <div class="board" id="board">
+          <svg class="wires" id="wires" viewBox="0 0 1000 730" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="stampfx" id="stampFx">
+            <svg viewBox="0 0 200 200" aria-hidden="true">
+              <circle cx="100" cy="100" r="92" fill="none" stroke="#3b2f22" stroke-width="7" opacity=".85"/>
+              <circle cx="100" cy="100" r="76" fill="none" stroke="#3b2f22" stroke-width="3" opacity=".7"/>
+              <path d="M100 132 L100 84 M100 96 Q80 92 72 74 M100 96 Q120 92 128 74 M100 76 Q100 64 100 58" stroke="#3b2f22" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85"/>
+              <circle cx="72" cy="68" r="9" fill="#3b2f22" opacity=".8"/><circle cx="128" cy="68" r="9" fill="#3b2f22" opacity=".8"/><circle cx="100" cy="52" r="9" fill="#3b2f22" opacity=".8"/>
+              <text x="100" y="163" text-anchor="middle" font-family="Fredoka" font-weight="700" font-size="20" fill="#3b2f22" letter-spacing="4" opacity=".85">RECORDS</text>
+            </svg>
+          </div>
+          <div class="inkring" id="inkRing"></div>
+        </div>
+        <div class="tray" id="tray">
+          <div class="collabel">Portraits</div>
+          <div class="traycards" id="trayCards"></div>
+          <div class="trayhint" id="trayHint"></div>
+        </div>
+        <div class="stampdock">
+          <div class="stampnote" id="stampNote">draft freely — the stamp is the promise</div>
+          <button id="btnStamp" aria-label="stamp the tree">
+            <svg viewBox="0 0 92 100" aria-hidden="true">
+              <ellipse cx="46" cy="16" rx="17" ry="13" fill="#6d5433" stroke="#241808" stroke-width="3"/>
+              <rect x="38" y="24" width="16" height="26" rx="6" fill="#8a6a45" stroke="#241808" stroke-width="3"/>
+              <path d="M20 62 Q20 48 46 48 Q72 48 72 62 L74 78 L18 78 Z" fill="#c9973b" stroke="#241808" stroke-width="3"/>
+              <rect x="14" y="78" width="64" height="12" rx="4" fill="#e8bd6d" stroke="#241808" stroke-width="3"/>
+            </svg>
+            <div class="stlabel">STAMP</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OVERLAYS ================= -->
+<div class="ovl" id="ovl-done">
+  <div class="parch">
+    <h2 id="doneHead" class="stampin">CASE CLOSED</h2>
+    <div class="sealbig" id="doneSeal">★</div>
+    <div id="doneLines"></div>
+    <div class="ovlbtns">
+      <button class="btn primary" id="btnNext">Next case</button>
+      <button class="btn quiet" id="btnAgain">Play it again</button>
+      <button class="btn quiet" id="btnToOffice">Office</button>
+    </div>
+  </div>
+</div>
+
+<div class="ovl" id="ovl-book">
+  <div class="parch">
+    <h2 style="font-size:26px">The Casebook</h2>
+    <div class="bookfoot" style="margin-top:2px">What the stamps remember. Habits, not grades — even Greta rushed sometimes.</div>
+    <div id="bookBars"></div>
+    <ul class="stratlist" id="bookStrats"></ul>
+    <div class="bookfoot" id="bookFoot"></div>
+    <div class="ovlbtns">
+      <button class="btn primary" id="btnBookClose">Back to the office</button>
+      <button class="btn quiet" id="btnReset">Start everything over</button>
+    </div>
+  </div>
+</div>
+
+<div id="fx"></div>
+<div id="dragGhost"></div>
+
+<script>
+'use strict';
+/* ============================ palette / art constants ============================ */
+const PAL = {
+  paper:'#f3e7cf', ink:'#3b2f22', inkSoft:'#7c6b52', brass:'#c9973b', brassHi:'#e8bd6d',
+  coral:'#c4574a', moss:'#7d8b5e',
+  skin:['#e8c39e','#dcae82','#d9a97c'],
+  hairDark:'#4a3320', hairMid:'#8a6a45', hairGrey:'#d9d0bd',
+  cloth:{moss:'#7d8b5e', dusk:'#5c7186', plum:'#8a6a8f', rust:'#b07145', brass:'#c9973b', wine:'#9c5f63'}
+};
+
+/* ============================ ENGINE (pure, no DOM) ============================
+   caseDef -> topology; draft = {slotId: personId|null}
+   clue predicate -> 'sat' | 'bad' | 'inc'
+   Console-testable: FTD.Engine, FTD.verify()                                     */
+const Engine = (() => {
+
+  function topo(c){
+    const slotById={}, coupleOf={}, parentsOf={}, sibsOf={};
+    c.slots.forEach(s=>{ slotById[s.id]=s; });
+    c.couples.forEach((pair,i)=>{ pair.forEach(s=>{ coupleOf[s]={i,pair}; }); });
+    Object.entries(c.children).forEach(([ci,kids])=>{
+      const pair=c.couples[+ci];
+      kids.forEach(k=>{ parentsOf[k]=pair; sibsOf[k]=kids.filter(x=>x!==k); });
+    });
+    return {slotById,coupleOf,parentsOf,sibsOf};
+  }
+
+  const parentsOfSlot=(T,s)=>T.parentsOf[s]||[];
+  const sibsOfSlot=(T,s)=>T.sibsOf[s]||[];
+  const grandsOfSlot=(T,s)=>parentsOfSlot(T,s).flatMap(p=>parentsOfSlot(T,p));
+  const greatGrandsOfSlot=(T,s)=>grandsOfSlot(T,s).flatMap(g=>parentsOfSlot(T,g));
+
+  function evalPred(c,T,pos,p){
+    const sa=pos[p.a], sb=p.b?pos[p.b]:undefined;
+    switch(p.k){
+      case 'parent':
+        if(!sa||!sb) return 'inc';
+        return parentsOfSlot(T,sb).includes(sa)?'sat':'bad';
+      case 'spouse':
+        if(!sa||!sb) return 'inc';
+        return (T.coupleOf[sa]&&T.coupleOf[sa].pair.includes(sb))?'sat':'bad';
+      case 'sibling':
+        if(!sa||!sb) return 'inc';
+        return sibsOfSlot(T,sa).includes(sb)?'sat':'bad';
+      case 'grand':
+        if(!sa||!sb) return 'inc';
+        return grandsOfSlot(T,sb).includes(sa)?'sat':'bad';
+      case 'greatgrand':                    /* a is a parent of a grandparent of b */
+        if(!sa||!sb) return 'inc';
+        return greatGrandsOfSlot(T,sb).includes(sa)?'sat':'bad';
+      case 'uncleaunt':                     /* a is sibling of a parent of b (blood) */
+        if(!sa||!sb) return 'inc';
+        return parentsOfSlot(T,sb).some(par=>sibsOfSlot(T,par).includes(sa))?'sat':'bad';
+      case 'eldest':                        /* a sits in the founding (gen 0) row */
+        if(!sa) return 'inc';
+        return T.slotById[sa].gen===0?'sat':'bad';
+      case 'marriedIn':                     /* a has a spouse, no parents drawn, below gen 0 */
+        if(!sa) return 'inc';
+        return (T.coupleOf[sa]&&!T.parentsOf[sa]&&T.slotById[sa].gen>0)?'sat':'bad';
+      case 'wed':                           /* a is in a couple (married to someone) */
+        if(!sa) return 'inc';
+        return T.coupleOf[sa]?'sat':'bad';
+      case 'single':                        /* a is placed and in no couple */
+        if(!sa) return 'inc';
+        return T.coupleOf[sa]?'bad':'sat';
+      case 'leftOf':                        /* a sits to the left of b (same row reading) */
+        if(!sa||!sb) return 'inc';
+        return T.slotById[sa].x < T.slotById[sb].x ? 'sat':'bad';
+      case 'older': {                       /* a born before b — needs ledger years */
+        if(!sa||!sb) return 'inc';
+        const ya=T.slotById[sa].year, yb=T.slotById[sb].year;
+        if(ya==null||yb==null) return 'bad';
+        return ya<yb?'sat':'bad';
+      }
+      case 'oldestSib': {                   /* a's slot has the earliest year of its row */
+        if(!sa) return 'inc';
+        const y=T.slotById[sa].year;
+        if(y==null) return 'bad';
+        const sibs=sibsOfSlot(T,sa);
+        if(!sibs.length) return 'bad';
+        return sibs.every(s=>T.slotById[s].year==null||T.slotById[s].year>y)?'sat':'bad';
+      }
+      case 'not': {
+        const r=evalPred(c,T,pos,p.p);
+        return r==='sat'?'bad':(r==='bad'?'sat':'inc');
+      }
+    }
+    return 'inc';
+  }
+
+  function positions(c,draft){
+    const pos={};
+    for(const [slot,person] of Object.entries(draft)) if(person) pos[person]=slot;
+    return pos;
+  }
+
+  function evaluate(c,T,draft,skip){
+    const pos=positions(c,draft);
+    const byClue={};
+    let allSat=true;
+    for(const clue of c.clues){
+      if(skip && clue.id===skip){ byClue[clue.id]='skip'; continue; }   // ignore a doubted rumour
+      const rs=clue.preds.map(p=>evalPred(c,T,pos,p));
+      const st=rs.includes('bad')?'bad':(rs.includes('inc')?'inc':'sat');
+      byClue[clue.id]=st;
+      if(st!=='sat') allSat=false;
+    }
+    const complete=c.slots.every(s=>draft[s.id]);
+    return {byClue,allSat,complete,solved:complete&&allSat};
+  }
+
+  /* gossip cases: solved when the tree is complete, exactly the DOUBTED card is set
+     aside, that card is a rumour, and every other clue holds. Because a true liar can
+     never hold alongside the reliable clues, this forces doubted === the real liar. */
+  function gossipSolved(c,T,draft,doubted){
+    if(!doubted) return false;
+    const clue=c.clues.find(cl=>cl.id===doubted);
+    if(!clue||!clue.gossip) return false;
+    const ev=evaluate(c,T,draft,doubted);
+    return ev.complete && ev.allSat;
+  }
+  const isGossipCase=c=>c.clues.some(cl=>cl.gossip);
+
+  function peopleIn(pred,out){
+    if(pred.k==='not') return peopleIn(pred.p,out);
+    if(pred.a) out.add(pred.a);
+    if(pred.b) out.add(pred.b);
+    return out;
+  }
+  const cluePeople=clue=>{const s=new Set();clue.preds.forEach(p=>peopleIn(p,s));return [...s];};
+
+  /* brute-force every injective people->slots assignment; counts satisfying trees.
+     skip = a clue id to ignore (used to solve gossip cases past the false rumour). */
+  function enumerate(c,skip){
+    const T=topo(c), slots=c.slots.map(s=>s.id), ids=c.people.map(p=>p.id);
+    let count=0; const samples=[];
+    const draft={};
+    function rec(i,used){
+      if(i===slots.length){
+        const ev=evaluate(c,T,draft,skip);
+        if(ev.solved){ count++; if(samples.length<4) samples.push({...draft}); }
+        return;
+      }
+      for(const pid of ids){
+        if(used.has(pid)) continue;
+        used.add(pid); draft[slots[i]]=pid;
+        rec(i+1,used);
+        used.delete(pid); draft[slots[i]]=null;
+      }
+    }
+    rec(0,new Set());
+    return {count,samples};
+  }
+
+  /* is the current (complete, wrong) draft one swap away from a correct tree? */
+  function nearMiss(c,T,draft){
+    const slots=c.slots.map(s=>s.id);
+    const placed=new Set(Object.values(draft).filter(Boolean));
+    const tray=c.people.map(p=>p.id).filter(id=>!placed.has(id));
+    for(let i=0;i<slots.length;i++){
+      for(let j=i+1;j<slots.length;j++){
+        const d={...draft}, t=d[slots[i]]; d[slots[i]]=d[slots[j]]; d[slots[j]]=t;
+        if(evaluate(c,T,d).solved) return true;
+      }
+      for(const tp of tray){
+        const d={...draft}; d[slots[i]]=tp;
+        if(evaluate(c,T,d).solved) return true;
+      }
+    }
+    return false;
+  }
+
+  /* input = rushed past visible unaccounted cards; elab = all marked yet wrong;
+     output = near-miss (right tree, slipped hand). See design note up top.     */
+  function classify(c,T,draft,ev,manual,marks){
+    if(ev.complete&&nearMiss(c,T,draft)) return 'output';
+    if(manual){
+      const unmarked=c.clues.some(cl=>!marks[cl.id]);
+      return unmarked?'input':'elab';
+    }
+    return 'input';
+  }
+
+  function hintClue(c,ev){
+    const bad=c.clues.find(cl=>ev.byClue[cl.id]==='bad');
+    if(bad) return {clue:bad,why:'bad'};
+    const inc=c.clues.find(cl=>ev.byClue[cl.id]==='inc');
+    if(inc) return {clue:inc,why:'inc'};
+    return null;
+  }
+
+  return {topo,evaluate,enumerate,nearMiss,classify,hintClue,cluePeople,positions,gossipSolved,isGossipCase};
+})();
+/* ============================ PORTRAIT ART (parametric sepia busts) ============================ */
+const Art = (() => {
+  const SKIN={a:'#e9c6a0',b:'#dcae82',c:'#caa074',d:'#b98a5f',e:'#a9754d'};
+  const HAIR={dark:'#3f2c17',brown:'#6b4a28',auburn:'#8a4a2c',grey:'#c9c0ad',white:'#e4ddca',
+              gold:'#b98a3e',black:'#2a2016'};
+  const CLOTH={moss:'#6f7d4f',dusk:'#546a80',plum:'#7d5c82',rust:'#a5613a',brass:'#b98a3e',
+               wine:'#8a4f56',teal:'#3f7d78',cream:'#c9b48a',slate:'#5b6470',rose:'#b07a76'};
+  // one portrait: oval bust, hair styles, optional glasses/hat/locket/cat
+  function portrait(p){
+    const sk=SKIN[p.sk]||SKIN.b, hr=HAIR[p.hr]||HAIR.brown, cl=CLOTH[p.cl]||CLOTH.moss;
+    const parts=[];
+    parts.push(`<rect width="76" height="92" fill="#d9c39c"/>`);
+    parts.push(`<rect width="76" height="92" fill="url(#vig${p._i})"/>`);
+    // shoulders / clothing
+    parts.push(`<path d="M6 92 Q10 66 38 62 Q66 66 70 92 Z" fill="${cl}"/>`);
+    parts.push(`<path d="M30 64 Q38 74 46 64 L46 58 L30 58 Z" fill="${sk}"/>`); // neck
+    if(p.collar==='v') parts.push(`<path d="M30 64 L38 78 L46 64" fill="none" stroke="#00000022" stroke-width="2"/>`);
+    if(p.collar==='round') parts.push(`<path d="M27 66 Q38 60 49 66" fill="none" stroke="#ffffff44" stroke-width="3"/>`);
+    // head
+    parts.push(`<ellipse cx="38" cy="40" rx="21" ry="24" fill="${sk}"/>`);
+    parts.push(`<path d="M20 44 Q17 40 20 36" stroke="#0000001a" stroke-width="2" fill="none"/>`);
+    // ears
+    parts.push(`<circle cx="18" cy="42" r="4" fill="${sk}"/><circle cx="58" cy="42" r="4" fill="${sk}"/>`);
+    // hair styles
+    const H=p.style;
+    if(H==='bald'){ parts.push(`<path d="M20 30 Q38 18 56 30 Q52 24 38 22 Q24 24 20 30" fill="${hr}"/>`);
+      parts.push(`<circle cx="26" cy="30" r="2" fill="${hr}"/>`);}
+    else if(H==='bun'){ parts.push(`<path d="M17 42 Q14 12 38 12 Q62 12 59 42 Q56 22 38 22 Q20 22 17 42" fill="${hr}"/>`);
+      parts.push(`<circle cx="38" cy="12" r="8" fill="${hr}"/>`);}
+    else if(H==='long'){ parts.push(`<path d="M15 60 Q12 20 38 14 Q64 20 61 60 Q58 34 52 30 Q56 22 38 20 Q20 22 24 30 Q18 34 15 60" fill="${hr}"/>`);}
+    else if(H==='side'){ parts.push(`<path d="M17 40 Q16 16 38 14 Q60 16 59 40 Q54 24 38 22 Q30 22 26 26 Q22 30 21 40" fill="${hr}"/>`);
+      parts.push(`<path d="M17 40 Q20 26 30 24 L26 40 Z" fill="${hr}"/>`);}
+    else if(H==='curl'){ parts.push(`<path d="M18 40 Q16 16 38 14 Q60 16 58 40" fill="${hr}"/>`);
+      ['20,20','30,13','46,13','56,20','16,30','60,30'].forEach(c=>parts.push(`<circle cx="${c.split(',')[0]}" cy="${c.split(',')[1]}" r="7" fill="${hr}"/>`));}
+    else { /* short */ parts.push(`<path d="M18 40 Q16 16 38 15 Q60 16 58 40 Q54 26 38 24 Q22 26 18 40" fill="${hr}"/>`);}
+    if(p.hat==='cap') parts.push(`<path d="M14 26 Q38 8 62 26 L62 30 Q38 20 14 30 Z" fill="${CLOTH[p.hatc]||'#5b6470'}"/><path d="M56 27 L70 30 L56 32 Z" fill="${CLOTH[p.hatc]||'#5b6470'}"/>`);
+    if(p.hat==='bonnet') parts.push(`<path d="M14 40 Q10 12 38 10 Q66 12 62 40 Q60 20 38 18 Q16 20 14 40 Z" fill="${CLOTH[p.hatc]||'#b07a76'}"/><ellipse cx="38" cy="12" rx="6" ry="4" fill="#ffffff55"/>`);
+    // brows + eyes
+    parts.push(`<path d="M27 36 Q31 34 35 36" stroke="${hr}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`);
+    parts.push(`<path d="M41 36 Q45 34 49 36" stroke="${hr}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`);
+    parts.push(`<circle cx="31" cy="41" r="2.4" fill="#3b2f22"/><circle cx="45" cy="41" r="2.4" fill="#3b2f22"/>`);
+    // nose + mouth
+    parts.push(`<path d="M38 42 L36 48 Q38 50 40 48" stroke="#00000033" stroke-width="1.6" fill="none" stroke-linecap="round"/>`);
+    if(p.smile==='soft') parts.push(`<path d="M32 53 Q38 57 44 53" stroke="#7a4a3a" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+    else if(p.smile==='grin') parts.push(`<path d="M31 52 Q38 60 45 52 Q38 55 31 52" fill="#7a4a3a"/>`);
+    else parts.push(`<path d="M33 54 Q38 56 43 54" stroke="#7a4a3a" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+    if(p.facial==='mustache') parts.push(`<path d="M31 50 Q38 47 45 50 Q38 52 31 50" fill="${hr}"/>`);
+    if(p.facial==='beard') parts.push(`<path d="M24 46 Q26 66 38 66 Q50 66 52 46 Q46 58 38 58 Q30 58 24 46" fill="${hr}"/>`);
+    if(p.glasses) parts.push(`<g stroke="#4a3a24" stroke-width="1.6" fill="none"><circle cx="31" cy="41" r="6"/><circle cx="45" cy="41" r="6"/><path d="M37 41 h2"/><path d="M25 40 l-6 -2"/><path d="M51 40 l6 -2"/></g>`);
+    if(p.locket) parts.push(`<circle cx="38" cy="72" r="4" fill="#c9973b" stroke="#8a6a2a" stroke-width="1"/><path d="M34 66 Q38 62 42 66" stroke="#c9973b" stroke-width="1.4" fill="none"/>`);
+    if(p.cat) parts.push(`<g transform="translate(50,70)"><ellipse cx="0" cy="6" rx="10" ry="7" fill="#3a2b1a"/><circle cx="7" cy="0" r="6" fill="#3a2b1a"/><path d="M3 -4 l1 -5 l4 4 Z M9 -4 l3 -5 l1 5 Z" fill="#3a2b1a"/><circle cx="5" cy="0" r="1.1" fill="#e8bd6d"/><circle cx="9" cy="0" r="1.1" fill="#e8bd6d"/></g>`);
+    return `<svg viewBox="0 0 76 92" preserveAspectRatio="xMidYMid slice" aria-hidden="true">`+
+      `<defs><radialGradient id="vig${p._i}" cx="42%" cy="34%" r="72%">`+
+      `<stop offset="55%" stop-color="#00000000"/><stop offset="100%" stop-color="#2a1c0e55"/></radialGradient></defs>`+
+      parts.join('')+`</svg>`;
+  }
+  return {portrait,SKIN,HAIR,CLOTH};
+})();
+
+/* ============================ CASES (content as data) ============================
+   slots: {id,gen,x,y,year?}  couples: [[id,id]...]  children:{coupleIdx:[ids]}
+   clue.preds use engine predicate kinds. src = the in-world document it came from. */
+const CASES = [
+  /* ---------- CASE 1 — The Oakleys ---------- */
+  {
+    id:'oakley', name:'The Oakleys', sub:'a first afternoon', slips:3, autodim:true,
+    journal:"Start easy, dear. Three names, one little family. Read a card, drop a face where it belongs — the card fades when the board agrees with it.",
+    close:"Elm and Fern Oakley, and their boys. Simplest tree in the drawer — you'll do.",
+    slots:[
+      {id:'A',gen:0,x:355,y:150},{id:'B',gen:0,x:645,y:150},
+      {id:'C',gen:1,x:360,y:410},{id:'D',gen:1,x:640,y:410}
+    ],
+    couples:[['A','B']], children:{0:['C','D']},
+    people:[
+      {id:'Elm',  name:'Elm',   art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Fern', name:'Fern',  art:{sk:'b',hr:'auburn',style:'bun',cl:'moss',smile:'soft',collar:'round',locket:1}},
+      {id:'Oak',  name:'Oak',   art:{sk:'c',hr:'brown',style:'short',cl:'dusk',smile:'grin',cat:1}},
+      {id:'Rowan',name:'Rowan', art:{sk:'b',hr:'dark',style:'side',cl:'teal',smile:'soft'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Elm</b> is the father of both boys, Oak and Rowan.",src:"a christening letter",preds:[{k:'parent',a:'Elm',b:'Oak'},{k:'parent',a:'Elm',b:'Rowan'}]},
+      {id:'c2',text:"<b>Fern</b> is Elm's wife.",src:"the marriage ledger",preds:[{k:'spouse',a:'Fern',b:'Elm'}]},
+      {id:'c3',text:"<b>Oak</b> and <b>Rowan</b> are brothers — the only children.",src:"Greta's note",preds:[{k:'sibling',a:'Oak',b:'Rowan'}]}
+    ]
+  },
+  /* ---------- CASE 2 — The Willowbys ---------- */
+  {
+    id:'willowby', name:'The Willowbys', sub:'three generations', slips:3, autodim:true,
+    journal:"Now a taller tree — grandparents up top, a grandchild at the foot. 'Married in' means they arrived from somewhere else: no parents of theirs on this board.",
+    close:"Old Silas and Mabel, their Rose, and little Ivy. A whole line, top to bottom.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'C',gen:1,x:390,y:395},{id:'D',gen:1,x:645,y:395},
+      {id:'E',gen:2,x:500,y:620}
+    ],
+    couples:[['A','B'],['C','D']], children:{0:['C'],1:['E']},
+    people:[
+      {id:'Silas',art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Mabel',art:{sk:'c',hr:'white',style:'bun',cl:'plum',smile:'soft',locket:1}},
+      {id:'Rose', art:{sk:'c',hr:'auburn',style:'long',cl:'rose',smile:'soft',collar:'round'}},
+      {id:'Wren', art:{sk:'e',hr:'black',style:'short',cl:'brass',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Ivy',  art:{sk:'b',hr:'brown',style:'side',cl:'teal',smile:'grin'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Silas</b> and <b>Mabel</b> are Rose's parents.",src:"the family bible",preds:[{k:'parent',a:'Silas',b:'Rose'},{k:'parent',a:'Mabel',b:'Rose'},{k:'spouse',a:'Silas',b:'Mabel'}]},
+      {id:'c2',text:"<b>Rose</b> married <b>Wren</b>, a newcomer to Bramblewick.",src:"a wedding announcement",preds:[{k:'spouse',a:'Wren',b:'Rose'},{k:'marriedIn',a:'Wren'}]},
+      {id:'c3',text:"<b>Ivy</b> is Mabel's granddaughter.",src:"a birthday card",preds:[{k:'grand',a:'Mabel',b:'Ivy'}]},
+      {id:'c4',text:"Ivy is <b>Rose</b> and <b>Wren</b>'s only child.",src:"the town register",preds:[{k:'parent',a:'Rose',b:'Ivy'},{k:'parent',a:'Wren',b:'Ivy'}]}
+    ]
+  },
+  /* ---------- CASE 3 — The Thornes (wide siblings + negatives) ---------- */
+  {
+    id:'thorne', name:'The Thornes', sub:'a wide branch', slips:3, autodim:true,
+    journal:"Three siblings across one row this time. Watch the little words — 'only', 'never', 'not'. A 'no' can settle a face as surely as a 'yes'.",
+    close:"The three Thorne children in a row — and only Bryony ever left to marry. Tidy work.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'C',gen:1,x:200,y:410},{id:'D',gen:1,x:430,y:410},{id:'E',gen:1,x:660,y:410},
+      {id:'F',gen:1,x:860,y:410}
+    ],
+    couples:[['A','B'],['E','F']], children:{0:['C','D','E']},
+    people:[
+      {id:'Osric',   art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat'}},
+      {id:'Della',   art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',glasses:1}},
+      {id:'Marigold',art:{sk:'b',hr:'gold',style:'long',cl:'brass',smile:'grin',locket:1}},
+      {id:'Reed',    art:{sk:'c',hr:'auburn',style:'short',cl:'moss',smile:'soft',collar:'v'}},
+      {id:'Bryony',  art:{sk:'c',hr:'brown',style:'side',cl:'rose',smile:'soft',collar:'round'}},
+      {id:'Cormac',  art:{sk:'e',hr:'black',style:'curl',cl:'teal',facial:'mustache',smile:'soft'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Osric</b> and <b>Della</b> raised three: Marigold, Reed, and Bryony.",src:"the parish roll",preds:[{k:'spouse',a:'Osric',b:'Della'},{k:'eldest',a:'Osric'},{k:'eldest',a:'Della'},{k:'parent',a:'Osric',b:'Marigold'},{k:'parent',a:'Osric',b:'Reed'},{k:'parent',a:'Osric',b:'Bryony'}]},
+      {id:'c2',text:"Only <b>Bryony</b> married — to <b>Cormac</b>, who came from the coast.",src:"a seaside postcard",preds:[{k:'spouse',a:'Cormac',b:'Bryony'},{k:'marriedIn',a:'Cormac'}]},
+      {id:'c3',text:"<b>Marigold</b> and <b>Reed</b> never wed — neither one.",src:"Greta's margin note",preds:[{k:'single',a:'Marigold'},{k:'single',a:'Reed'}]},
+      {id:'c4',text:"In the hedge photograph, <b>Marigold</b> stands to the left of <b>Reed</b>.",src:"a harvest photo — a stranger lingers at the hedge",preds:[{k:'leftOf',a:'Marigold',b:'Reed'}],
+        photo:['Marigold','Reed']}
+    ]
+  },
+  /* ---------- CASE 4 — The Hollows (THE UNCLE) ---------- */
+  {
+    id:'hollow', name:'The Hollows', sub:'mind the uncle', slips:3, autodim:true,
+    journal:"Here's the one that catches people. An 'uncle' isn't a rank — it's a brother of somebody's parent. Birch is young; don't seat him with the grandparents just because 'uncle' sounds grey.",
+    close:"Birch Hollow — Pip's uncle, and the baby of the grown-ups, not an elder at all. You saw through it.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'D',gen:1,x:150,y:400},{id:'C',gen:1,x:435,y:400},{id:'E',gen:1,x:665,y:400},
+      {id:'F',gen:2,x:550,y:620}
+    ],
+    couples:[['A','B'],['C','E']], children:{0:['C','D'],1:['F']},
+    people:[
+      {id:'Cedar', art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Juniper',art:{sk:'c',hr:'white',style:'bun',cl:'plum',smile:'soft',locket:1}},
+      {id:'Alder', art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Sorrel',art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Birch', art:{sk:'c',hr:'gold',style:'curl',cl:'teal',smile:'grin'}},
+      {id:'Pip',   art:{sk:'b',hr:'brown',style:'side',cl:'brass',smile:'grin',cat:1}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Cedar</b> and <b>Juniper</b> are Alder's parents, the elders of the house.",src:"a portrait's back",preds:[{k:'parent',a:'Cedar',b:'Alder'},{k:'parent',a:'Juniper',b:'Alder'},{k:'eldest',a:'Cedar'},{k:'eldest',a:'Juniper'}]},
+      {id:'c2',text:"<b>Alder</b> married <b>Sorrel</b>.",src:"the marriage ledger",preds:[{k:'spouse',a:'Sorrel',b:'Alder'}]},
+      {id:'c3',text:"<b>Pip</b> is Alder and Sorrel's child.",src:"a birth notice",preds:[{k:'parent',a:'Alder',b:'Pip'},{k:'parent',a:'Sorrel',b:'Pip'}]},
+      {id:'c4',text:"<b>Birch</b> is Pip's uncle.",src:"a letter signed 'your loving uncle'",preds:[{k:'uncleaunt',a:'Birch',b:'Pip'}]},
+      {id:'c5',text:"<b>Birch</b> is the youngest of the grown-ups — no elder he.",src:"the ledger: Birch, born fifteen years after his brother",preds:[{k:'not',p:{k:'eldest',a:'Birch'}}]}
+    ]
+  },
+  /* ---------- CASE 5 — The Ashers (age chain + a decoy) ---------- */
+  {
+    id:'asher', name:'The Ashers', sub:'by the ledger years', slips:3, autodim:true,
+    journal:"The ledger dated each seat: eldest on the left. No birth-years on the faces — you'll place them by who came before whom. And beware: not every handsome portrait in the box is family.",
+    close:"Willow, Fern, then Ash — eldest to youngest, left to right. And Gil? A charmer with no record. Not a Asher at all.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'C',gen:1,x:230,y:410,year:1916},{id:'D',gen:1,x:500,y:410,year:1919},{id:'E',gen:1,x:770,y:410,year:1923}
+    ],
+    couples:[['A','B']], children:{0:['C','D','E']},
+    people:[
+      {id:'Ida',   art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',glasses:1}},
+      {id:'Cyrus', art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat'}},
+      {id:'Willow',art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',locket:1}},
+      {id:'Fern',  art:{sk:'c',hr:'gold',style:'side',cl:'rose',smile:'grin'}},
+      {id:'Ash',   art:{sk:'c',hr:'brown',style:'short',cl:'brass',smile:'grin'}},
+      {id:'Gil',   art:{sk:'d',hr:'black',style:'curl',cl:'teal',facial:'mustache',smile:'grin',hat:'cap',hatc:'slate'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Ida</b> and <b>Cyrus</b> are the parents of Willow, Fern and Ash.",src:"the family bible",preds:[{k:'spouse',a:'Ida',b:'Cyrus'},{k:'eldest',a:'Ida'},{k:'eldest',a:'Cyrus'},{k:'parent',a:'Ida',b:'Willow'},{k:'parent',a:'Ida',b:'Fern'},{k:'parent',a:'Ida',b:'Ash'}]},
+      {id:'c2',text:"<b>Willow</b> was born before <b>Fern</b>.",src:"the birth ledger",preds:[{k:'older',a:'Willow',b:'Fern'}]},
+      {id:'c3',text:"Younger than Willow, <b>Fern</b> still came before <b>Ash</b>.",src:"the birth ledger",preds:[{k:'older',a:'Fern',b:'Ash'}]},
+      {id:'c4',text:"<b>Ash</b> is the baby of the family.",src:"Greta's note",preds:[{k:'oldestSib',a:'Willow'}]},
+      {id:'c5',text:"<b>Gil</b> appears in the album — but no ledger names him, and no year fits him.",src:"an unlabelled photo — that same stranger?",preds:[],photo:['Gil']}
+    ]
+  },
+  /* ---------- CASE 6 — The Marlowes (finale: manual marks + the anomaly) ---------- */
+  {
+    id:'marlowe', name:'The Marlowes', sub:"and a face at the edge", slips:3, autodim:false,
+    journal:"No more free fading, dear — you'll mark each card yourself when you're sure of it. Everything you've learned, in one tree. And that stranger from the other photos… look who she's holding.",
+    close:"The Marlowes, whole at last — and 'G.M.' at the edge of the frame is a young woman with my own eyes. 'Me, before the name changed,' the note says. Keep this one. We'll want it later.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'D',gen:1,x:140,y:400},{id:'C',gen:1,x:410,y:400},{id:'E',gen:1,x:640,y:400},
+      {id:'F',gen:2,x:470,y:620,year:1948},{id:'G',gen:2,x:660,y:620,year:1951}
+    ],
+    couples:[['A','B'],['C','E']], children:{0:['C','D'],1:['F','G']},
+    people:[
+      {id:'Alta',  art:{sk:'c',hr:'white',style:'bun',cl:'plum',smile:'soft',locket:1}},
+      {id:'Ober',  art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Rowena',art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Dale',  art:{sk:'e',hr:'black',style:'short',cl:'brass',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Miles', art:{sk:'c',hr:'gold',style:'curl',cl:'teal',smile:'grin'}},
+      {id:'Cass',  art:{sk:'c',hr:'brown',style:'side',cl:'rose',smile:'grin',cat:1}},
+      {id:'Wynn',  art:{sk:'b',hr:'gold',style:'short',cl:'dusk',smile:'grin'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Alta</b> and <b>Ober</b> founded the Marlowe line.",src:"the parish roll",preds:[{k:'spouse',a:'Alta',b:'Ober'},{k:'eldest',a:'Alta'},{k:'eldest',a:'Ober'}]},
+      {id:'c2',text:"Their children were <b>Rowena</b> and <b>Miles</b>.",src:"the family bible",preds:[{k:'parent',a:'Alta',b:'Rowena'},{k:'parent',a:'Alta',b:'Miles'}]},
+      {id:'c3',text:"<b>Rowena</b> married <b>Dale</b>, lately of the mill.",src:"the marriage ledger",preds:[{k:'spouse',a:'Dale',b:'Rowena'},{k:'marriedIn',a:'Dale'}]},
+      {id:'c4',text:"<b>Miles</b> never married; he was uncle to Rowena's two.",src:"a fond obituary",preds:[{k:'uncleaunt',a:'Miles',b:'Cass'},{k:'uncleaunt',a:'Miles',b:'Wynn'},{k:'single',a:'Miles'}]},
+      {id:'c5',text:"<b>Cass</b> and <b>Wynn</b> are Rowena and Dale's — <b>Cass</b> the elder.",src:"the birth ledger",preds:[{k:'parent',a:'Rowena',b:'Cass'},{k:'parent',a:'Rowena',b:'Wynn'},{k:'parent',a:'Dale',b:'Cass'},{k:'parent',a:'Dale',b:'Wynn'},{k:'older',a:'Cass',b:'Wynn'}]},
+      {id:'c6',text:"At the frame's edge — <b>'G.M.'</b>, holding baby Cass. Greta's hand: <i>'me, before the name changed.'</i>",src:"the last photo in the box",preds:[],story:true,photo:['GM','Cass']}
+    ]
+  },
+  /* ================= ACT 2 — THE PATTERN ================= */
+  /* ---------- CASE 7 — The Fairweathers (aunts & cousins) ---------- */
+  {
+    id:'fairweather', name:'The Fairweathers', sub:'cousins across the yard', slips:3, autodim:true,
+    journal:"Act two, dear — the families widen. Two of the founders' children marry and each has a child, so those children are cousins. An 'aunt' is just an uncle in a bonnet: a sister of somebody's parent. And there she is again at the back — 'G.M.'",
+    close:"Two Fairweather households, one root. Ned and Sib, cousins, with Cora the aunt between them. The town's families are starting to knot together.",
+    slots:[
+      {id:'A',gen:0,x:360,y:110},{id:'B',gen:0,x:640,y:110},
+      {id:'C',gen:1,x:185,y:345},{id:'E',gen:1,x:365,y:345},
+      {id:'D',gen:1,x:635,y:345},{id:'F',gen:1,x:815,y:345},
+      {id:'G',gen:2,x:275,y:575},{id:'H',gen:2,x:725,y:575}
+    ],
+    couples:[['A','B'],['C','E'],['D','F']], children:{0:['C','D'],1:['G'],2:['H']},
+    people:[
+      {id:'Alton',art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Posy', art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',locket:1}},
+      {id:'Bram', art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Willa',art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Cora', art:{sk:'c',hr:'gold',style:'side',cl:'plum',smile:'soft',locket:1}},
+      {id:'Dane', art:{sk:'e',hr:'black',style:'curl',cl:'teal',facial:'mustache',smile:'soft'}},
+      {id:'Ned',  art:{sk:'b',hr:'brown',style:'short',cl:'brass',smile:'grin',cat:1}},
+      {id:'Sib',  art:{sk:'c',hr:'gold',style:'side',cl:'dusk',smile:'grin'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Alton</b> and <b>Posy</b> are the elders of the Fairweather line.",src:"the parish roll",preds:[{k:'spouse',a:'Alton',b:'Posy'},{k:'eldest',a:'Alton'},{k:'eldest',a:'Posy'}]},
+      {id:'c2',text:"Their children were <b>Bram</b> and <b>Cora</b>.",src:"the family bible",preds:[{k:'parent',a:'Alton',b:'Bram'},{k:'parent',a:'Alton',b:'Cora'}]},
+      {id:'c3',text:"<b>Bram</b> married <b>Willa</b>; <b>Cora</b> married <b>Dane</b>. Both spouses came from away.",src:"two marriage lines",preds:[{k:'spouse',a:'Willa',b:'Bram'},{k:'marriedIn',a:'Willa'},{k:'spouse',a:'Dane',b:'Cora'},{k:'marriedIn',a:'Dane'}]},
+      {id:'c4',text:"<b>Ned</b> is Bram &amp; Willa's; <b>Sib</b> is Cora &amp; Dane's.",src:"the christening register",preds:[{k:'parent',a:'Bram',b:'Ned'},{k:'parent',a:'Willa',b:'Ned'},{k:'parent',a:'Cora',b:'Sib'},{k:'parent',a:'Dane',b:'Sib'}]},
+      {id:'c5',text:"<b>Cora</b> is <b>Ned</b>'s aunt.",src:"a birthday note, 'love Auntie'",preds:[{k:'uncleaunt',a:'Cora',b:'Ned'}]},
+      {id:'c6',text:"In the reunion photo, <b>Ned</b> stands left of his cousin <b>Sib</b> — and a familiar stranger hovers behind.",src:"a reunion photo — 'G.M.' pencilled on the back",preds:[{k:'leftOf',a:'Ned',b:'Sib'}],photo:['Ned','Sib','GM']}
+    ]
+  },
+  /* ---------- CASE 8 — The Ashdowns (four generations) ---------- */
+  {
+    id:'ashdown', name:'The Ashdowns', sub:'four floors deep', slips:3, autodim:true,
+    journal:"A tall, narrow one — great-grandparents at the top, a great-grandchild at the foot. Four generations, straight down. And a dandy in the box who simply won't fit anywhere.",
+    close:"Enoch down to little Tuck — four generations of Ashdowns in one column. Sly? A face with no year and no kin. Out he goes.",
+    slots:[
+      {id:'A',gen:0,x:370,y:108},{id:'B',gen:0,x:630,y:108},
+      {id:'C',gen:1,x:380,y:298},{id:'D',gen:1,x:620,y:298},
+      {id:'E',gen:2,x:380,y:486},{id:'F',gen:2,x:620,y:486},
+      {id:'G',gen:3,x:500,y:648}
+    ],
+    couples:[['A','B'],['C','D'],['E','F']], children:{0:['C'],1:['E'],2:['G']},
+    people:[
+      {id:'Enoch',art:{sk:'d',hr:'white',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Liesl',art:{sk:'c',hr:'white',style:'bun',cl:'plum',smile:'soft',locket:1}},
+      {id:'Homer',art:{sk:'d',hr:'grey',style:'short',cl:'wine',facial:'mustache',smile:'flat'}},
+      {id:'Vi',   art:{sk:'c',hr:'grey',style:'bun',cl:'moss',smile:'soft',glasses:1}},
+      {id:'Cliff',art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Nan',  art:{sk:'b',hr:'auburn',style:'long',cl:'rose',smile:'soft',collar:'round'}},
+      {id:'Tuck', art:{sk:'b',hr:'gold',style:'side',cl:'brass',smile:'grin',cat:1}},
+      {id:'Sly',  art:{sk:'e',hr:'black',style:'curl',cl:'teal',facial:'mustache',smile:'grin',hat:'cap',hatc:'wine'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Enoch</b> and <b>Liesl</b> are the great-grandparents, top of the tree.",src:"a faded daguerreotype",preds:[{k:'spouse',a:'Enoch',b:'Liesl'},{k:'eldest',a:'Enoch'},{k:'eldest',a:'Liesl'}]},
+      {id:'c2',text:"<b>Homer</b> is Enoch's son.",src:"the family bible",preds:[{k:'parent',a:'Enoch',b:'Homer'}]},
+      {id:'c3',text:"<b>Homer</b> married <b>Vi</b>.",src:"a marriage line",preds:[{k:'spouse',a:'Vi',b:'Homer'},{k:'marriedIn',a:'Vi'}]},
+      {id:'c4',text:"<b>Cliff</b> is Homer &amp; Vi's boy.",src:"a birth notice",preds:[{k:'parent',a:'Homer',b:'Cliff'},{k:'parent',a:'Vi',b:'Cliff'}]},
+      {id:'c5',text:"<b>Cliff</b> married <b>Nan</b>.",src:"a marriage line",preds:[{k:'spouse',a:'Nan',b:'Cliff'},{k:'marriedIn',a:'Nan'}]},
+      {id:'c6',text:"<b>Tuck</b>, the youngest, is Cliff &amp; Nan's.",src:"the newest page",preds:[{k:'parent',a:'Cliff',b:'Tuck'},{k:'parent',a:'Nan',b:'Tuck'}]},
+      {id:'c7',text:"<b>Enoch</b> is <b>Tuck</b>'s great-grandfather.",src:"Greta's note",preds:[{k:'greatgrand',a:'Enoch',b:'Tuck'}]},
+      {id:'c8',text:"<b>Sly</b> smiles from a photo — no ledger, no year, no place on any branch.",src:"an unlabelled tintype (that shadow at the edge again)",preds:[],photo:['Sly','GM']}
+    ]
+  },
+  /* ---------- CASE 9 — The Thistlewoods (an aunt AND an uncle) ---------- */
+  {
+    id:'thistle', name:'The Thistlewoods', sub:'an aunt and an uncle', slips:3, autodim:true,
+    journal:"Two unwed siblings this time — one aunt, one uncle, flanking the only child of the house. Remember: aunt or uncle, it's always a brother or sister of a parent.",
+    close:"Little Wren Thistlewood, with Uncle Silas on one side and Aunt Tabby on the other. Prue and Job in the middle. A whole household, sorted.",
+    slots:[
+      {id:'A',gen:0,x:360,y:120},{id:'B',gen:0,x:640,y:120},
+      {id:'D',gen:1,x:150,y:352},{id:'C',gen:1,x:385,y:352},{id:'F',gen:1,x:565,y:352},{id:'E',gen:1,x:820,y:352},
+      {id:'H',gen:2,x:475,y:582}
+    ],
+    couples:[['A','B'],['C','F']], children:{0:['C','D','E'],1:['H']},
+    people:[
+      {id:'Mercy', art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',glasses:1}},
+      {id:'Gideon',art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat'}},
+      {id:'Prue',  art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Job',   art:{sk:'e',hr:'black',style:'short',cl:'brass',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Silas', art:{sk:'c',hr:'brown',style:'curl',cl:'dusk',smile:'grin'}},
+      {id:'Tabby', art:{sk:'c',hr:'gold',style:'side',cl:'plum',smile:'grin',locket:1}},
+      {id:'Wren',  art:{sk:'b',hr:'brown',style:'short',cl:'rose',smile:'grin',cat:1}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Mercy</b> and <b>Gideon</b> founded the Thistlewood house.",src:"the parish roll",preds:[{k:'spouse',a:'Mercy',b:'Gideon'},{k:'eldest',a:'Mercy'},{k:'eldest',a:'Gideon'}]},
+      {id:'c2',text:"Their three: <b>Prue</b>, <b>Silas</b>, and <b>Tabby</b>.",src:"the family bible",preds:[{k:'parent',a:'Mercy',b:'Prue'},{k:'parent',a:'Mercy',b:'Silas'},{k:'parent',a:'Mercy',b:'Tabby'}]},
+      {id:'c3',text:"Only <b>Prue</b> married — to <b>Job</b>. Silas and Tabby never wed.",src:"one marriage line, two bachelors",preds:[{k:'spouse',a:'Job',b:'Prue'},{k:'marriedIn',a:'Job'},{k:'single',a:'Silas'},{k:'single',a:'Tabby'}]},
+      {id:'c4',text:"<b>Wren</b> is Prue &amp; Job's only child.",src:"a birth notice",preds:[{k:'parent',a:'Prue',b:'Wren'},{k:'parent',a:'Job',b:'Wren'}]},
+      {id:'c5',text:"<b>Silas</b> is Wren's uncle; <b>Tabby</b> is Wren's aunt.",src:"two fond letters",preds:[{k:'uncleaunt',a:'Silas',b:'Wren'},{k:'uncleaunt',a:'Tabby',b:'Wren'}]},
+      {id:'c6',text:"At the door, <b>Silas</b> stands left of his sister <b>Tabby</b>.",src:"a doorstep photo, 'G.M.' at the gate",preds:[{k:'leftOf',a:'Silas',b:'Tabby'}],photo:['Silas','Tabby','GM']}
+    ]
+  },
+  /* ================= ACT 3 — THE FOUNDER'S SECRET ================= */
+  /* ---------- CASE 10 — The Blackwoods (one rumour lies) ---------- */
+  {
+    id:'blackwood', name:'The Blackwoods', sub:'one whisper lies', slips:3, autodim:true, gossip:true,
+    journal:"Now the hard part, dear. Some of these cards are only gossip — and in every Blackwood case, exactly one whisper is FALSE. Build the tree from what you trust; the lie is the rumour that won't fit. Tap a rumour's 🗨 to doubt it, then stamp.",
+    close:"The Blackwoods, set right — and the lie was that Ruth mothered Lena. Della did. One false whisper, and you caught it by the contradiction. That's the trick of it.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'D',gen:1,x:150,y:400},{id:'C',gen:1,x:435,y:400},{id:'E',gen:1,x:665,y:400},
+      {id:'F',gen:2,x:550,y:620}
+    ],
+    couples:[['A','B'],['C','E']], children:{0:['C','D'],1:['F']}, liar:'c7',
+    people:[
+      {id:'Edmund',art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Marta', art:{sk:'c',hr:'white',style:'bun',cl:'plum',smile:'soft',locket:1}},
+      {id:'Cyril', art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Della', art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Ruth',  art:{sk:'c',hr:'gold',style:'side',cl:'wine',smile:'soft',locket:1}},
+      {id:'Lena',  art:{sk:'b',hr:'brown',style:'short',cl:'brass',smile:'grin',cat:1}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Edmund</b> and <b>Marta</b> are the elders of the house.",src:"the parish roll",preds:[{k:'spouse',a:'Edmund',b:'Marta'},{k:'eldest',a:'Edmund'},{k:'eldest',a:'Marta'}]},
+      {id:'c2',text:"<b>Cyril</b> and <b>Ruth</b> are Edmund's children.",src:"the family bible",preds:[{k:'parent',a:'Edmund',b:'Cyril'},{k:'parent',a:'Edmund',b:'Ruth'}]},
+      {id:'c3',text:"<b>Cyril</b> married <b>Della</b>.",src:"the marriage ledger",preds:[{k:'spouse',a:'Della',b:'Cyril'},{k:'marriedIn',a:'Della'}]},
+      {id:'c4',text:"<b>Lena</b> is Cyril &amp; Della's daughter.",src:"a birth notice",preds:[{k:'parent',a:'Cyril',b:'Lena'},{k:'parent',a:'Della',b:'Lena'}]},
+      {id:'c5',gossip:true,text:"They say <b>Ruth</b> never married.",src:"a neighbour's gossip",preds:[{k:'single',a:'Ruth'}]},
+      {id:'c6',gossip:true,text:"Word is <b>Lena</b>'s the only grandchild in this house.",src:"tea-table talk",preds:[{k:'grand',a:'Edmund',b:'Lena'}]},
+      {id:'c7',gossip:true,text:"Gossip has it that <b>Ruth</b> is <b>Lena</b>'s mother.",src:"an idle rumour",preds:[{k:'parent',a:'Ruth',b:'Lena'}]}
+    ]
+  },
+  /* ---------- CASE 11 — The Ravenscrofts (altered records) ---------- */
+  {
+    id:'ravenscroft', name:'The Ravenscrofts', sub:'a name crossed out', slips:3, autodim:true, gossip:true,
+    journal:"Someone's been at these records with an eraser, dear — a name crossed out, a rumour slipped in. One whisper here is a lie meant to hide who married in and who was born to it. Trust the many; doubt the one that fights them.",
+    close:"The Ravenscrofts, untangled. The lie tried to make Crane blood-kin — but a man who married in has no parents on this board. Someone wanted Crane to belong here. Why?",
+    slots:[
+      {id:'A',gen:0,x:360,y:110},{id:'B',gen:0,x:640,y:110},
+      {id:'C',gen:1,x:185,y:345},{id:'E',gen:1,x:365,y:345},
+      {id:'D',gen:1,x:635,y:345},{id:'F',gen:1,x:815,y:345},
+      {id:'G',gen:2,x:275,y:575},{id:'H',gen:2,x:725,y:575}
+    ],
+    couples:[['A','B'],['C','E'],['D','F']], children:{0:['C','D'],1:['G'],2:['H']}, liar:'c7',
+    people:[
+      {id:'Auberon',art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat'}},
+      {id:'Sable',  art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',glasses:1}},
+      {id:'Rafe',   art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Isolde', art:{sk:'b',hr:'auburn',style:'long',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Maud',   art:{sk:'c',hr:'gold',style:'side',cl:'plum',smile:'soft',locket:1}},
+      {id:'Crane',  art:{sk:'e',hr:'black',style:'curl',cl:'teal',facial:'mustache',smile:'soft'}},
+      {id:'Percy',  art:{sk:'b',hr:'brown',style:'short',cl:'brass',smile:'grin',cat:1}},
+      {id:'Fen',    art:{sk:'c',hr:'gold',style:'side',cl:'dusk',smile:'grin'}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Auberon</b> and <b>Sable</b> are the elders of the line.",src:"the parish roll",preds:[{k:'spouse',a:'Auberon',b:'Sable'},{k:'eldest',a:'Auberon'},{k:'eldest',a:'Sable'}]},
+      {id:'c2',text:"Their children were <b>Rafe</b> and <b>Maud</b>.",src:"the family bible",preds:[{k:'parent',a:'Auberon',b:'Rafe'},{k:'parent',a:'Auberon',b:'Maud'}]},
+      {id:'c3',text:"<b>Rafe</b> wed <b>Isolde</b>; <b>Maud</b> wed <b>Crane</b>.",src:"two marriage lines",preds:[{k:'spouse',a:'Isolde',b:'Rafe'},{k:'marriedIn',a:'Isolde'},{k:'spouse',a:'Crane',b:'Maud'},{k:'marriedIn',a:'Crane'}]},
+      {id:'c4',text:"<b>Percy</b> is Rafe &amp; Isolde's; <b>Fen</b> is Maud &amp; Crane's.",src:"the christening register",preds:[{k:'parent',a:'Rafe',b:'Percy'},{k:'parent',a:'Isolde',b:'Percy'},{k:'parent',a:'Maud',b:'Fen'},{k:'parent',a:'Crane',b:'Fen'}]},
+      {id:'c5',text:"<b>Percy</b> stands left of his cousin <b>Fen</b>.",src:"a garden photo",preds:[{k:'leftOf',a:'Percy',b:'Fen'}],photo:['Percy','Fen','GM']},
+      {id:'c6',gossip:true,text:"They whisper that <b>Maud</b> is <b>Percy</b>'s aunt.",src:"a neighbour's gossip",preds:[{k:'uncleaunt',a:'Maud',b:'Percy'}]},
+      {id:'c7',gossip:true,text:"Some say <b>Crane</b> was Auberon's own son — no newcomer at all.",src:"a suspiciously fresh note",preds:[{k:'parent',a:'Auberon',b:'Crane'}]},
+      {id:'c8',gossip:true,text:"Rumour: <b>Isolde</b> came to Bramblewick from away.",src:"tea-table talk",preds:[{k:'marriedIn',a:'Isolde'}]}
+    ]
+  },
+  /* ---------- CASE 12 — The Ashcombes (the widest web) ---------- */
+  {
+    id:'ashcombe', name:'The Ashcombes', sub:'the widest web of whispers', slips:3, autodim:true, gossip:true,
+    journal:"The last of this box, dear — three whispers, only one of them false, and a wide family to build first. Take your time. When the tree stands, the lie will be the only rumour still glowing. And look who's in the final photograph.",
+    close:"The Ashcombes, whole — and the lie tried to smuggle Ada in as a daughter of the house. But there she is at the frame's edge in every telling: 'G.M.', my own young face, watching each family I ever filed. Someone erased us from Bramblewick. This box was only the beginning.",
+    slots:[
+      {id:'A',gen:0,x:360,y:150},{id:'B',gen:0,x:640,y:150},
+      {id:'C',gen:1,x:200,y:410},{id:'D',gen:1,x:430,y:410},{id:'E',gen:1,x:660,y:410},{id:'F',gen:1,x:860,y:410}
+    ],
+    couples:[['A','B'],['E','F']], children:{0:['C','D','E']}, liar:'c6',
+    people:[
+      {id:'Cassia',art:{sk:'c',hr:'white',style:'bun',cl:'wine',smile:'soft',locket:1}},
+      {id:'Ames',  art:{sk:'d',hr:'grey',style:'bald',cl:'slate',facial:'beard',smile:'flat',glasses:1}},
+      {id:'Wolfe', art:{sk:'c',hr:'brown',style:'short',cl:'rust',facial:'mustache',smile:'soft',collar:'v'}},
+      {id:'Fenn',  art:{sk:'c',hr:'auburn',style:'curl',cl:'dusk',smile:'grin'}},
+      {id:'Bly',   art:{sk:'b',hr:'gold',style:'side',cl:'moss',smile:'soft',collar:'round'}},
+      {id:'Ada',   art:{sk:'e',hr:'black',style:'long',cl:'plum',smile:'soft',locket:1}}
+    ],
+    clues:[
+      {id:'c1',text:"<b>Cassia</b> and <b>Ames</b> are the elders of the house.",src:"the parish roll",preds:[{k:'spouse',a:'Cassia',b:'Ames'},{k:'eldest',a:'Cassia'},{k:'eldest',a:'Ames'}]},
+      {id:'c2',text:"Their three: <b>Wolfe</b>, <b>Fenn</b>, and <b>Bly</b>.",src:"the family bible",preds:[{k:'parent',a:'Cassia',b:'Wolfe'},{k:'parent',a:'Cassia',b:'Fenn'},{k:'parent',a:'Cassia',b:'Bly'}]},
+      {id:'c3',text:"Only <b>Bly</b> married — to <b>Ada</b>. Wolfe and Fenn stayed single.",src:"one marriage line",preds:[{k:'spouse',a:'Ada',b:'Bly'},{k:'marriedIn',a:'Ada'},{k:'single',a:'Wolfe'},{k:'single',a:'Fenn'}]},
+      {id:'c4',text:"<b>Wolfe</b> stands left of <b>Fenn</b> in the row.",src:"a parlour photo",preds:[{k:'leftOf',a:'Wolfe',b:'Fenn'}]},
+      {id:'c5',gossip:true,text:"They say <b>Wolfe</b> stayed a bachelor all his days.",src:"a neighbour's gossip",preds:[{k:'single',a:'Wolfe'}]},
+      {id:'c6',gossip:true,text:"Whispers say <b>Ada</b> is another of Cassia's daughters.",src:"a rumour that smells of fresh ink",preds:[{k:'parent',a:'Cassia',b:'Ada'}]},
+      {id:'c7',gossip:true,text:"Word is <b>Fenn</b>, too, never married.",src:"tea-table talk",preds:[{k:'single',a:'Fenn'}]},
+      {id:'c8',text:"And at the very edge of the last plate — <b>'G.M.'</b>, watching. Greta's hand, underlined twice: <i>'every family. always me.'</i>",src:"the final photograph in the box",preds:[],story:true,photo:['GM','Bly']}
+    ]
+  }
+];
+
+/* strategy chips offered after solving (post-case naming) */
+const STRATS=[
+  {id:'direct', t:"Started from the plain 'X is Y's' cards"},
+  {id:'age',    t:"Built the age line first"},
+  {id:'elim',   t:"Ruled out what couldn't be"},
+  {id:'infer',  t:"Chased an in-between link (an uncle, a grandparent)"},
+  {id:'photo',  t:"Read the photographs closely"},
+  {id:'liar',   t:"Built the tree, then caught the lie"}
+];
+const BRIDGES={
+  2:"Where else do you work out how things connect without being told straight out?",
+  5:"When have you trusted a record over what a thing merely looked like?",
+  8:"An aunt, an uncle, a cousin — where else does one link tell you a whole chain?",
+  11:"When many sources agree and one disagrees, which do you trust — and how do you decide?"
+};
+
+/* ============================ SOUND (glassy music-box, F major pentatonic) ============================ */
+const Sound = (() => {
+  const N={F3:174.61,F:349.23,G:392.0,A:440.0,C:523.25,D:587.33,F5:698.46,A5:880.0};
+  let ac=null, master=null, sfxBus=null, musicBus=null, muted=false;
+  function ctx(){
+    if(!ac){
+      try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; }
+      master=ac.createGain(); master.gain.value=0.9; master.connect(ac.destination);
+      sfxBus=ac.createGain(); sfxBus.gain.value=muted?0:1; sfxBus.connect(master);   // 🔊
+      musicBus=ac.createGain(); musicBus.gain.value=0; musicBus.connect(master);      // 🎵 (ramped by Music)
+    }
+    if(ac.state==='suspended') ac.resume();
+    return ac;
+  }
+  function bell(freq,t0,dur,vol,shapePartial,bus){
+    const a=ctx(); if(!a)return;
+    const out=bus||sfxBus;
+    const o=a.createOscillator(), g=a.createGain(), lp=a.createBiquadFilter();
+    o.type='sine'; o.frequency.value=freq;
+    lp.type='lowpass'; lp.frequency.value=freq*4+900;
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(vol,t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0006,t0+dur);
+    o.connect(g); g.connect(lp); lp.connect(out);
+    o.start(t0); o.stop(t0+dur+0.03);
+    if(shapePartial){ // glassy partial an octave+fifth up
+      const o2=a.createOscillator(), g2=a.createGain();
+      o2.type='sine'; o2.frequency.value=freq*3;
+      g2.gain.setValueAtTime(0,t0);
+      g2.gain.linearRampToValueAtTime(vol*0.22,t0+0.006);
+      g2.gain.exponentialRampToValueAtTime(0.0004,t0+dur*0.7);
+      o2.connect(g2); g2.connect(out); o2.start(t0); o2.stop(t0+dur);
+    }
+  }
+  function noise(t0,dur,vol,type,q,cf,bus){
+    const a=ctx(); if(!a)return;
+    const out=bus||sfxBus;
+    const len=Math.max(1,Math.floor(a.sampleRate*dur));
+    const buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0);
+    let last=0;
+    for(let i=0;i<len;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=(type==='brown'?last*3:w); }
+    const s=a.createBufferSource(); s.buffer=buf;
+    const f=a.createBiquadFilter(); f.type=type==='brown'?'lowpass':'bandpass'; f.frequency.value=cf||1600; f.Q.value=q||0.7;
+    const g=a.createGain();
+    g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(vol,t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0006,t0+dur);
+    s.connect(f); f.connect(g); g.connect(out); s.start(t0); s.stop(t0+dur+0.02);
+  }
+  const g=(m)=>muted?0:m;
+  const now=()=>{const a=ctx();return a?a.currentTime:0;};
+
+  const API={
+    pick(){ const t=now(); bell(N.A,t,0.5,g(0.16),true); },              // grab a portrait
+    place(){ const t=now(); bell(N.C,t,0.55,g(0.2),true); noise(t,0.09,g(0.05),'bright',0.6,2400); }, // drop
+    dim(){ const t=now(); bell(N.D,t,0.6,g(0.13),true); },                // a clue fades
+    tick(){ const t=now(); bell(N.A5,t,0.28,g(0.1),false); },
+    mark(){ const t=now(); bell(N.G,t,0.4,g(0.14),true); },
+    stamp(){ const t=now(); // felt-and-wood thunk
+      const a=ctx(); if(a){ const o=a.createOscillator(),gg=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(60,t+0.13); gg.gain.setValueAtTime(g(0.5),t); gg.gain.exponentialRampToValueAtTime(0.001,t+0.18); o.connect(gg); gg.connect(sfxBus); o.start(t); o.stop(t+0.2);} noise(t,0.06,g(0.16),'bright',0.5,900); },
+    success(){ const t=now(); [ [N.C,0],[N.D,0.09],[N.F5,0.18] ].forEach(([f,dt])=>bell(f,t+dt,0.7,g(0.2),true)); }, // inking cadence 5-6-1
+    solve(){ const t=now(); // music-box arpeggio waltz F-A-C-D-F
+      [ [N.F,0],[N.A,0.13],[N.C,0.26],[N.D,0.42],[N.F5,0.55],[N.A5,0.8] ].forEach(([f,dt])=>bell(f,t+dt,0.95,g(0.2),true));
+      noise(t,0.05,g(0.05),'bright',0.6,2600); },
+    fail(){ const t=now(); bell(N.F,t,0.5,g(0.18),true); bell(N.D,t+0.12,0.7,g(0.16),true); noise(t,0.28,g(0.12),'bright',0.5,1400); }, // cadence falls, paper rustle
+    rustle(){ const t=now(); noise(t,0.24,g(0.1),'bright',0.5,1500); },
+    prrp(){ const t=now(); const a=ctx(); if(!a)return; const o=a.createOscillator(),gg=a.createGain(); o.type='sine'; o.frequency.setValueAtTime(300,t); o.frequency.linearRampToValueAtTime(470,t+0.08); o.frequency.linearRampToValueAtTime(360,t+0.17); gg.gain.setValueAtTime(0,t); gg.gain.linearRampToValueAtTime(g(0.17),t+0.03); gg.gain.exponentialRampToValueAtTime(0.001,t+0.22); o.connect(gg); gg.connect(sfxBus); o.start(t); o.stop(t+0.24); },
+    open(){ const t=now(); bell(N.F,t,0.6,g(0.14),true); bell(N.C,t+0.1,0.7,g(0.14),true); },
+    setMuted(m){ muted=m; if(sfxBus) sfxBus.gain.value=m?0:1; },   // 🔊 mutes SFX bus only; music is independent
+    isMuted(){ return muted; },
+    _music(){ return {ctx, bell, noise, musicBus, ac:()=>ac}; }
+  };
+
+  /* ---- Music: sparse detective music-box over a rain bed; state-reactive (per Act) ---- */
+  const Music = (() => {
+    let on=false, rainNodes=null, timer=null, act=0, ducked=0;
+    const SCALE={ // F major pentatonic; deeper register + a wistful minor-3rd colour for Act 3
+      early:[N.F,N.A,N.C,N.D,N.F5],
+      late:[N.F3,N.F,N.G,N.A,N.C]
+    };
+    const Ab=207.65; // borrowed minor colour for the last cases
+    function bed(reqOn){
+      const a=ctx(); if(!a) return;
+      if(reqOn && !rainNodes){
+        const len=a.sampleRate*2, buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0); let last=0;
+        for(let i=0;i<len;i++){ const w=Math.random()*2-1; last=(last+0.015*w)/1.015; d[i]=last*3+w*0.15; }
+        const s=a.createBufferSource(); s.buffer=buf; s.loop=true;
+        const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1000; f.Q.value=0.4;
+        const gg=a.createGain(); gg.gain.value=0.5;   // rain sits inside musicBus
+        s.connect(f); f.connect(gg); gg.connect(musicBus); s.start();
+        rainNodes={s,g:gg};
+      } else if(!reqOn && rainNodes){
+        const rn=rainNodes; rainNodes=null; setTimeout(()=>{try{rn.s.stop();}catch(e){}},800);
+      }
+    }
+    function phrase(){
+      if(!on) return;
+      const a=ctx(); if(a){
+        const t=a.currentTime+0.05;
+        const pool=(act>=4?SCALE.late:SCALE.early).slice();
+        const notes=[]; const n=2+Math.floor(Math.random()*2);      // 2–3 note musing
+        for(let i=0;i<n;i++) notes.push(pool[Math.floor(Math.random()*pool.length)]);
+        if(act>=4 && Math.random()<0.4) notes.splice(1,0,Ab);        // occasional unease
+        notes.forEach((f,i)=>bell(f, t+i*0.42, 1.6, 0.05*(act>=4?0.9:1), true, musicBus));
+        // a soft clock tick under it — the ticking room tone
+        bell(N.F3, t+0.02, 0.5, 0.02, false, musicBus);
+      }
+      const next=6500+Math.random()*4500;                            // sparse; won't fatigue
+      timer=setTimeout(phrase,next);
+    }
+    function setOn(v){
+      on=v; const a=ctx(); if(!a) return on;
+      bed(v);
+      if(musicBus) musicBus.gain.linearRampToValueAtTime(v?0.9:0, a.currentTime+ (v?1.2:0.5));
+      if(v){ if(!timer) timer=setTimeout(phrase, 900); }
+      else { if(timer){ clearTimeout(timer); timer=null; } }
+      return on;
+    }
+    return {
+      toggle(v){ return setOn(v); },
+      isOn(){ return on; },
+      setAct(i){ act=i; },                                           // 0-based case index
+      duck(ms){ const a=ctx(); if(!a||!on) return; ducked++; musicBus.gain.cancelScheduledValues(a.currentTime);
+        musicBus.gain.setValueAtTime(musicBus.gain.value,a.currentTime);
+        musicBus.gain.linearRampToValueAtTime(0.25,a.currentTime+0.08);
+        setTimeout(()=>{ if(--ducked<=0 && on){ const b=ctx(); musicBus.gain.linearRampToValueAtTime(0.9,b.currentTime+0.6); } }, ms||1600); },
+      hide(h){ const a=ctx(); if(!a||!on) return; musicBus.gain.linearRampToValueAtTime(h?0:0.9, a.currentTime+0.3); }
+    };
+  })();
+  API.music=Music;
+  return API;
+})();
+/* ============================ UI CONTROLLER ============================ */
+const UI = (() => {
+  const $=id=>document.getElementById(id);
+  const el=(t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+
+  /* ---------- persistence (degrades to memory) ---------- */
+  const SAVE_KEY='ftd.save.v1';
+  const mem={}; let store=null;
+  try{ const k='ftd.t'; localStorage.setItem(k,'1'); localStorage.removeItem(k); store=localStorage; }catch(e){ store=null; }
+  function load(){
+    let raw=null;
+    try{ raw=store?store.getItem(SAVE_KEY):mem[SAVE_KEY]; }catch(e){}
+    let s=null; try{ s=raw?JSON.parse(raw):null; }catch(e){ s=null; }
+    return Object.assign({solved:{},err:{input:0,elab:0,output:0},strat:{},music:true,muted:false},s||{});
+  }
+  function save(){
+    const raw=JSON.stringify(prog);
+    try{ if(store) store.setItem(SAVE_KEY,raw); else mem[SAVE_KEY]=raw; }catch(e){ mem[SAVE_KEY]=raw; }
+  }
+  const prog=load();
+
+  /* ---------- runtime state ---------- */
+  let C=null, T=null, draft={}, marks={}, picked=null, wrongStamps=0, curIdx=0, lastEv=null, lastErrType=null, doubted=null;
+  const SEAL_ORDER={tea:0,bronze:1,silver:2,gold:3};
+  const SEAL_ICON={gold:'★',silver:'✦',bronze:'✦',tea:'☕'};
+
+  /* ---------- screen switching ---------- */
+  function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id)); }
+  function ovl(id,on){ $(id).classList.toggle('on',on); }
+
+  /* ============================ OFFICE ============================ */
+  function solvedCount(){ return CASES.filter(c=>prog.solved[c.id]).length; }
+  function isUnlocked(i){ return i<=solvedCount(); }  // sequential unlock
+
+  function renderOffice(){
+    const grid=$('frameGrid'); grid.innerHTML='';
+    CASES.forEach((c,i)=>{
+      const unlocked=isUnlocked(i), seal=prog.solved[c.id];
+      const f=el('button','frame '+(seal?'':(unlocked?'todo':'locked')));
+      f.setAttribute('aria-label',(unlocked?'Open case ':'Locked case ')+c.name);
+      if(!unlocked) f.disabled=true;
+      f.innerHTML=`<div class="mat">
+          <div class="fnum">CASE ${String(i+1).padStart(2,'0')}</div>
+          <div class="fname">${unlocked?c.name:'—— sealed ——'}</div>
+          <div class="fsub">${unlocked?c.sub:'not yet'}</div>
+          <div class="thumb">${unlocked?miniTree(c,!!seal):''}</div>
+        </div>`;
+      if(seal) f.appendChild(el('div','sealdot '+seal, SEAL_ICON[seal]));
+      if(unlocked) f.addEventListener('click',()=>openCase(i));
+      grid.appendChild(f);
+    });
+    const total=solvedCount();
+    $('sealCount').textContent = total? `${total} of ${CASES.length} families filed` : `${CASES.length} families waiting`;
+    $('officeNote').innerHTML = officeNote(total);
+    $('plantSpot').hidden = total<3;
+    // best line on title
+    $('titleBest').innerHTML = total? `Filed so far: <b>${total}</b> / ${CASES.length}` : 'A fresh box of records awaits.';
+  }
+  function officeNote(total){
+    if(total===0) return `${CASES.length} families, dear, each in its own drawer. Pick a frame off the wall and let's begin — the Oakleys are gentlest.`;
+    if(total>=CASES.length) return "Every family filed — and that face at the edge of every photograph, 'G.M.', was <b>me</b>. Someone erased us from Bramblewick. This box is emptied… but the town keeps more boxes.";
+    return `${total} filed, ${CASES.length-total} to go. The next frame's ready when you are.`;
+  }
+  function miniTree(c,solved){
+    // tiny schematic of the case topology
+    const w=168,h=64, sx=w/1000, sy=h/730*1.0, oy=6;
+    const P=id=>{const s=C0(c,id); return {x:s.x*sx, y:s.y*(h-12)/730+oy};};
+    let paths='',dots='';
+    c.couples.forEach(pr=>{const a=P(pr[0]),b=P(pr[1]); paths+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c6b52" stroke-width="1.4"/>`;});
+    Object.entries(c.children).forEach(([ci,kids])=>{const pr=c.couples[+ci];const a=P(pr[0]),b=P(pr[1]);const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;kids.forEach(k=>{const kp=P(k);paths+=`<path d="M${mx} ${my} V${(my+kp.y)/2} H${kp.x} V${kp.y}" fill="none" stroke="#7c6b52" stroke-width="1.2"/>`;});});
+    const dotFill=solved?'#c9973b':'#cbb591';
+    c.slots.forEach(s=>{const p=P(s.id);dots+=`<circle cx="${p.x}" cy="${p.y}" r="4.2" fill="${dotFill}" stroke="#5a4a33" stroke-width="1"/>`;});
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="46" aria-hidden="true">${paths}${dots}</svg>`;
+  }
+  const C0=(c,id)=>c.slots.find(s=>s.id===id);
+
+  /* ============================ CASE ============================ */
+  function openCase(i){
+    curIdx=i; C=CASES[i]; T=Engine.topo(C);
+    draft={}; marks={}; picked=null; wrongStamps=0; lastErrType=null; doubted=null;
+    C.clues.forEach(cl=>{ marks[cl.id]=false; });
+    $('caseTitle').innerHTML=`<b>Case ${String(i+1).padStart(2,'0')}</b> · ${C.name}`;
+    setJournal(C.journal,false);
+    renderSlips(); renderClues(); renderTray(); renderBoard();
+    evaluateNow(true);
+    show('scr-case');
+    Sound.music.setAct(i);        // Act colour: cases 5–6 darken the underscore
+    Sound.open();
+    // hint glow settles after a moment
+    $('btnHint').classList.remove('glow');
+  }
+
+  function setJournal(txt,anim){
+    $('journalTxt').innerHTML=txt;
+    if(anim){ const j=$('journal'); j.classList.remove('note-in'); void j.offsetWidth; j.classList.add('note-in'); }
+  }
+
+  function renderSlips(){
+    const box=$('slips'); box.innerHTML='';
+    for(let k=0;k<C.slips;k++){
+      const used=k<wrongStamps;
+      const s=el('div','slip'+(used?' used':''));
+      box.appendChild(s);
+    }
+    if(wrongStamps>=C.slips){ // Greta lends her own — a tea-stained spare
+      box.appendChild(el('div','slip tea',''));
+    }
+  }
+
+  /* ---------- clue cards ---------- */
+  function renderClues(){
+    const col=$('clueCol'); col.innerHTML='';
+    const gossipCase=Engine.isGossipCase(C);
+    col.appendChild(el('div','collabel',
+      gossipCase ? 'Clues &amp; rumours — one whisper is a lie. Doubt it 🗨' :
+      (C.autodim?'Clues — they fade as your board agrees':'Clues — tap the pin when you\'re sure')));
+    C.clues.forEach(cl=>{
+      const card=el('div','clue'+(C.autodim?'':' manual')+(cl.gossip?' gossip':''));
+      card.dataset.clue=cl.id;
+      let inner='';
+      if(cl.photo) inner+=photoBlock(cl.photo);
+      if(cl.gossip) inner+=`<span class="rumortag">rumour</span>`;
+      inner+=`<div class="ctext">${cl.text}</div>`;
+      inner+=`<span class="src">${cl.src}</span>`;
+      inner+=`<span class="check">✓</span><span class="alert">!</span>`;
+      if(cl.gossip) inner+=`<button class="doubt" aria-label="doubt this rumour — call it the lie">🗨 doubt</button>`;
+      else if(!C.autodim && !cl.story) inner+=`<button class="pin" aria-label="mark clue accounted">✓</button>`;
+      card.innerHTML=inner;
+      if(cl.story){ card.classList.add('done'); marks[cl.id]=true; } // story cards are just to read
+      if(cl.gossip){
+        card.querySelector('.doubt').addEventListener('click',e=>{ e.stopPropagation(); toggleDoubt(cl.id); });
+      } else if(!C.autodim && !cl.story){
+        card.querySelector('.pin').addEventListener('click',e=>{ e.stopPropagation(); toggleMark(cl.id,card); });
+      }
+      col.appendChild(card);
+    });
+    refreshDoubt();
+  }
+  function toggleDoubt(id){
+    doubted = (doubted===id) ? null : id;
+    refreshDoubt();
+    Sound.mark();
+  }
+  function refreshDoubt(){
+    document.querySelectorAll('.clue.gossip').forEach(card=>{
+      const on = card.dataset.clue===doubted;
+      card.classList.toggle('doubted',on);
+      const b=card.querySelector('.doubt'); if(b) b.textContent = on ? '🗨 the lie' : '🗨 doubt';
+    });
+  }
+  function photoBlock(ids){
+    const frames=ids.map(pid=>{
+      if(pid==='GM') return `<div class="pframe">${gmPortrait()}</div>`;
+      const p=C.people.find(x=>x.id===pid);
+      return `<div class="pframe">${Art.portrait(Object.assign({_i:'ph'+pid},p.art))}</div>`;
+    }).join('');
+    return `<div class="photo">${frames}</div>`;
+  }
+  function gmPortrait(){ // the blurred stranger — young Greta
+    return `<svg viewBox="0 0 76 92" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="76" height="92" fill="#cbb18b"/>
+      <path d="M6 92 Q10 66 38 62 Q66 66 70 92 Z" fill="#7d6a4d"/>
+      <ellipse cx="38" cy="40" rx="21" ry="24" fill="#dcae82"/>
+      <path d="M15 60 Q12 20 38 14 Q64 20 61 60 Q58 34 52 30 Q56 22 38 20 Q20 22 24 30 Q18 34 15 60" fill="#5a4630"/>
+      <circle cx="31" cy="41" r="2.4" fill="#3b2f22"/><circle cx="45" cy="41" r="2.4" fill="#3b2f22"/>
+      <path d="M33 54 Q38 56 43 54" stroke="#7a4a3a" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <rect width="76" height="92" fill="#cbb18b" opacity=".28"/>
+      <text x="52" y="20" font-family="Caveat" font-size="13" fill="#5a4630" transform="rotate(6 52 20)">G.M.?</text>
+    </svg>`;
+  }
+  function toggleMark(id,card){
+    marks[id]=!marks[id];
+    card.classList.toggle('done',marks[id]);
+    Sound.mark();
+  }
+
+  /* ---------- tray ---------- */
+  function renderTray(){
+    const tr=$('trayCards'); tr.innerHTML='';
+    const placed=new Set(Object.values(draft).filter(Boolean));
+    let any=false;
+    C.people.forEach(p=>{
+      const card=el('button','tcard'+(picked===p.id?' picked':''));
+      card.dataset.person=p.id; card.type='button';
+      card.setAttribute('aria-label','portrait of '+(p.name||p.id));
+      card.innerHTML=portraitCard(p, placed.has(p.id));
+      if(placed.has(p.id)) card.classList.add('ghosted');
+      else any=true;
+      tr.appendChild(card);
+    });
+    $('trayHint').textContent = any? 'Drag a face onto a branch — or tap it, then tap a branch.' : 'Every face is on the tree. Ready to stamp?';
+  }
+  function portraitCard(p,dim){
+    return `<div class="pcard"><div class="oval">${Art.portrait(Object.assign({_i:p.id},p.art))}</div>
+      <div class="nm">${p.name||p.id}</div></div>`;
+  }
+
+  /* ---------- board ---------- */
+  function renderBoard(){
+    const b=$('board');
+    // remove old slots (keep wires/fx nodes)
+    b.querySelectorAll('.slot').forEach(n=>n.remove());
+    C.slots.forEach(s=>{
+      const person=draft[s.id]?C.people.find(p=>p.id===draft[s.id]):null;
+      const lifted=person&&picked===person.id;
+      const btn=el('button','slot'+(person?' filled':'')+(picked?' pickable':'')+(lifted?' lifted':''));
+      btn.dataset.slot=s.id; btn.type='button';
+      btn.style.left=(s.x/1000*100)+'%'; btn.style.top=(s.y/730*100)+'%';
+      btn.setAttribute('aria-label', person? `${person.name||person.id} — tap to lift` : 'empty branch — drop a face here');
+      let inner='';
+      if(person){ inner+=`<div class="pcard pickup">${portraitInner(person)}</div>`; }
+      else { inner+=`<div class="well"><span class="qm">?</span></div>`; }
+      if(s.year) inner+=`<div class="yeartag">b. ’${String(s.year).slice(2)}</div>`;
+      btn.innerHTML=inner;
+      b.appendChild(btn);
+    });
+    drawWires(false);
+  }
+  function portraitInner(p){
+    return `<div class="oval">${Art.portrait(Object.assign({_i:p.id},p.art))}</div><div class="nm">${p.name||p.id}</div>`;
+  }
+  function drawWires(inked){
+    const svg=$('wires'); svg.innerHTML='';
+    const P=id=>{const s=C0(C,id); return {x:s.x,y:s.y};};
+    const mk=d=>{const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d',d); if(inked)p.classList.add('inked'); svg.appendChild(p);};
+    C.couples.forEach(pr=>{const a=P(pr[0]),b=P(pr[1]); mk(`M${a.x} ${a.y} H${b.x}`);});
+    Object.entries(C.children).forEach(([ci,kids])=>{
+      const pr=C.couples[+ci]; const a=P(pr[0]),b=P(pr[1]); const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      const cy=P(kids[0]).y; const sib=(my+cy)/2;
+      mk(`M${mx} ${my} V${sib}`);
+      const xs=kids.map(k=>P(k).x); const minx=Math.min(...xs),maxx=Math.max(...xs);
+      if(kids.length>1) mk(`M${minx} ${sib} H${maxx}`);
+      kids.forEach(k=>{const kp=P(k); mk(`M${kp.x} ${sib} V${kp.y}`);});
+    });
+  }
+
+  /* ---------- evaluation / auto-dim ---------- */
+  function evaluateNow(silent){
+    lastEv=Engine.evaluate(C,T,draft);
+    C.clues.forEach(cl=>{
+      const card=document.querySelector(`.clue[data-clue="${cl.id}"]`); if(!card)return;
+      card.classList.remove('conflict','hintmark');
+      if(C.autodim){
+        const wasDone=card.classList.contains('done');
+        const nowDone=lastEv.byClue[cl.id]==='sat';
+        card.classList.toggle('done',nowDone);
+        if(nowDone&&!wasDone&&!silent) Sound.dim();
+      }
+    });
+    // stamp affordance note
+    const complete=lastEv.complete;
+    $('stampNote').textContent = complete? 'Every branch filled — stamp when you\'re sure.' : 'Draft freely — the stamp is the promise.';
+  }
+
+  /* ============================ DRAG + SELECT ============================ */
+  let drag=null; // {personId, from:'tray'|slotId, moved, ghost}
+  const GH=$('dragGhost');
+  function beginCandidate(personId,from,x,y){ drag={personId,from,x0:x,y0:y,moved:false}; }
+  function personArtById(id){ const p=C.people.find(x=>x.id===id); return `<div class="pcard"><div class="oval">${Art.portrait(Object.assign({_i:'g'+id},p.art))}</div></div>`; }
+  function moveDrag(x,y){
+    if(!drag) return;
+    if(!drag.moved){
+      if(Math.hypot(x-drag.x0,y-drag.y0)<7) return;
+      drag.moved=true; GH.innerHTML=personArtById(drag.personId); GH.classList.add('live');
+      Sound.pick();
+      // ghost the source
+      if(drag.from==='tray'){ const c=document.querySelector(`.tcard[data-person="${drag.personId}"]`); if(c)c.classList.add('ghosted'); }
+    }
+    GH.style.left=(x-43)+'px'; GH.style.top=(y-52)+'px';
+    // hover highlight
+    document.querySelectorAll('.slot.hot').forEach(s=>s.classList.remove('hot'));
+    const slot=slotAt(x,y); if(slot) slot.classList.add('hot');
+  }
+  let justDragged=false;
+  function endDrag(x,y){
+    document.querySelectorAll('.slot.hot').forEach(s=>s.classList.remove('hot'));
+    GH.classList.remove('live'); GH.innerHTML='';
+    if(!drag) return;
+    if(drag.moved){
+      const slot=slotAt(x,y);
+      if(slot) placePerson(drag.personId, slot.dataset.slot);
+      else { // dropped in void → if from a slot, send back to tray
+        if(drag.from!=='tray'){ removeFromSlot(drag.from); commitPlacement(); }
+        else renderTray();
+      }
+      justDragged=true; setTimeout(()=>{justDragged=false;},60); // swallow the trailing click
+    }
+    // a tap (no move) does nothing here — the click handler does select/place/lift
+    drag=null;
+  }
+  function slotAt(x,y){ const e=document.elementFromPoint(x,y); return e?e.closest('.slot'):null; }
+
+  function togglePick(personId){
+    picked = (picked===personId)? null : personId;
+    if(picked) Sound.tick();
+    renderTray(); refreshPickable();
+  }
+  function refreshPickable(){
+    document.querySelectorAll('.slot').forEach(s=>s.classList.toggle('pickable',!!picked));
+  }
+
+  const slotOfPerson=id=>Object.keys(draft).find(s=>draft[s]===id)||null;
+  function removeFromSlot(sid){ if(draft[sid]){ delete draft[sid]; } }
+  function placePerson(personId, slotId){
+    const from=slotOfPerson(personId);
+    const occupant=draft[slotId]||null;
+    if(occupant && occupant!==personId){
+      if(from){ draft[from]=occupant; } else { /* occupant back to tray */ }
+    } else if(from && from!==slotId){ delete draft[from]; }
+    draft[slotId]=personId;
+    if(occupant && occupant!==personId && !from){ /* occupant displaced to tray: nothing to set */ }
+    picked=null;
+    commitPlacement(slotId);
+  }
+  function commitPlacement(poppedSlot){
+    renderBoard(); renderTray(); refreshPickable();
+    evaluateNow(false);
+    if(poppedSlot){ const node=document.querySelector(`.slot[data-slot="${poppedSlot}"] .pcard`); if(node){ node.classList.add('placed-pop'); } Sound.place(); }
+  }
+
+  // Pointer events => DRAG only. Click events => tap/select/place/lift (mouse, touch, keyboard).
+  function wireDnD(){
+    // start a drag candidate from a portrait (tray card or a filled slot)
+    const onDown=(e,from)=>{
+      const t=e.target.closest(from==='tray'?'.tcard':'.slot');
+      if(!t) return;
+      const personId= from==='tray'? t.dataset.person : draft[t.dataset.slot];
+      if(!personId) return;                       // empty slot: click handler will place
+      if(from==='tray' && t.classList.contains('ghosted')) return; // already on the board
+      const p=(e.touches?e.touches[0]:e);
+      beginCandidate(personId, from==='tray'?'tray':t.dataset.slot, p.clientX,p.clientY);
+    };
+    $('tray').addEventListener('pointerdown',e=>onDown(e,'tray'));
+    $('board').addEventListener('pointerdown',e=>onDown(e,'board'));
+    document.addEventListener('pointermove',e=>moveDrag(e.clientX,e.clientY));
+    document.addEventListener('pointerup',e=>endDrag(e.clientX,e.clientY));
+    document.addEventListener('pointercancel',()=>{ if(drag){GH.classList.remove('live');GH.innerHTML='';drag=null;} });
+    // tap / keyboard-activate a portrait -> pick or unpick
+    $('tray').addEventListener('click',e=>{
+      if(justDragged) return;
+      const c=e.target.closest('.tcard'); if(!c||c.classList.contains('ghosted')) return;
+      togglePick(c.dataset.person);
+    });
+    // tap / keyboard-activate a branch -> place the picked face, or lift the one sitting there
+    $('board').addEventListener('click',e=>{
+      if(justDragged) return;
+      const s=e.target.closest('.slot'); if(!s) return;
+      const sid=s.dataset.slot;
+      if(picked) placePerson(picked,sid);
+      else if(draft[sid]) togglePick(draft[sid]);   // lift the seated portrait back into the hand
+    });
+  }
+
+  /* ============================ STAMP ============================ */
+  let busy=false;
+  function doStamp(){
+    if(busy||!C) return;
+    picked=null; refreshPickable(); renderTray();
+    evaluateNow(true);
+    Sound.stamp();
+    const fx=$('stampFx'); fx.classList.remove('slam'); void fx.offsetWidth; fx.classList.add('slam');
+    const ring=$('inkRing'); ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
+    const btn=$('btnStamp'); btn.classList.remove('wob'); void btn.offsetWidth; btn.classList.add('wob');
+    const slipBox=$('slips');
+
+    const gossipCase=Engine.isGossipCase(C);
+    const solvedNow = gossipCase ? Engine.gossipSolved(C,T,draft,doubted) : lastEv.solved;
+    if(solvedNow){ onSolve(); return; }
+
+    // an empty board isn't a wrong answer — don't spend a slip on it
+    if(Object.values(draft).filter(Boolean).length===0){
+      setTimeout(()=>{ setJournal("Place a few faces first, dear — then we'll stamp.",true); Sound.rustle(); },360);
+      return;
+    }
+
+    // FAIL — a wrong (or premature) stamp
+    wrongStamps++;
+    lastErrType=Engine.classify(C,T,draft,lastEv,!C.autodim,marks);
+    // in a gossip case, a well-built tree that's just mis-doubted is a reasoning slip
+    if(gossipCase && lastEv.complete && !C.clues.some(cl=>cl.id!==C.liar && lastEv.byClue[cl.id]==='bad')) lastErrType='elab';
+    prog.err[lastErrType]=(prog.err[lastErrType]||0)+1; save();
+    renderSlips();
+    setTimeout(()=>{
+      Sound.fail();
+      $('board').classList.add('shake'); setTimeout(()=>$('board').classList.remove('shake'),320);
+      if(gossipCase){
+        gossipFailFeedback();
+      } else {
+        // highlight the contradicted clue (or the gap)
+        const h=Engine.hintClue(C,lastEv);
+        if(h && h.why==='bad'){
+          const card=document.querySelector(`.clue[data-clue="${h.clue.id}"]`);
+          if(card){ card.classList.add('conflict'); card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+          flagPeople(h.clue);
+          setJournal(gretaScold(h.clue), true);
+        } else if(!lastEv.complete){
+          setJournal("Not everyone's home yet, dear — a branch or two still bare.", true);
+          document.querySelectorAll('.slot:not(.filled) .well').forEach(w=>{ w.style.borderColor='var(--coral)'; setTimeout(()=>w.style.borderColor='',700); });
+        } else {
+          // every branch filled, yet unsolved — a needed face is benched (the decoy trap)
+          setJournal("Every branch is filled — yet a face in the box still belongs here, and one on the tree does not.", true);
+        }
+      }
+      if(wrongStamps>=2) $('btnHint').classList.add('glow');
+      Sound.rustle();
+    },360);
+  }
+  function gossipFailFeedback(){
+    if(!lastEv.complete){
+      setJournal("Build the whole tree first, dear — the lie shows itself only once the rest stands.", true);
+      document.querySelectorAll('.slot:not(.filled) .well').forEach(w=>{ w.style.borderColor='var(--coral)'; setTimeout(()=>w.style.borderColor='',700); });
+      return;
+    }
+    // tree complete: is it genuinely mis-built (a reliable/true clue contradicts)?
+    const badReal=C.clues.find(cl=> cl.id!==C.liar && lastEv.byClue[cl.id]==='bad');
+    if(badReal){
+      const card=document.querySelector(`.clue[data-clue="${badReal.id}"]`);
+      if(card){ card.classList.add('conflict'); card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+      flagPeople(badReal);
+      setJournal(gretaScold(badReal), true);
+      return;
+    }
+    // tree is right — it's about the doubt now
+    if(!doubted){
+      setJournal("One of these rumours is a lie, dear. Find the whisper that fights your tree — tap its 🗨 — then stamp.", true);
+      document.querySelectorAll('.clue.gossip').forEach(c=>{ c.classList.add('conflict'); setTimeout(()=>c.classList.remove('conflict'),600); });
+    } else {
+      const dc=document.querySelector(`.clue[data-clue="${doubted}"]`);
+      if(dc){ dc.classList.add('conflict'); dc.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+      setJournal("That whisper rings true — it fits your tree just fine. The lie is the one your tree refuses.", true);
+    }
+  }
+  function flagPeople(clue){
+    const ids=Engine.cluePeople(clue);
+    ids.forEach(pid=>{ const s=slotOfPerson(pid); if(s){ const node=document.querySelector(`.slot[data-slot="${s}"]`); if(node){ node.classList.add('bad'); setTimeout(()=>node.classList.remove('bad'),700);} } });
+  }
+  function gretaScold(clue){
+    const msgs={
+      hollow:"An uncle is a brother of a parent, dear — look again at where Birch sits.",
+      asher:"Mind the ledger years — eldest to the left.",
+    };
+    if(C.id==='hollow' && clue.preds.some(p=>p.k==='uncleaunt')) return msgs.hollow;
+    if(clue.preds.some(p=>p.k==='older'||p.k==='oldestSib')) return "The years don't line up — check who came before whom.";
+    if(clue.preds.some(p=>p.k==='uncleaunt')) return "An uncle is a brother of a parent — trace the link between them.";
+    if(clue.preds.some(p=>p.k==='eldest')) return "That one belongs up top with the founders — or not up top at all.";
+    if(clue.preds.some(p=>p.k==='marriedIn')) return "They married in — no parents of theirs on this board.";
+    return "This card and your board disagree — I've flagged it in red. Re-read it slowly.";
+  }
+
+  function sealFor(){
+    if(wrongStamps===0) return 'gold';
+    if(wrongStamps===1) return 'silver';
+    if(wrongStamps===2) return 'bronze';
+    return 'tea';
+  }
+  function onSolve(){
+    busy=true;
+    setTimeout(()=>{
+      drawWires(true);
+      $('board').querySelectorAll('.pcard').forEach(pc=>pc.classList.add('colored'));
+      Sound.music.duck(2200);     // let the solve arpeggio breathe
+      Sound.success();
+      setTimeout(Sound.solve, 320);
+      confettiAt($('board'));
+      setJournal("There — it inks itself. Lovely.", true);
+    },340);
+    // record
+    const seal=sealFor();
+    const prev=prog.solved[C.id];
+    if(!prev || SEAL_ORDER[seal]>SEAL_ORDER[prev]) prog.solved[C.id]=seal;
+    save();
+    setTimeout(()=>openDone(seal),1250);
+  }
+
+  /* ============================ DONE OVERLAY ============================ */
+  function openDone(seal){
+    busy=false;
+    $('doneHead').classList.remove('stampin'); void $('doneHead').offsetWidth; $('doneHead').classList.add('stampin');
+    const sealNames={gold:'A flawless stamp — first try.',silver:'One slip, then sealed.',bronze:'Two tries, but sealed.',tea:'Greta lent her stamp — sealed all the same.'};
+    $('doneSeal').className='sealbig '+seal; $('doneSeal').textContent=SEAL_ICON[seal];
+    const lines=$('doneLines'); lines.innerHTML='';
+    const rows=[];
+    rows.push(`<div class="doneline"><span class="gm"><i>Greta:</i> ${C.close}</span></div>`);
+    rows.push(`<div class="doneline"><b>${sealNames[seal]}</b></div>`);
+    // strategy naming after a handful of cases
+    const askStrat=[1,3,5,7,9,11].includes(curIdx);
+    if(askStrat){
+      rows.push(`<div class="doneline"><b>How did you crack it?</b></div>`);
+      rows.push(`<div class="doneline"><div class="stratrow" id="stratRow">${STRATS.map(s=>`<button class="strat" data-s="${s.id}">${s.t}</button>`).join('')}</div></div>`);
+    }
+    // bridging musing
+    if(BRIDGES[curIdx]){
+      rows.push(`<div class="doneline"><span class="gm" style="color:var(--ink-soft)">${BRIDGES[curIdx]}</span></div>`);
+    }
+    // G.M. reveal photos: the Act-1 close (case 6) and the final case
+    if(curIdx===5 || curIdx===CASES.length-1){
+      rows.push(`<div class="doneline">${gmRevealPhoto()}</div>`);
+    }
+    lines.innerHTML=rows.join('');
+    ovl('ovl-done',true);
+    // stagger reveal
+    const dl=lines.querySelectorAll('.doneline');
+    dl.forEach((d,i)=>setTimeout(()=>d.classList.add('show'), 260+i*230));
+    if(askStrat){
+      lines.querySelectorAll('.strat').forEach(bn=>bn.addEventListener('click',()=>{
+        lines.querySelectorAll('.strat').forEach(x=>x.classList.remove('sel'));
+        bn.classList.add('sel');
+        prog.strat[bn.dataset.s]=(prog.strat[bn.dataset.s]||0)+1; save();
+        Sound.tick();
+      }));
+    }
+    // next button label
+    const isLast=curIdx>=CASES.length-1;
+    $('btnNext').textContent = isLast? 'Return to the office' : 'Next case';
+    $('btnNext').classList.toggle('primary',true);
+  }
+  function gmRevealPhoto(){
+    const story=C.clues.find(cl=>cl.story&&cl.photo&&cl.photo.includes('GM'));
+    const partnerId=story?story.photo.find(id=>id!=='GM'):null;
+    const partner=partnerId?C.people.find(p=>p.id===partnerId):null;
+    const partnerSvg=partner?Art.portrait(Object.assign({_i:'rev'+partnerId},partner.art)):gmPortrait();
+    return `<div class="gmphoto"><div class="pframe gm">${gmPortrait()}</div>
+      <div class="pframe">${partnerSvg}</div>
+      <span class="gm" style="align-self:center"><i>— the same face, in every frame.</i></span></div>`;
+  }
+
+  /* ============================ CASEBOOK ============================ */
+  function openBook(){
+    const bars=$('bookBars'); const e=prog.err; const tot=Math.max(1,e.input+e.elab+e.output);
+    const rows=[
+      ['Slow down and gather','input',e.input,"stamped before every card was accounted for"],
+      ['Reason it all the way','elab',e.elab,"all the clues in hand, but the wrong tree"],
+      ['Steady the hand','output',e.output,"the right tree, one swap from done"]
+    ];
+    bars.innerHTML=rows.map(([lab,k,v,d])=>`
+      <div class="bookrow"><div class="blab">${lab}</div>
+        <div class="bar"><i data-w="${Math.round(v/tot*100)}"></i></div>
+        <div style="font-family:Caveat;font-size:15px;color:var(--ink-soft);margin-top:2px">${v} — ${d}</div>
+      </div>`).join('');
+    // strategies
+    const strat=Object.entries(prog.strat).sort((a,b)=>b[1]-a[1]);
+    $('bookStrats').innerHTML = strat.length? '<li style="font-family:Caveat;font-size:18px;margin-bottom:4px">Strategies you named:</li>'+
+      strat.map(([id,n])=>{const s=STRATS.find(x=>x.id===id); return `<li>· <b>${s?s.t:id}</b> ×${n}</li>`;}).join('') : '';
+    const total=solvedCount();
+    const domErr = (e.input+e.elab+e.output)===0? null : rows.slice().sort((a,b)=>b[2]-a[2])[0];
+    $('bookFoot').innerHTML = total>=CASES.length
+      ? "Every family filed. You read this town like Greta did."
+      : (domErr && domErr[2]>0 ? `Most often: ${domErr[0].toLowerCase()}. Not a grade — just a habit to notice.` : "No stumbles recorded yet. Fresh casebook.");
+    ovl('ovl-book',true);
+    requestAnimationFrame(()=>bars.querySelectorAll('.bar i').forEach(i=>i.style.width=i.dataset.w+'%'));
+  }
+
+  /* ============================ CONFETTI ============================ */
+  function confettiAt(node){
+    const r=node.getBoundingClientRect(); const cx=r.left+r.width/2, cy=r.top+r.height*0.42;
+    const cols=[PAL.brass,PAL.brassHi,PAL.moss,PAL.coral,'#e9d8b6'];
+    const fx=$('fx');
+    for(let i=0;i<26;i++){
+      const b=el('div','bit');
+      const ang=Math.random()*Math.PI*2, sp=40+Math.random()*150;
+      b.style.left=cx+'px'; b.style.top=cy+'px';
+      b.style.background=cols[i%cols.length];
+      b.style.setProperty('--dx',(Math.cos(ang)*sp)+'px');
+      b.style.setProperty('--dy',(Math.sin(ang)*sp+120)+'px');
+      b.style.setProperty('--rot',(Math.random()*540-270)+'deg');
+      b.style.setProperty('--t',(1+Math.random()*0.7)+'s');
+      fx.appendChild(b); setTimeout(()=>b.remove(),1800);
+    }
+  }
+
+  /* ============================ HINT (Ask Greta) ============================ */
+  let hintStage=0, hintCaseIdx=-1;
+  function askGreta(){
+    if(hintCaseIdx!==curIdx){ hintStage=0; hintCaseIdx=curIdx; }
+    evaluateNow(true);
+    const gossipCase=Engine.isGossipCase(C);
+    // solution set ignores the false rumour in gossip cases
+    const sol=Engine.enumerate(C, gossipCase?C.liar:undefined).samples[0];
+    const treeBuilt = sol && Object.keys(sol).every(s=>draft[s]===sol[s]);
+
+    if(gossipCase && treeBuilt){
+      // the tree stands — steer to the lie
+      document.querySelectorAll('.clue.hintmark').forEach(c=>c.classList.remove('hintmark'));
+      hintStage=Math.min(hintStage+1,3);
+      const liarCard=document.querySelector(`.clue[data-clue="${C.liar}"]`);
+      if(hintStage<3){
+        setJournal("Your tree is sound. Now — which rumour does it refuse? Look for the whisper still glowing.",true);
+        if(liarCard){ liarCard.classList.add('hintmark'); liarCard.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+      } else {
+        doubted=C.liar; refreshDoubt();
+        if(liarCard) liarCard.scrollIntoView({block:'nearest',behavior:'smooth'});
+        setJournal("There — I'll call it out myself. That's the lie. Stamp when ready.",true);
+        hintStage=2;
+      }
+      Sound.tick(); return;
+    }
+
+    const h=Engine.hintClue(C, gossipCase?Engine.evaluate(C,T,draft,C.liar):lastEv);
+    if(!h){
+      setJournal(gossipCase? "The tree agrees — now find the rumour it won't allow." : "It all agrees, dear — go on and stamp it.",true);
+      return;
+    }
+    // progressive: 1) which card, 2) explain, 3) place a piece
+    hintStage=Math.min(hintStage+1,3);
+    const card=document.querySelector(`.clue[data-clue="${h.clue.id}"]`);
+    document.querySelectorAll('.clue.hintmark').forEach(c=>c.classList.remove('hintmark'));
+    if(card){ card.classList.add('hintmark'); card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+    if(hintStage===1){ setJournal("Start with this one — it's still unsettled.",true); }
+    else if(hintStage===2){ setJournal(gretaScold(h.clue),true); }
+    else {
+      // place one correct piece — prefer a bare branch over reshuffling valid founders
+      if(sol){
+        let target=Object.keys(sol).find(s=>!draft[s]);
+        if(!target) target=Object.keys(sol).find(s=>draft[s]!==sol[s]);
+        if(target){ placePerson(sol[target], target); setJournal("Here — I'll set this face for you. The rest you'll see.",true); }
+      }
+      hintStage=2;
+    }
+    Sound.tick();
+  }
+
+  /* ============================ WIRING ============================ */
+  function toOffice(){ ovl('ovl-done',false); renderOffice(); show('scr-office'); }
+  function bindOnce(){
+    wireDnD();
+    $('btnPlay').addEventListener('click',()=>{ Sound.open(); renderOffice(); show('scr-office'); });
+    $('btnBack').addEventListener('click',()=>{ show('scr-office'); renderOffice(); });
+    $('btnStamp').addEventListener('click',doStamp);
+    $('btnHint').addEventListener('click',askGreta);
+    $('btnBook').addEventListener('click',openBook);
+    $('btnBookClose').addEventListener('click',()=>ovl('ovl-book',false));
+    $('btnReset').addEventListener('click',()=>{
+      if(!resetArmed){ resetArmed=true; $('btnReset').textContent='Tap again to erase all'; setTimeout(()=>{resetArmed=false;$('btnReset').textContent='Start everything over';},2600); return; }
+      prog.solved={}; prog.err={input:0,elab:0,output:0}; prog.strat={}; save();
+      ovl('ovl-book',false); renderOffice(); show('scr-office');
+    });
+    $('btnToOffice').addEventListener('click',toOffice);
+    $('btnAgain').addEventListener('click',()=>{ ovl('ovl-done',false); openCase(curIdx); });
+    $('btnNext').addEventListener('click',()=>{
+      ovl('ovl-done',false);
+      if(curIdx>=CASES.length-1){ toOffice(); }
+      else { const ni=curIdx+1; if(isUnlocked(ni)) openCase(ni); else toOffice(); }
+    });
+    $('btnCat').addEventListener('click',()=>{ Sound.prrp(); const h=$('catHeart'); h.classList.remove('pop'); void h.offsetWidth; h.classList.add('pop'); });
+    // 🔊 sound effects + 🎵 music (independent buses; each persisted)
+    Sound.setMuted(prog.muted);
+    $('btnMute').textContent=prog.muted?'🔇':'🔊'; $('btnMute').classList.toggle('off',prog.muted);
+    $('btnMute').addEventListener('click',()=>{ prog.muted=!prog.muted; Sound.setMuted(prog.muted); $('btnMute').textContent=prog.muted?'🔇':'🔊'; $('btnMute').classList.toggle('off',prog.muted); save(); });
+    $('btnMusic').textContent=prog.music?'🎵':'🎶'; $('btnMusic').classList.toggle('off',!prog.music);
+    $('btnMusic').addEventListener('click',()=>{ prog.music=!prog.music; Sound.music.toggle(prog.music); $('btnMusic').classList.toggle('off',!prog.music); save(); });
+    // music can't autoplay — boot it on the first user gesture if enabled
+    if(prog.music){ const kick=()=>{ if(prog.music) Sound.music.toggle(true); document.removeEventListener('pointerdown',kick); }; document.addEventListener('pointerdown',kick,{once:true}); }
+    // pause music when the tab/panel is hidden
+    document.addEventListener('visibilitychange',()=>Sound.music.hide(document.hidden));
+    // keyboard
+    document.addEventListener('keydown',e=>{
+      const doneOn=$('ovl-done').classList.contains('on'), bookOn=$('ovl-book').classList.contains('on');
+      if(doneOn){ if(e.key==='Enter'){ e.preventDefault(); $('btnNext').click(); } return; }
+      if(bookOn){ if(e.key==='Escape'){ $('btnBookClose').click(); } return; }
+      if(!$('scr-case').classList.contains('on')) return;
+      if(e.key==='Enter'){
+        const a=document.activeElement;
+        // let a focused portrait/branch/pin handle its own Enter (pick / place / mark)
+        if(a && (a.classList.contains('tcard')||a.classList.contains('slot')||a.classList.contains('pin'))) return;
+        e.preventDefault(); doStamp();
+      }
+      else if(e.key==='h'||e.key==='H'){ askGreta(); }
+      else if(e.key==='Escape'){ if(picked){ picked=null; renderTray(); refreshPickable(); } }
+    });
+  }
+  let resetArmed=false;
+
+  /* ============================ DEBUG / VERIFY ============================ */
+  function verify(){
+    const out=[];
+    CASES.forEach((c,i)=>{
+      if(Engine.isGossipCase(c)){
+        const all=Engine.enumerate(c);                 // trusting every card — the liar makes this 0
+        const past=Engine.enumerate(c,c.liar);          // setting the liar aside — should be small & unique
+        out.push({case:c.name, slots:c.slots.length, people:c.people.length,
+          solutions:past.count, trustingAll:all.count,
+          ok: past.count>=1 && past.count<=4 && all.count===0});
+      } else {
+        const r=Engine.enumerate(c);
+        out.push({case:c.name, slots:c.slots.length, people:c.people.length, solutions:r.count, trustingAll:'—',
+          ok: r.count>=1 && r.count<=4});
+      }
+    });
+    console.table(out);
+    const bad=out.filter(o=>!o.ok);
+    console.log(bad.length? '⚠ cases needing attention: '+bad.map(b=>b.case).join(', ') : '✓ all cases have a small, valid solution set.');
+    return out;
+  }
+
+  function init(){ if(inited) return; inited=true; bindOnce(); renderOffice(); }
+  let inited=false;
+  // debug: fill with a valid solution (optionally leave one slot wrong) and/or stamp
+  function _fill(wrongSlot){
+    if(!C) return 'open a case first';
+    const gc=Engine.isGossipCase(C);
+    const sol=Engine.enumerate(C, gc?C.liar:undefined).samples[0]; if(!sol) return 'no solution';
+    draft={}; Object.assign(draft,sol);
+    if(wrongSlot){ const s=C.slots.map(x=>x.id); const a=wrongSlot, b=s.find(x=>x!==a); const t=draft[a]; draft[a]=draft[b]; draft[b]=t; }
+    picked=null; renderBoard(); renderTray(); evaluateNow(true);
+    const solved = gc ? Engine.gossipSolved(C,T,draft,doubted) : lastEv.solved;
+    return {draft:Object.assign({},draft), solved, treeReady: gc?Engine.enumerate(C,C.liar).samples.some(sm=>Object.keys(sm).every(k=>draft[k]===sm[k])):lastEv.solved};
+  }
+  function _doubt(id){ doubted=id; refreshDoubt(); return doubted; }
+  return {init, verify, get state(){return {C,draft,marks,prog,lastEv,curIdx,doubted};},
+          _openCase:openCase, _fill, _stamp:doStamp, _place:placePerson, _doubt, _prog:prog, Engine, CASES };
+})();
+
+window.FTD = { get Engine(){return UI.Engine;}, get CASES(){return UI.CASES;}, verify:()=>UI.verify(),
+  get state(){return UI.state;}, open:i=>UI._openCase(i), fill:w=>UI._fill(w), stamp:()=>UI._stamp(), place:(p,s)=>UI._place(p,s), doubt:id=>UI._doubt(id) };
+document.addEventListener('DOMContentLoaded', UI.init);
+if(document.readyState!=='loading') UI.init();
+</script>
+
+</body>
+</html>

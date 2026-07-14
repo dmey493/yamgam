@@ -1,0 +1,1688 @@
+<!--
+  ZOOM — dive into the number line
+  An infinite-zoom number line (Google Maps for numbers). "Find 3.47": tap a stretch
+  of an UNLABELED line to dive ×10 into it — 0–10 → 3–4 → 3.4–3.5 — then drop the
+  buoy on the spot. No resurfacing: one wrong dive and you're locked out, so you must
+  track your interval in your head. Score = how close + how fast.
+
+  CORE LOOP (≈15–30s): read target → aim a segment → DIVE (×10, hashes bloom, water
+  darkens) → repeat deeper → drag the buoy → LOCK IT IN → reveal grades you in
+  place-value words → next target.
+  THE SECRET: your dive path IS the decimal expansion (diving 3, then 4, then 7
+  spells 3.47). Digit keys 0–9 dive directly — navigating = writing the number.
+
+  Target standards (grades 6-8):
+    6.NS.6 / 6.NS.7 — position & order rational numbers on the number line; place value
+    7.NS.2d         — convert fractions to decimals (boss levels: ⅜, ⅞, ⅓, 2¾ …)
+    8.NS.1 / 8.NS.2 — irrational numbers, decimal approximation (final boss: π, √2, e, φ)
+  Super-idea exercised: MAGNITUDE (how big is this, really?)
+  Misconceptions ambushed:
+    • "0.06 = 0.6" / interior zeros (0.06, 8.09, 6.02 targets)
+    • "7.30 ≠ 7.3" (trailing-zero target sits exactly ON a tenths hash)
+    • "⅜ lives near 3" (fraction-as-two-whole-numbers — boss trap)
+    • "π = 3.14 exactly" (depth scoring says otherwise)
+    • "nothing lives between the hashes" (every dive refutes it)
+  SMPs: 2 (convert representations to navigate), 6 (precision = score),
+        7 (place-value structure IS the map), 1 (boss perseverance).
+  Session shape: level = 5 dives ≈ 2-3 min (warm-up / station). Instant retry.
+  Sonar (−100 pts) flashes your current bounds: a priced hint, never a crutch.
+
+  Single file. No dependencies. Hand-rolled SVG/CSS art, one ocean palette,
+  Web-Audio synth sound (no files). Progress saved locally when storage allows.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Zoom — how deep can you dive?</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---- One palette, declared once (ocean, hand-rolled) ---- */
+  :root{
+    --ink:#eaf6ff;         /* foam white */
+    --muted:#7fa6c4;       /* dim slate blue */
+    --panel:#0d2c47;       /* raised surface */
+    --panel2:#134066;
+    --line:#9be3ff;        /* hash cyan */
+    --line-dim:#2e5d80;    /* minor hash */
+    --buoy:#ffc857;        /* amber = YOU */
+    --beacon:#ff5d8f;      /* biolum pink = the true spot */
+    --good:#3fe08f;
+    --bad:#ff5c6c;
+    --radius:18px;
+    --shadow:0 12px 34px rgba(0,4,12,.5);
+    --shadow-sm:0 4px 14px rgba(0,4,12,.4);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:#04101d;
+    color:var(--ink);
+    font-family:Nunito,system-ui,sans-serif;
+    overflow:hidden;
+    user-select:none;-webkit-user-select:none;
+    letter-spacing:.2px;
+  }
+  button{font-family:inherit;color:inherit}
+
+  /* ---- Depth backdrop: two tint layers crossfade as you dive ---- */
+  .tint{position:fixed;inset:0;pointer-events:none;transition:opacity .9s ease}
+  #tintA,#tintB{z-index:0}
+  #caustics{
+    z-index:1;opacity:.5;transition:opacity 1s;
+    background:
+      radial-gradient(42% 34% at 24% -6%, rgba(155,227,255,.14), transparent 70%),
+      radial-gradient(38% 30% at 78% -10%, rgba(155,227,255,.10), transparent 70%);
+    animation:caust 11s ease-in-out infinite alternate;
+  }
+  @keyframes caust{from{transform:translateX(-2.5%) scale(1)}to{transform:translateX(2.5%) scale(1.06)}}
+  #ambientCv{position:fixed;inset:0;z-index:2;pointer-events:none}
+
+  /* ---- Screens ---- */
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;padding:18px;opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .3s ease,visibility .3s}
+  .screen.on{opacity:1;pointer-events:auto;visibility:visible}
+  .wrap{width:100%;max-width:980px;margin:0 auto}
+
+  /* ---- Title ---- */
+  #scr-title{gap:8px;text-align:center}
+  .wordmark{font-family:Fredoka;font-weight:700;font-size:min(19vw,108px);line-height:1;display:flex;align-items:center;gap:.04em;justify-content:center}
+  .wordmark .o{
+    position:relative;width:.78em;height:.78em;border-radius:50%;
+    border:.09em solid var(--line);display:inline-block;
+    box-shadow:0 0 22px rgba(155,227,255,.35), inset 0 0 14px rgba(155,227,255,.22);
+  }
+  .wordmark .o.o2{border-color:var(--buoy);box-shadow:0 0 22px rgba(255,200,87,.3), inset 0 0 14px rgba(255,200,87,.2)}
+  .wordmark .o::after{
+    content:"";position:absolute;inset:-.09em;border-radius:50%;
+    border:.06em solid currentColor;opacity:0;animation:ringout 2.8s ease-out infinite;
+  }
+  .wordmark .o.o2::after{animation-delay:1.4s}
+  @keyframes ringout{0%{transform:scale(.6);opacity:.7}70%{transform:scale(1.9);opacity:0}100%{opacity:0}}
+  .tagline{font-family:Fredoka;font-weight:500;font-size:19px;color:var(--muted);margin:6px 0 22px}
+  .tagline b{color:var(--line);font-weight:600}
+
+  .btn{
+    border:none;cursor:pointer;border-radius:16px;font-family:Fredoka;font-weight:600;
+    background:var(--panel);box-shadow:var(--shadow-sm);
+    transition:transform .13s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,background .2s,opacity .2s;
+  }
+  .btn:hover{transform:translateY(-2px) scale(1.03)}
+  .btn:active{transform:scale(.94)}
+  .btn:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+  .btn.primary{
+    background:linear-gradient(180deg,#ffd97a,var(--buoy));color:#4a2e00;
+    font-weight:700;box-shadow:0 8px 24px rgba(255,200,87,.35), var(--shadow-sm);
+  }
+  .btn.primary:hover{box-shadow:0 12px 30px rgba(255,200,87,.45), var(--shadow-sm)}
+  .btn.big{font-size:23px;padding:16px 44px;border-radius:20px}
+  .btn.ghost{background:transparent;border:2px solid var(--panel2);box-shadow:none;color:var(--muted);font-weight:600}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--muted)}
+  .btn:disabled{opacity:.45;pointer-events:none}
+  .titlebest{margin-top:26px;color:var(--muted);font-size:14px;font-weight:700}
+  .titlebest b{color:var(--buoy)}
+
+  /* ---- Level map (a dive chart) ---- */
+  #scr-map{justify-content:flex-start;overflow-y:auto;padding-top:14px}
+  #scr-map .wrap{max-width:560px;padding-bottom:30px}
+  .maphead{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+  .maphead .logo{font-family:Fredoka;font-weight:700;font-size:26px}
+  .maphead .logo b{color:var(--line)}
+  .starTotal{font-family:Fredoka;font-weight:600;font-size:16px;color:var(--buoy)}
+  .icon-btn{
+    width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;flex:none;
+    background:var(--panel);color:var(--ink);font-size:19px;box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s ease,background .2s;
+  }
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn:hover{background:var(--panel2)}
+  .icon-btn:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+  .lvl{
+    width:100%;display:flex;align-items:center;gap:14px;text-align:left;
+    background:var(--panel);border:none;border-radius:var(--radius);cursor:pointer;
+    padding:13px 16px;margin:0 0 10px;box-shadow:var(--shadow-sm);
+    transition:transform .14s cubic-bezier(.34,1.56,.64,1),background .2s;position:relative;
+  }
+  .lvl:hover{transform:translateY(-2px) scale(1.015);background:var(--panel2)}
+  .lvl:active{transform:scale(.97)}
+  .lvl:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+  .lvl.locked{opacity:.45;filter:saturate(.4);cursor:not-allowed}
+  .lvl.locked:hover{transform:none;background:var(--panel)}
+  .lvl .dot{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;
+    font-family:Fredoka;font-weight:700;font-size:16px;color:#04101d;box-shadow:0 0 16px currentColor}
+  .lvl .nm{font-family:Fredoka;font-weight:600;font-size:18px}
+  .lvl .sub{color:var(--muted);font-size:12.5px;font-weight:700;margin-top:1px}
+  .lvl .meta{margin-left:auto;text-align:right;flex:none}
+  .lvl .stars{font-size:15px;letter-spacing:2px;color:var(--buoy)}
+  .lvl .stars .off{color:var(--panel2)}
+  .lvl .bs{color:var(--muted);font-size:11.5px;font-weight:800;margin-top:2px}
+  .lvl .boss{position:absolute;top:-7px;right:12px;background:var(--beacon);color:#2b0212;
+    font-family:Fredoka;font-weight:700;font-size:10.5px;letter-spacing:1.2px;
+    padding:2px 9px;border-radius:99px;box-shadow:0 0 14px rgba(255,93,143,.5)}
+  .maplink{width:2px;height:14px;background:repeating-linear-gradient(180deg,var(--line-dim) 0 4px,transparent 4px 8px);margin:-6px auto 4px}
+
+  /* ---- Game screen ---- */
+  #scr-game{justify-content:flex-start;padding-top:12px}
+  #scr-game .wrap{display:flex;flex-direction:column;height:100%;max-height:860px}
+  .hud{display:flex;align-items:center;gap:10px}
+  .hud .mid{flex:1;min-width:0;text-align:center}
+  .lvlpill{font-family:Fredoka;font-weight:600;font-size:14.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lvlpill b{color:var(--ink)}
+  .pips{display:flex;gap:5px;justify-content:center;margin-top:4px}
+  .pip{width:26px;height:6px;border-radius:99px;background:var(--panel2);transition:background .4s,box-shadow .4s}
+  .pip.done{background:var(--good);box-shadow:0 0 8px rgba(63,224,143,.5)}
+  .pip.miss{background:var(--bad)}
+  .pip.active{background:var(--line);box-shadow:0 0 8px rgba(155,227,255,.5)}
+  .scorebox{text-align:right;flex:none;min-width:86px}
+  .scoreval{font-family:Fredoka;font-weight:700;font-size:24px;line-height:1;color:var(--ink)}
+  .streak{font-size:12px;font-weight:800;color:var(--muted);margin-top:2px;transition:color .3s}
+  .streak.hot{color:var(--buoy)}
+  .airRow{font-size:13px;letter-spacing:2px}
+
+  /* target card */
+  .targetCard{
+    margin:10px auto 4px;text-align:center;background:var(--panel);border-radius:var(--radius);
+    padding:10px 26px 13px;box-shadow:var(--shadow);position:relative;min-width:190px;width:max-content;
+    max-width:96%;animation:breathe 3.4s ease-in-out infinite;
+  }
+  @keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .targetCard .eyebrow{font-size:11px;font-weight:800;letter-spacing:2.5px;color:var(--muted);text-transform:uppercase}
+  .targetVal{font-family:Fredoka;font-weight:700;font-size:46px;line-height:1.15;color:var(--buoy);
+    display:flex;align-items:center;justify-content:center;gap:10px}
+  .targetVal .irrname{font-size:14px;color:var(--muted);font-weight:600;text-align:left;line-height:1.2}
+  .frac{display:inline-flex;flex-direction:column;align-items:center;line-height:1;vertical-align:middle;font-size:.62em}
+  .frac .fn{padding:0 .18em .06em}
+  .frac .fd{padding:.1em .18em 0;border-top:.075em solid currentColor}
+  .mixedw{font-size:1em;margin-right:.06em}
+
+  /* the stage (number line lives here) */
+  .stageOuter{position:relative;flex:1;min-height:225px;max-height:330px;margin-top:2px}
+  .stage{position:absolute;inset:0;touch-action:none;cursor:pointer}
+  .stage canvas{position:absolute;inset:0;width:100%;height:100%}
+  #fxCv{pointer-events:none}
+
+  .pin{position:absolute;top:0;left:50%;width:56px;margin-left:-28px;height:100%;z-index:5;pointer-events:none}
+  .pinArt{position:absolute;left:50%;transform:translateX(-50%);transition:transform .15s ease}
+  .pin .bob{animation:bob 2.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-5px) rotate(1.5deg)}}
+  .beacon{position:absolute;z-index:4;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .3s}
+  .beaconDot{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border-radius:50%;
+    background:var(--beacon);box-shadow:0 0 18px var(--beacon),0 0 40px rgba(255,93,143,.55)}
+  .beaconRing{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border-radius:50%;
+    border:3px solid var(--beacon);animation:ringout 1.6s ease-out infinite}
+  .beaconChip{position:absolute;left:0;transform:translate(-50%,-190%);background:var(--beacon);color:#2b0212;
+    font-family:Fredoka;font-weight:700;font-size:16px;padding:4px 12px;border-radius:12px;white-space:nowrap;
+    box-shadow:0 6px 18px rgba(255,93,143,.4)}
+  .beaconChip .frac{font-size:.7em}
+
+  .boundLbl{position:absolute;bottom:8px;background:var(--panel2);color:var(--line);
+    font-family:Fredoka;font-weight:600;font-size:15px;padding:3px 11px;border-radius:10px;
+    opacity:0;transition:opacity .35s;pointer-events:none;box-shadow:var(--shadow-sm);white-space:nowrap;z-index:6}
+  .boundLbl.on{opacity:1}
+
+  .chip{position:absolute;z-index:6;transform:translate(-50%,0);background:var(--line);color:#04283e;
+    font-family:Fredoka;font-weight:700;font-size:14px;padding:5px 14px;border-radius:99px;
+    box-shadow:0 6px 18px rgba(155,227,255,.35);cursor:pointer;border:none;
+    opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+  .chip.on{opacity:1;pointer-events:auto;animation:chipnudge 1.4s ease-in-out infinite}
+  @keyframes chipnudge{0%,100%{margin-top:0}50%{margin-top:4px}}
+
+  .errLabel{position:absolute;z-index:7;transform:translate(-50%,-50%);font-family:Fredoka;font-weight:600;
+    font-size:15.5px;color:var(--ink);background:rgba(13,44,71,.92);padding:5px 13px;border-radius:12px;
+    box-shadow:var(--shadow-sm);opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+  .errLabel.on{opacity:1}
+
+  .coach{position:absolute;z-index:8;left:50%;transform:translateX(-50%);top:-2px;max-width:94%;
+    background:var(--panel2);border-radius:14px;padding:8px 16px;font-size:14.5px;font-weight:700;
+    color:var(--ink);box-shadow:var(--shadow);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;text-align:center}
+  .coach.on{opacity:1}
+  .coach b{color:var(--buoy)}
+  .coach i{color:var(--line);font-style:normal}
+
+  /* depth + speed row */
+  .subrow{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 10px;min-height:34px}
+  .depthPill{display:flex;align-items:center;gap:9px;background:var(--panel);border-radius:99px;
+    padding:6px 16px;box-shadow:var(--shadow-sm);font-family:Fredoka}
+  .depthPill .zone{font-weight:600;font-size:15px;letter-spacing:.5px}
+  .depthPill .pv{color:var(--muted);font-size:12.5px;font-weight:600}
+  .depthPill .mag{color:var(--line);font-weight:700;font-size:13.5px}
+  .depthPill.pulse{animation:pillpulse .5s ease}
+  @keyframes pillpulse{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+  .speedPill{display:flex;align-items:center;gap:7px;background:var(--panel);border-radius:99px;
+    padding:6px 13px;box-shadow:var(--shadow-sm);min-width:110px}
+  .speedPill .bolt{font-size:13px}
+  .speedBar{flex:1;height:7px;border-radius:99px;background:var(--panel2);overflow:hidden;min-width:56px}
+  .speedFill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--line),#d4f2ff);transition:opacity .4s}
+
+  /* action row */
+  .actions{display:flex;align-items:center;justify-content:center;gap:12px;padding:2px 0 14px}
+  #btnSonar{font-size:15px;padding:13px 18px;color:var(--line);display:flex;flex-direction:column;line-height:1.15;align-items:center}
+  #btnSonar small{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.5px}
+  #btnLock{font-size:21px;padding:15px 40px;letter-spacing:.5px}
+
+  /* ---- Overlays inside game ---- */
+  .overlay{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:18px;
+    background:rgba(3,10,18,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .25s,visibility .25s}
+  .overlay.on{opacity:1;pointer-events:auto;visibility:visible}
+  .introCard{
+    text-align:center;background:var(--panel);border-radius:24px;padding:22px 44px 26px;box-shadow:var(--shadow);
+    transform:scale(.6) rotate(-4deg);transition:transform .45s cubic-bezier(.34,1.66,.64,1)}
+  .overlay.on .introCard{transform:scale(1) rotate(0)}
+  .introCard .eyebrow{font-size:12px;font-weight:800;letter-spacing:3px;color:var(--muted)}
+  .introCard .val{font-family:Fredoka;font-weight:700;font-size:64px;color:var(--buoy);line-height:1.15;
+    display:flex;align-items:center;justify-content:center;gap:12px}
+  .introCard .val .irrname{font-size:16px;color:var(--muted);font-weight:600;text-align:left;line-height:1.25}
+  .introCard .note{color:var(--muted);font-weight:700;font-size:14px;margin-top:10px}
+  .introCard .note i{font-style:normal;color:var(--line)}
+
+  .stamp{position:absolute;z-index:30;left:50%;top:26%;transform:translate(-50%,-50%) rotate(-6deg) scale(0);
+    font-family:Fredoka;font-weight:700;font-size:44px;letter-spacing:1px;padding:6px 26px;border-radius:16px;
+    border:4px solid currentColor;background:rgba(4,16,29,.85);pointer-events:none;white-space:nowrap}
+  .stamp.on{animation:stampin .5s cubic-bezier(.34,1.7,.64,1) forwards}
+  @keyframes stampin{from{transform:translate(-50%,-50%) rotate(-14deg) scale(2.4);opacity:0}
+    to{transform:translate(-50%,-50%) rotate(-6deg) scale(1);opacity:1}}
+
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:25;transform:translateY(110%);visibility:hidden;
+    transition:transform .4s cubic-bezier(.3,1.3,.5,1),visibility .4s;background:var(--panel);
+    border-radius:26px 26px 0 0;box-shadow:0 -14px 44px rgba(0,4,12,.6);padding:18px 22px calc(16px + env(safe-area-inset-bottom))}
+  .sheet.on{transform:translateY(0);visibility:visible}
+  .sheet .inner{max-width:560px;margin:0 auto}
+  .srow{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:16px;
+    color:var(--muted);padding:5px 2px;opacity:0;transform:translateX(-14px);transition:opacity .3s,transform .3s}
+  .srow.on{opacity:1;transform:none}
+  .srow b{font-family:Fredoka;font-weight:600;color:var(--ink);font-size:19px}
+  .srow.total{border-top:2px solid var(--panel2);margin-top:6px;padding-top:10px;color:var(--ink);font-size:18px}
+  .srow.total b{color:var(--buoy);font-size:30px;font-weight:700}
+  .srow .plus{color:var(--good)} .srow .minus{color:var(--bad)} .srow .mult{color:var(--buoy)}
+  .factline{color:var(--muted);font-size:13.5px;font-weight:700;text-align:center;margin-top:8px;opacity:0;transition:opacity .4s}
+  .factline.on{opacity:1}
+  .factline i{font-style:normal;color:var(--line)}
+  .sheet .cta{display:flex;gap:12px;justify-content:center;margin-top:14px}
+
+  /* level end + fact cards */
+  .endCard{width:min(480px,94vw);background:var(--panel);border-radius:26px;box-shadow:var(--shadow);
+    padding:26px 28px;text-align:center;transform:scale(.85);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
+  .overlay.on .endCard{transform:scale(1)}
+  .endCard h2{font-family:Fredoka;font-weight:700;font-size:32px;margin:0 0 4px}
+  .endCard .sub{color:var(--muted);font-weight:700;font-size:14px;margin-bottom:12px}
+  .bigstars{font-size:44px;letter-spacing:6px;margin:6px 0 10px;color:var(--buoy)}
+  .bigstars span{display:inline-block;opacity:.18;transform:scale(.6)}
+  .bigstars span.lit{opacity:1;animation:starpop .5s cubic-bezier(.34,1.8,.64,1) forwards}
+  @keyframes starpop{from{transform:scale(.2) rotate(-30deg)}to{transform:scale(1) rotate(0)}}
+  .endstats{margin:4px 0 14px}
+  .endstats .row{display:flex;justify-content:space-between;font-weight:800;color:var(--muted);
+    font-size:15px;padding:4px 6px;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+  .endstats .row.on{opacity:1;transform:none}
+  .endstats .row b{font-family:Fredoka;color:var(--ink);font-weight:600;font-size:18px}
+  .newbest{color:#04101d!important;background:var(--buoy);border-radius:8px;padding:0 8px;font-weight:800;
+    display:inline-block;animation:pillpulse .8s ease infinite}
+  .insight{background:var(--panel2);border-radius:14px;padding:10px 14px;color:var(--ink);font-size:14px;
+    font-weight:700;margin-bottom:16px;line-height:1.45}
+  .insight i{font-style:normal;color:var(--buoy)}
+  .endCard .cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+  .factCard{width:min(440px,94vw);background:linear-gradient(180deg,var(--panel2),var(--panel));border-radius:26px;
+    box-shadow:var(--shadow);padding:26px;text-align:center;border:2px solid rgba(155,227,255,.25)}
+  .factCard .eyebrow{font-size:11px;font-weight:800;letter-spacing:3px;color:var(--line)}
+  .factCard h3{font-family:Fredoka;font-weight:600;font-size:22px;margin:8px 0 10px;line-height:1.3}
+  .factCard p{color:var(--muted);font-weight:700;font-size:15px;line-height:1.55;margin:0 0 18px}
+  .factCard p i{font-style:normal;color:var(--buoy)}
+  .factCard .path{font-family:Fredoka;font-size:28px;color:var(--line);margin-bottom:12px;font-weight:600}
+
+  /* how-to modal */
+  .howCard{width:min(460px,94vw);background:var(--panel);border-radius:26px;box-shadow:var(--shadow);padding:24px 26px}
+  .howCard h3{font-family:Fredoka;font-weight:600;font-size:24px;margin:0 0 14px;text-align:center}
+  .howstep{display:flex;gap:14px;align-items:center;margin-bottom:14px;text-align:left}
+  .howstep .pic{width:64px;height:52px;flex:none;background:var(--panel2);border-radius:12px;display:grid;place-items:center}
+  .howstep .txt{font-size:14.5px;font-weight:700;color:var(--muted);line-height:1.4}
+  .howstep .txt b{color:var(--ink)} .howstep .txt i{font-style:normal;color:var(--buoy)}
+  .hownote{text-align:center;color:var(--muted);font-size:12.5px;font-weight:700;margin:2px 0 14px}
+  .hownote i{font-style:normal;color:var(--line)}
+
+  .goPulse{position:absolute;z-index:9;left:50%;top:34%;transform:translate(-50%,-50%);font-family:Fredoka;
+    font-weight:700;font-size:40px;color:var(--line);opacity:0;pointer-events:none;text-shadow:0 0 24px rgba(155,227,255,.6)}
+  .goPulse.on{animation:gopop .7s ease forwards}
+  @keyframes gopop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.35)}}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:60;background:var(--panel2);
+    color:var(--ink);font-weight:800;font-size:14px;padding:10px 20px;border-radius:14px;box-shadow:var(--shadow);
+    opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-height:640px){
+    .targetVal{font-size:36px}.stageOuter{min-height:180px}
+    .introCard .val{font-size:48px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s!important;transition-duration:.06s!important}
+  }
+</style>
+
+<div id="tintA" class="tint"></div>
+<div id="tintB" class="tint"></div>
+<div id="caustics" class="tint"></div>
+<canvas id="ambientCv"></canvas>
+
+<!-- ============================ TITLE ============================ -->
+<div class="screen on" id="scr-title" style="z-index:12">
+  <div class="wordmark">Z<span class="o"></span><span class="o o2"></span>M</div>
+  <div class="tagline">dive into <b>the deep</b></div>
+  <button class="btn primary big" id="btnPlay">DIVE IN</button>
+  <div style="display:flex;gap:10px;margin-top:12px">
+    <button class="btn ghost" id="btnHow" style="padding:10px 22px;font-size:15px">HOW TO PLAY</button>
+    <button class="btn ghost" id="btnMap0" style="padding:10px 22px;font-size:15px">DIVE MAP</button>
+  </div>
+  <div class="titlebest" id="titleBest"></div>
+</div>
+
+<!-- ============================ MAP ============================ -->
+<div class="screen" id="scr-map">
+  <div class="wrap">
+    <div class="maphead">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="icon-btn" id="btnHome" aria-label="Title screen">🏠</button>
+        <div class="logo">Z<b>oo</b>m</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="starTotal" id="starTotal">★ 0/21</div>
+        <button class="icon-btn" id="btnMusic1" aria-label="Toggle music" title="Music">🎵</button>
+        <button class="icon-btn" id="btnMute1" aria-label="Toggle sound">🔊</button>
+      </div>
+    </div>
+    <div id="lvlList"></div>
+  </div>
+</div>
+
+<!-- ============================ GAME ============================ -->
+<div class="screen" id="scr-game">
+  <div class="wrap">
+    <div class="hud">
+      <button class="icon-btn" id="btnMap" aria-label="Back to dive map">🗺️</button>
+      <div class="mid">
+        <div class="lvlpill" id="lvlPill"></div>
+        <div class="pips" id="pips"></div>
+      </div>
+      <div class="scorebox">
+        <div class="scoreval" id="scoreVal">0</div>
+        <div class="streak" id="streakVal"></div>
+      </div>
+      <button class="icon-btn" id="btnMusic2" aria-label="Toggle music" title="Music">🎵</button>
+      <button class="icon-btn" id="btnMute2" aria-label="Toggle sound">🔊</button>
+    </div>
+
+    <div class="targetCard" id="targetCard">
+      <div class="eyebrow">find</div>
+      <div class="targetVal" id="targetVal">3.47</div>
+    </div>
+
+    <div class="stageOuter" id="stageOuter">
+      <div class="stage" id="stage">
+        <canvas id="lineCv"></canvas>
+        <canvas id="fxCv"></canvas>
+        <div class="pin" id="pin">
+          <div class="pinArt" id="pinArt">
+            <div class="bob">
+              <svg width="46" height="72" viewBox="0 0 46 72" style="display:block;overflow:visible">
+                <line x1="23" y1="34" x2="23" y2="66" stroke="#ffc857" stroke-width="2.5" stroke-dasharray="1 4" stroke-linecap="round"/>
+                <circle cx="23" cy="68" r="3.4" fill="#ffc857"/>
+                <line x1="23" y1="6" x2="23" y2="16" stroke="#e8a93c" stroke-width="3" stroke-linecap="round"/>
+                <path d="M23 5 L37 9.5 L23 14 Z" fill="#ff5c6c"/>
+                <path d="M10 22 Q10 15 23 15 Q36 15 36 22 L34 30 Q30 35 23 35 Q16 35 12 30 Z" fill="#ffc857"/>
+                <path d="M10.6 22 L35.4 22 L34.4 27 L11.6 27 Z" fill="#e8552f"/>
+                <ellipse cx="18" cy="19" rx="3.4" ry="1.8" fill="#ffe3a0"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="beacon" id="beacon">
+          <div class="beaconRing"></div><div class="beaconDot"></div>
+          <div class="beaconChip" id="beaconChip"></div>
+        </div>
+        <div class="boundLbl" id="boundLo"></div>
+        <div class="boundLbl" id="boundHi"></div>
+        <button class="chip" id="diveChip">DIVE ⌄</button>
+        <div class="errLabel" id="errLabel"></div>
+        <div class="coach" id="coach"></div>
+        <div class="goPulse" id="goPulse">GO!</div>
+      </div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+
+    <div class="subrow">
+      <div class="depthPill" id="depthPill">
+        <span class="zone" id="zoneName">THE SURFACE</span>
+        <span class="pv" id="zonePv">ones</span>
+        <span class="mag" id="zoneMag">×1</span>
+      </div>
+      <div class="speedPill" id="speedPill" title="Speed bonus remaining">
+        <span class="bolt">⚡</span>
+        <div class="speedBar"><div class="speedFill" id="speedFill" style="width:100%"></div></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="btnSonar">SONAR<small>where am I? &nbsp;−100</small></button>
+      <button class="btn primary" id="btnLock">LOCK IT IN</button>
+    </div>
+
+    <!-- round intro -->
+    <div class="overlay" id="introOverlay">
+      <div class="introCard">
+        <div class="eyebrow" id="introEyebrow">find</div>
+        <div class="val" id="introVal">3.47</div>
+        <div class="note" id="introNote">the line runs <i>0 → 10</i> · no labels down there</div>
+      </div>
+    </div>
+
+    <!-- score sheet -->
+    <div class="sheet" id="sheet">
+      <div class="inner">
+        <div class="srow" id="rowAcc"><span>ACCURACY</span><b class="plus" id="accPts">+0</b></div>
+        <div class="srow" id="rowSpeed"><span>SPEED</span><b class="plus" id="speedPts">+0</b></div>
+        <div class="srow" id="rowBull"><span>🎯 BULLSEYE</span><b class="plus">+100</b></div>
+        <div class="srow" id="rowAnchor"><span>⚓ SMART ANCHOR — you knew which way!</span><b class="plus">+150</b></div>
+        <div class="srow" id="rowSonar"><span>SONAR</span><b class="minus" id="sonarPts">−100</b></div>
+        <div class="srow" id="rowMult"><span>STREAK</span><b class="mult" id="multVal">×1.2</b></div>
+        <div class="srow total" id="rowTotal"><span>DIVE SCORE</span><b id="totalPts">+0</b></div>
+        <div class="factline" id="factLine"></div>
+        <div class="cta"><button class="btn primary big" id="btnNext">NEXT ⏎</button></div>
+      </div>
+    </div>
+
+    <!-- level end -->
+    <div class="overlay" id="endOverlay">
+      <div class="endCard">
+        <h2 id="endTitle">DIVE COMPLETE</h2>
+        <div class="sub" id="endSub">The Reef · tenths</div>
+        <div class="bigstars" id="bigStars"><span>★</span><span>★</span><span>★</span></div>
+        <div class="endstats" id="endStats"></div>
+        <div class="insight" id="insight"></div>
+        <div class="cta">
+          <button class="btn ghost" id="btnEndMap" style="padding:12px 20px;font-size:15px">MAP</button>
+          <button class="btn" id="btnRetry" style="padding:12px 20px;font-size:16px">RETRY</button>
+          <button class="btn primary" id="btnNextLvl" style="padding:12px 26px;font-size:17px">NEXT DIVE ⏎</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- fun-fact card -->
+    <div class="overlay" id="factOverlay">
+      <div class="factCard">
+        <div class="eyebrow">✦ secret of the deep ✦</div>
+        <div class="path" id="factPath"></div>
+        <h3 id="factTitle"></h3>
+        <p id="factBody"></p>
+        <button class="btn primary" id="btnFactOk" style="padding:12px 30px;font-size:17px">WHOA. OK ⏎</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- how to play -->
+<div class="overlay" id="howOverlay" style="position:fixed;z-index:50">
+  <div class="howCard">
+    <h3>How to dive</h3>
+    <div class="howstep">
+      <div class="pic"><svg width="52" height="36" viewBox="0 0 52 36">
+        <line x1="2" y1="18" x2="50" y2="18" stroke="#9be3ff" stroke-width="2.5" stroke-linecap="round"/>
+        <g stroke="#9be3ff" stroke-width="2" stroke-linecap="round"><line x1="6" y1="10" x2="6" y2="18"/><line x1="17" y1="10" x2="17" y2="18"/><line x1="28" y1="10" x2="28" y2="18"/><line x1="39" y1="10" x2="39" y2="18"/><line x1="49" y1="10" x2="49" y2="18"/></g>
+        <rect x="17" y="6" width="11" height="16" rx="3" fill="rgba(255,200,87,.25)" stroke="#ffc857" stroke-width="2"/>
+        <path d="M22 30 l4 -5 M22 30 l-1.5 -5.5" stroke="#ffc857" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      </svg></div>
+      <div class="txt"><b>Tap a stretch of the line</b> to dive ×10 into it. Ten hashes become the whole world. <i>Keys 0–9 dive too.</i></div>
+    </div>
+    <div class="howstep">
+      <div class="pic"><svg width="52" height="40" viewBox="0 0 52 40">
+        <path d="M26 4 v22" stroke="#7fa6c4" stroke-width="3" stroke-linecap="round"/>
+        <path d="M26 26 q-7 0 -7 7 M26 26 q7 0 7 7" stroke="#7fa6c4" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <path d="M14 10 l24 20 M38 10 l-24 20" stroke="#ff5c6c" stroke-width="3.5" stroke-linecap="round"/>
+      </svg></div>
+      <div class="txt"><b>No resurfacing.</b> The hashes have no numbers — <b>you</b> must remember where you are. Lost? <i>SONAR</i> shows your spot (costs 100).</div>
+    </div>
+    <div class="howstep">
+      <div class="pic"><svg width="52" height="40" viewBox="0 0 52 40">
+        <line x1="2" y1="30" x2="50" y2="30" stroke="#9be3ff" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="26" y1="22" x2="26" y2="30" stroke="#9be3ff" stroke-width="2"/>
+        <path d="M20 10 q0 -5 6 -5 q6 0 6 5 l-1 4 q-2 3 -5 3 q-3 0 -5 -3 Z" fill="#ffc857"/>
+        <line x1="26" y1="17" x2="26" y2="28" stroke="#ffc857" stroke-width="2" stroke-dasharray="1 3"/>
+        <circle cx="26" cy="30" r="2.5" fill="#ffc857"/>
+      </svg></div>
+      <div class="txt"><b>Drag the buoy onto the target</b> and <i>LOCK IT IN</i>. Closer = more points. Faster = more points. Dive deeper to place finer.</div>
+    </div>
+    <div class="hownote">score with the sound off ✓ · arrow keys nudge the buoy · <i>Enter</i> locks in</div>
+    <div style="text-align:center"><button class="btn primary" id="btnHowOk" style="padding:12px 34px;font-size:17px">GOT IT</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ================================================================
+   §1 CONSTANTS · PALETTE · LEVEL DATA
+   ================================================================ */
+const COLORS = {
+  ink:'#eaf6ff', muted:'#7fa6c4', line:'#9be3ff', lineDim:'#2e5d80',
+  buoy:'#ffc857', beacon:'#ff5d8f', good:'#3fe08f', bad:'#ff5c6c', panel:'#0d2c47',
+};
+// backdrop gradient per depth (0 = surface … 6 = trench floor)
+const DEPTH_BG = [
+  ['#0d3a5e','#071e35'], ['#0a3253','#061a2e'], ['#082a47','#051526'],
+  ['#06223b','#04101d'], ['#041a2e','#030b16'], ['#031320','#02070e'], ['#020c16','#010407'],
+];
+const ZONES = [ // depth zone per dive count — the metaphor teaches the place values
+  {name:'THE SURFACE', pv:'ones',                mag:'×1'},
+  {name:'THE REEF',    pv:'tenths',              mag:'×10'},
+  {name:'TWILIGHT',    pv:'hundredths',          mag:'×100'},
+  {name:'MIDNIGHT',    pv:'thousandths',         mag:'×1,000'},
+  {name:'THE ABYSS',   pv:'ten-thousandths',     mag:'×10,000'},
+  {name:'THE TRENCH',  pv:'hundred-thousandths', mag:'×100,000'},
+  {name:'TRENCH FLOOR',pv:'millionths',          mag:'×1,000,000'},
+];
+const MAX_DEPTH = 6;
+
+// scoring knobs (tuned so accuracy ≫ speed: knowing beats rushing)
+const ACC_MAX = 700, BULLSEYE_BONUS = 100, SPEED_MAX = 300;
+const SONAR_COST = 100, ANCHOR_BONUS = 150;
+const SPEED_GRACE = 4;                    // free seconds before the bonus drains
+const parTime = R => 6 + 4*R;             // deeper targets earn more thinking time
+const STAR_CUTS = [2000, 3250, 4250];     // of 5 rounds ≈ 5000 base max
+const GRADES = [ // by quality q (share of required decimal places nailed)
+  {q:1.00, label:'BULLSEYE!', color:COLORS.buoy },
+  {q:0.75, label:'GREAT',     color:COLORS.good },
+  {q:0.50, label:'GOOD',      color:COLORS.line },
+  {q:0.30, label:'CLOSE',     color:COLORS.muted},
+  {q:-1,   label:'LOST AT SEA', color:COLORS.bad},
+];
+
+// --- target builders -------------------------------------------------
+const dec = (text, fact) => {
+  const value = parseFloat(text);
+  const R = (text.split('.')[1]||'').length || 1;
+  return {type:'dec', text, value, R, fact};
+};
+const frac = (n, d, opt={}) => {
+  const value = (opt.whole||0) + n/d;
+  let R = opt.R;
+  if (R == null) { // terminating fraction: count real decimals
+    const s = (n/d).toString();
+    R = (s.split('.')[1]||'').length || 1;
+  }
+  return {type:'frac', n, d, whole:opt.whole||0, value, R, rep:!!opt.rep, fact:opt.fact};
+};
+const irr = (sym, name, value, digits, fact) =>
+  ({type:'irr', sym, name, value, R:5, digits, fact});
+
+const LEVELS = [
+  {id:'surface', name:'The Surface', sub:'whole numbers · count the hashes', color:'#35d0ff',
+   pool:[dec('7'),dec('3'),dec('8'),dec('2'),dec('6'),dec('9'),dec('4')]},
+  {id:'reef', name:'The Reef', sub:'tenths · one dive down', color:'#35ffc3',
+   pool:[dec('3.4'),dec('8.2'),dec('0.7'),dec('5.5'),dec('6.8'),dec('2.3'),dec('9.1'),dec('4.6')]},
+  {id:'twilight', name:'The Twilight Zone', sub:'hundredths · two dives down', color:'#7f9dff',
+   pool:[dec('3.47'),
+         dec('0.06','0.06 is six <i>hundredths</i> — ten times smaller than 0.6'),
+         dec('5.55','each 5 is worth ten times less than the 5 before it'),
+         dec('8.09','that 0 holds the tenths place open — 8.09 hides just past 8'),
+         dec('7.30','7.30 = 7.3 — the extra zero adds nothing!'),
+         dec('2.84'),dec('0.99','so close to 1 it hurts'),dec('6.02')]},
+  {id:'midnight', name:'Midnight', sub:'thousandths · three dives down', color:'#b48cff',
+   pool:[dec('4.203'),dec('9.999','so close to 10 it hurts'),
+         dec('0.001','one thousandth — three dives for one tiny step past zero'),
+         dec('3.142','≈ π. But the real π keeps going…'),
+         dec('5.055'),dec('7.777'),dec('2.048'),dec('6.106')]},
+  {id:'fractions', name:'Fraction Trench', sub:'BOSS · fractions — divide to dive', color:'#ffc857', boss:true,
+   intro:'divide top ÷ bottom to know where to dive',
+   pool:[frac(1,2,{fact:'½ = 1 ÷ 2 = 0.5 — dead center'}),
+         frac(3,4,{fact:'¾ = 3 ÷ 4 = 0.75'}),
+         frac(1,5,{fact:'⅕ = 1 ÷ 5 = 0.2'}),
+         frac(3,8,{fact:'⅜ = 3 ÷ 8 = 0.375 — nowhere near 3.8!'}),
+         frac(5,8,{fact:'⅝ = 5 ÷ 8 = 0.625'}),
+         frac(7,8,{fact:'⅞ = 7 ÷ 8 = 0.875 — one small step below 1'}),
+         frac(1,4,{fact:'¼ = 0.25 — half of a half'}),
+         frac(4,5,{fact:'⅘ = 4 ÷ 5 = 0.8'})]},
+  {id:'repeating', name:'Repeating Depths', sub:'BOSS · thirds, sixths & mixed numbers', color:'#ff9857', boss:true,
+   intro:'some of these decimals never stop…',
+   pool:[frac(1,3,{R:4,rep:true,fact:'⅓ = 0.3333… — the 3s never stop. Dive as deep as you like'}),
+         frac(2,3,{R:4,rep:true,fact:'⅔ = 0.6666… — forever 6s'}),
+         frac(1,6,{R:4,rep:true,fact:'⅙ = 0.1666… — a 1, then endless 6s'}),
+         frac(5,6,{R:4,rep:true,fact:'⅚ = 0.8333… — an 8, then endless 3s'}),
+         frac(3,4,{whole:2,fact:'2¾ = 2 + 0.75 = 2.75 — the whole number picks your first dive'}),
+         frac(1,2,{whole:1,fact:'1½ = 1.5 — halfway past one'}),
+         frac(2,5,{whole:4,fact:'4⅖ = 4 + 0.4 = 4.4'}),
+         frac(1,3,{whole:5,R:4,rep:true,fact:'5⅓ = 5.3333… — dive into 5, then ride the 3s'})]},
+  {id:'abyss', name:'The Abyss', sub:'FINAL BOSS · π and friends — never-ending numbers', color:'#ff5d8f', boss:true,
+   intro:'these numbers never end and never repeat. dive as deep as you dare',
+   pool:[irr('π','pi · a circle ÷ its width','3.14159265','3.14159265…','π has been computed to 100 trillion digits. No pattern. Ever.'),
+         irr('√2','root 2 · the diagonal of a 1×1 square','1.41421356','1.41421356…','√2 was the first number ever proven to go on forever'),
+         irr('e','euler’s number · the growth constant','2.71828182','2.71828182…','e shows up anywhere things grow — money, bacteria, everything'),
+         irr('φ','phi · the golden ratio','1.61803398','1.61803398…','φ hides in sunflowers, seashells and galaxies'),
+         irr('√5','root 5','2.23606797','2.23606797…','√5 powers the golden ratio: φ = (1+√5) ÷ 2')]},
+];
+LEVELS.forEach(L => { L.pool.forEach(t => { if(t.type==='irr') t.value = parseFloat(t.value); }); });
+const ENDLESS = {id:'endless', name:'Mariana Mode', sub:'ENDLESS · it ramps as you rank up · 3 air tanks', color:'#35d0ff'};
+
+// one-time "secret" cards, shown after finishing certain levels
+const FACTS = {
+  twilight:{path:'3 → 4 → 7', title:'Your dive path spelled the number.',
+    body:'Diving stretch <i>3</i>, then <i>4</i>, then <i>7</i> is exactly how you write <i>3.47</i>. Every decimal digit is a direction: which of the ten stretches to dive into next. Decimals aren’t names — they’re <i>directions</i>.'},
+  fractions:{path:'⅜ → 0.375', title:'Eighths always land exactly.',
+    body:'⅜ means <i>3 ÷ 8 = 0.375</i>. Eighths, quarters, fifths and halves all stop after a few digits — their bottom numbers divide evenly into 10, 100 or 1000. That’s why you could land right on them.'},
+  repeating:{path:'⅓ → 0.333…', title:'Some dives never end.',
+    body:'⅓ = 0.3333… — every zone you enter, the target is in stretch <i>3</i> again. Forever. No decimal ever writes ⅓ exactly; you can only dive closer and closer.'},
+  abyss:{path:'π → 3.14159265…', title:'You visited the edge of the infinite.',
+    body:'π’s digits never end and never repeat — no dive path ever finishes. Every zoom you made was a closer <i>approximation</i>, which is all anyone (even NASA) ever uses.'},
+};
+
+/* ================================================================
+   §2 AUDIO — tiny Web-Audio synth (no files) + mute
+   ================================================================ */
+let actx = null;
+const ac = () => actx || (actx = new (window.AudioContext||window.webkitAudioContext)());
+function tone(freq, dur=.12, type='sine', vol=.16, slideTo=null, when=0){
+  if (store.muted) return;
+  try{
+    const c=ac(), o=c.createOscillator(), g=c.createGain(), t=c.currentTime+when;
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo), t+dur);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+.05);
+  }catch(e){}
+}
+function noiseBurst(dur=.3, vol=.12, when=0, hp=400){
+  if (store.muted) return;
+  try{
+    const c=ac(), t=c.currentTime+when, n=Math.floor(c.sampleRate*dur);
+    const buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=c.createBufferSource(); s.buffer=buf;
+    const f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp;
+    const g=c.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    s.connect(f).connect(g).connect(c.destination); s.start(t);
+  }catch(e){}
+}
+const SFX = {
+  ui:   ()=> tone(520,.05,'sine',.1),
+  aim:  ()=> tone(700,.045,'sine',.08),
+  dive: ()=> { tone(340,.55,'triangle',.09,110); noiseBurst(.5,.05,0,220); tone(80,.25,'sine',.22,55,.45); },
+  tick: ()=> tone(1150,.04,'triangle',.06),
+  slam: ()=> { tone(130,.18,'triangle',.3,70); noiseBurst(.08,.1,0,900); },
+  bullseye: ()=> { [523,659,784,1047].forEach((f,i)=> tone(f,.14,'triangle',.16,null,i*.07)); tone(2093,.3,'sine',.06,1568,.3); },
+  great:()=> { tone(523,.12,'triangle',.15); tone(784,.18,'triangle',.15,null,.09); },
+  good: ()=> tone(440,.16,'triangle',.14),
+  close:()=> tone(330,.18,'triangle',.12),
+  lost: ()=> { tone(220,.4,'sawtooth',.1,150); tone(160,.5,'sine',.14,110,.12); },
+  sonar:()=> { tone(1400,.12,'sine',.12,1900); tone(1750,.15,'sine',.1,2400,.14); }, // depth-finder chirp (Sonar the game owns the long ping)
+  streak:n=> tone(600+80*Math.min(n,8),.09,'square',.09),
+  star: i=> tone([880,1100,1320][i%3],.16,'triangle',.16),
+  rise: ()=> tone(300,.14,'sine',.09,420),
+  anchor:()=> { tone(196,.2,'triangle',.16); tone(294,.24,'triangle',.14,null,.14); },
+};
+
+/* ---- music: “The Descent” — an ambient D-minor drone that darkens as you
+   dive deeper. All synthesized; 🎵 toggles music separately from SFX. ---- */
+const Music=(()=>{
+  const VOL=.05, SCALE=[293.66,349.23,392,440,523.25];   // D-minor pentatonic plucks
+  let built=false, master=null, filt=null, depth=0;
+  function build(){
+    if (built) return; built=true;
+    const c=ac();
+    master=c.createGain(); master.gain.value=0; master.connect(c.destination);
+    filt=c.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=850; filt.Q.value=.7; filt.connect(master);
+    const mk=(f,det,type,g)=>{ const o=c.createOscillator(),gg=c.createGain();
+      o.type=type; o.frequency.value=f; o.detune.value=det; gg.gain.value=g;
+      o.connect(gg); gg.connect(filt); o.start(); };
+    mk(73.42,0,'sine',.5); mk(73.42,8,'sine',.32);       // D2 pair, slow beating
+    mk(110,-6,'sine',.26); mk(146.83,5,'triangle',.1);   // A2 · D3
+    const lfo=c.createOscillator(),lg=c.createGain();    // slow shimmer on the filter
+    lfo.frequency.value=.05; lg.gain.value=200; lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
+    (function pluckLoop(){ setTimeout(()=>{ pluck(); pluckLoop(); }, 3500+Math.random()*5500); })();
+  }
+  function pluck(){
+    if (store.muted||!store.music||document.hidden) return;
+    const c=ac(),t=c.currentTime;
+    const f=SCALE[Math.floor(Math.random()*SCALE.length)]/(depth>=3?2:1);  // deeper = lower notes
+    const o=c.createOscillator(),g=c.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.055,t+.06);
+    g.gain.exponentialRampToValueAtTime(.0001,t+2.2);
+    o.connect(g); g.connect(filt); o.start(t); o.stop(t+2.4);
+  }
+  function refresh(){
+    if (!built) return;
+    const on=!store.muted&&store.music&&!document.hidden;
+    master.gain.setTargetAtTime(on?VOL:0, ac().currentTime, .5);
+  }
+  return {
+    start(){ try{ build(); refresh(); }catch(e){} },
+    refresh,
+    setDepth(d){ depth=d; if(built) filt.frequency.setTargetAtTime(Math.max(260,850-d*110), ac().currentTime, .8); },
+    _debug(){ return {built, gain:master&&master.gain.value, filtHz:filt&&filt.frequency.value, depth}; },
+  };
+})();
+document.addEventListener('visibilitychange',()=>Music.refresh());
+window.addEventListener('pointerdown',function bootAudio(){
+  try{ ac().resume&&ac().resume(); }catch(e){}
+  Music.start();
+  window.removeEventListener('pointerdown',bootAudio);
+});
+
+/* ================================================================
+   §3 STORAGE — localStorage when allowed, memory otherwise
+   ================================================================ */
+const store = (()=>{
+  let mem = {}, ok = false;
+  try { localStorage.setItem('zoom.t','1'); localStorage.removeItem('zoom.t'); ok = true; } catch(e){}
+  const get = (k,fb)=>{ try{ const v = ok ? localStorage.getItem('zoom.'+k) : mem[k]; return v==null?fb:JSON.parse(v);}catch(e){return fb} };
+  const set = (k,v)=>{ try{ if(ok) localStorage.setItem('zoom.'+k, JSON.stringify(v)); else mem[k]=v; }catch(e){} };
+  return {
+    get, set,
+    best: get('best',{}),          // {levelId:{score,stars}}
+    endlessBest: get('endlessBest',0),
+    muted: get('muted',false),
+    music: get('music',true),
+    seenFacts: get('seenFacts',{}),
+    tutorialDone: get('tutorialDone',false),
+    saveBest(){ set('best',this.best); }, saveMuted(){ set('muted',this.muted); },
+    saveMusic(){ set('music',this.music); },
+    saveFacts(){ set('seenFacts',this.seenFacts); }, saveTut(){ set('tutorialDone',this.tutorialDone); },
+    saveEndless(){ set('endlessBest',this.endlessBest); },
+  };
+})();
+
+/* ================================================================
+   §4 ENGINE — pure game logic, no DOM
+   The view is EXACT: after d dives choosing digits s₁s₂…s_d, the
+   bounds are [m·10^(1-d), (m+1)·10^(1-d)] where m = s₁s₂…s_d as an
+   integer. The dive path literally accumulates the decimal expansion.
+   ================================================================ */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; } }
+function shuffled(arr, rng){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+const Engine = {
+  levelIdx:0, endless:false, rounds:[], roundIdx:0,
+  totalScore:0, streak:0, results:[],
+  endlessState:null,
+  // per-round state
+  m:0, d:0, history:[], pings:0, elapsed:0, playing:false,
+
+  startLevel(levelIdx, seed){
+    this.levelIdx=levelIdx; this.endless=false;
+    const rng = mulberry32(seed);
+    this.rounds = shuffled(LEVELS[levelIdx].pool, rng).slice(0,5);
+    this.roundIdx=0; this.totalScore=0; this.streak=0; this.results=[];
+  },
+  startEndless(seed){
+    this.endless=true; this.levelIdx=-1;
+    this.endlessState={rng:mulberry32(seed), R:1, hot:0, cold:0, air:3, n:0};
+    this.rounds=[]; this.roundIdx=0; this.totalScore=0; this.streak=0; this.results=[];
+    this.rounds.push(this.genEndlessTarget());
+  },
+  genEndlessTarget(){
+    const es=this.endlessState, rng=es.rng, R=es.R;
+    if (R>=3 && rng()<0.18){ // fraction cameo
+      const fr = shuffled(LEVELS[4].pool.concat(LEVELS[5].pool), rng)[0];
+      return fr;
+    }
+    if (R>=4 && rng()<0.10) return shuffled(LEVELS[6].pool, rng)[0];
+    let v, tries=0;
+    do { v = Math.floor(rng()*(10*Math.pow(10,R)))/Math.pow(10,R); tries++; }
+    while ((Math.round(v*Math.pow(10,R))%10===0 || v>=10) && tries<40); // last digit ≠ 0 so R is honest
+    return dec(v.toFixed(R));
+  },
+  get target(){ return this.rounds[this.roundIdx]; },
+  get level(){ return this.endless ? ENDLESS : LEVELS[this.levelIdx]; },
+
+  startRound(){
+    this.m=0; this.d=0; this.history=[]; this.pings=0; this.elapsed=0; this.playing=true;
+  },
+  bounds(){ // division (not ×0.1 powers) keeps lattice values on their exact doubles
+    if (this.d===0) return {lo:0, hi:10, w:10};
+    const div=Math.pow(10, this.d-1);
+    const lo=this.m/div, hi=(this.m+1)/div;
+    return {lo, hi, w:hi-lo};
+  },
+  fmtBound(which){ // label text for lo/hi endpoint at current depth
+    const b=this.bounds(); const v = which==='lo' ? b.lo : b.hi;
+    const places = Math.max(0, this.d-1);
+    return v.toFixed(places);
+  },
+  canDive(){ return this.d < MAX_DEPTH; },
+  dive(seg){ // seg 0..9
+    if (!this.playing || !this.canDive()) return false;
+    this.m = this.m*10 + seg; this.d++;
+    this.history.push({m:this.m, d:this.d, seg});
+    return true;
+  },
+  sonar(){ if(this.playing) this.pings++; },
+  targetSeg(){ // which segment holds the target in the current view (FP-tolerant)
+    const {lo,w}=this.bounds();
+    return clamp(Math.floor((this.target.value-lo)/w*10 + 1e-9),0,9);
+  },
+
+  place(pinV){ // === the reveal: score everything ===
+    this.playing=false;
+    const t=this.target, {lo,hi,w}=this.bounds();
+    const err = Math.abs(pinV - t.value);
+    const R = Math.max(1, t.R);
+    const D = err<=0 ? 99 : -Math.log10(2*err);      // "decimal places nailed"
+    const q = clamp(D/R, 0, 1);
+    const outOfView = t.value < lo-w*1e-6 || t.value > hi+w*1e-6;
+    // smart anchor: dove past it, but hugged the correct edge (knew the direction)
+    const edge = t.value < lo ? lo : hi;
+    const smartAnchor = outOfView && Math.abs(pinV-edge) <= w*0.03;
+    const grade = GRADES.find(g=>q>=g.q) || GRADES[GRADES.length-1];
+    const bullseye = q>=1;
+    const acc = Math.round(ACC_MAX * Math.pow(q,1.4));
+    const par = parTime(R);
+    const speedFrac = clamp(1-Math.max(0,this.elapsed-SPEED_GRACE)/(2*par),0,1);
+    const speed = q>=0.5 ? Math.round(SPEED_MAX*speedFrac) : 0;
+    // streak: GREAT+ grows it, GOOD holds it, worse breaks it
+    if (q>=0.75) this.streak++; else if (q<0.5) this.streak=0;
+    const mult = q>=0.75 ? 1+0.1*Math.min(this.streak,5) : 1;
+    const sonarCost = this.pings*SONAR_COST;
+    let total = Math.round((acc+(bullseye?BULLSEYE_BONUS:0)+speed)*mult) - sonarCost + (smartAnchor?ANCHOR_BONUS:0);
+    total = Math.max(0,total);
+    this.totalScore += total;
+    const res = {t, pinV, err, q, grade, bullseye, acc, speed, speedFrac, mult,
+                 sonarCost, smartAnchor, outOfView, total, depth:this.d,
+                 path:this.history.map(h=>h.seg), elapsed:this.elapsed};
+    this.results.push(res);
+    if (this.endless){
+      const es=this.endlessState; es.n++;
+      if (q>=0.75){ es.hot++; es.cold=0; if(es.hot>=3){ es.R=Math.min(5,es.R+1); es.hot=0; res.rankUp=true; } }
+      else if (q<0.5){ es.cold++; es.hot=0; if(es.cold>=2){ es.R=Math.max(1,es.R-1); es.cold=0; } }
+      if (q<0.3){ es.air--; res.airLost=true; }
+      if (es.air>0) this.rounds.push(this.genEndlessTarget());
+    }
+    return res;
+  },
+  levelDone(){ return this.endless ? this.endlessState.air<=0 : this.roundIdx>=4; },
+  nextRound(){ this.roundIdx++; },
+  stars(){ return STAR_CUTS.filter(c=>this.totalScore>=c).length; },
+};
+
+// value → words: "about 3 hundredths off"
+const PLACE_WORDS=['tenths','hundredths','thousandths','ten-thousandths','hundred-thousandths','millionths'];
+function errWords(err){
+  if (err < 5e-7) return 'DEAD ON';
+  if (err >= 0.95){ const n=Math.round(err*10)/10; return `${n} whole unit${n>1.05?'s':''} off`; }
+  let p = Math.floor(Math.log10(err));          // -1 → tenths …
+  let n = Math.round(err/Math.pow(10,p));
+  if (n===10){ n=1; p++; }
+  if (p>=0){ const w=Math.round(err*10)/10; return `${w} whole unit${w>1.05?'s':''} off`; }
+  const word = PLACE_WORDS[Math.min(-p-1, PLACE_WORDS.length-1)];
+  return `about ${n} ${n===1?word.replace(/s$/,''):word} off`;
+}
+
+// display helpers (HTML for targets)
+function targetHTML(t, big){
+  if (t.type==='dec') return `<span>${t.text}</span>`;
+  if (t.type==='frac'){
+    const w = t.whole?`<span class="mixedw">${t.whole}</span>`:'';
+    return `${w}<span class="frac"><span class="fn">${t.n}</span><span class="fd">${t.d}</span></span>`;
+  }
+  return `<span>${t.sym}</span>${big?`<span class="irrname">${t.name.replace(/ · /g,'<br>')}</span>`:''}`;
+}
+function conversionText(t){ // shown on the reveal beacon
+  if (t.type==='dec') return t.text;
+  if (t.type==='frac'){
+    const dec10 = t.rep ? t.value.toFixed(4)+'…' : String(t.value);
+    return `${t.whole?t.whole+' ':''}${t.n}/${t.d} = ${dec10}`;
+  }
+  return `${t.sym} ≈ ${t.digits}`;
+}
+
+/* ================================================================
+   §5 TIME · TWEENS — one dt-driven clock (auto-pauses in bg tabs)
+   ================================================================ */
+const REDUCED = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const EASE = {
+  outCubic:t=>1-Math.pow(1-t,3),
+  inOutCubic:t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,
+  outBack:t=>{const c=1.70158;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);},
+  linear:t=>t,
+};
+let tweens=[], freezeLeft=0;
+function tw(dur, fn, ease=EASE.outCubic){
+  return new Promise(res=>{ tweens.push({dur, el:0, fn, ease, res}); });
+}
+const wait = ms => tw(ms, ()=>{}, EASE.linear);
+function hitPause(ms){ if(!REDUCED) freezeLeft=Math.max(freezeLeft,ms); }
+
+/* ================================================================
+   §6 RENDER — camera + lattice canvas + particles
+   ================================================================ */
+const $ = id => document.getElementById(id);
+const stage=$('stage'), lineCv=$('lineCv'), fxCv=$('fxCv'), ambientCv=$('ambientCv');
+const lctx=lineCv.getContext('2d'), fctx=fxCv.getContext('2d'), amctx=ambientCv.getContext('2d');
+let SW=0, SH=0, DPR=1, LINE_Y=0;
+
+const cam = { lo:0, w:10, moving:false };
+function camSet(lo,w){ cam.lo=lo; cam.w=w; }
+function camAnimateTo(lo1,w1,dur){
+  cam.moving=true;
+  const lo0=cam.lo, w0=cam.w;
+  const anchor = lo1 + w1/2;                       // destination center stays put
+  const a0=(anchor-lo0)/w0, a1=0.5;
+  return tw(dur, e=>{
+    const w=Math.exp(lerp(Math.log(w0),Math.log(w1),e));
+    const a=lerp(a0,a1,e);
+    cam.lo=anchor-a*w; cam.w=w;
+  }, EASE.inOutCubic).then(()=>{ cam.lo=lo1; cam.w=w1; cam.moving=false; });
+}
+const vx = v => (v-cam.lo)/cam.w*SW;               // value → px
+const xv = x => cam.lo + x/SW*cam.w;               // px → value
+
+function sizeCanvases(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  const r=stage.getBoundingClientRect();
+  SW=r.width; SH=r.height; LINE_Y=SH*0.60;
+  for(const cv of [lineCv,fxCv]){ cv.width=SW*DPR; cv.height=SH*DPR; cv.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
+  ambientCv.width=innerWidth*DPR; ambientCv.height=innerHeight*DPR; amctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+let aimSeg=-1;           // hovered/selected segment, -1 = none
+let shake={mag:0,left:0};
+function drawLine(){
+  lctx.clearRect(0,0,SW,SH);
+  // aim highlight behind everything
+  if (aimSeg>=0 && !cam.moving){
+    const x0=SW*aimSeg/10, x1=SW*(aimSeg+1)/10;
+    lctx.fillStyle='rgba(155,227,255,.08)';
+    lctx.beginPath(); lctx.roundRect(x0+2,LINE_Y-56,x1-x0-4,86,10); lctx.fill();
+    lctx.strokeStyle='rgba(155,227,255,.8)'; lctx.lineWidth=2.5; lctx.lineCap='round';
+    const b=9;
+    for(const [bx,dir] of [[x0+3,1],[x1-3,-1]]){
+      lctx.beginPath();
+      lctx.moveTo(bx+dir*b,LINE_Y-56); lctx.lineTo(bx,LINE_Y-56); lctx.lineTo(bx,LINE_Y-56+b);
+      lctx.moveTo(bx+dir*b,LINE_Y+30); lctx.lineTo(bx,LINE_Y+30); lctx.lineTo(bx,LINE_Y+30-b);
+      lctx.stroke();
+    }
+    // sub-hash preview: a peek at the next world down
+    lctx.strokeStyle='rgba(155,227,255,.35)'; lctx.lineWidth=1.5;
+    for(let i=1;i<10;i++){
+      const x=x0+(x1-x0)*i/10;
+      lctx.beginPath(); lctx.moveTo(x,LINE_Y-7); lctx.lineTo(x,LINE_Y+7); lctx.stroke();
+    }
+  }
+  // baseline
+  const grad=lctx.createLinearGradient(0,0,SW,0);
+  grad.addColorStop(0,'rgba(155,227,255,.25)'); grad.addColorStop(.5,'rgba(155,227,255,.95)'); grad.addColorStop(1,'rgba(155,227,255,.25)');
+  lctx.strokeStyle=grad; lctx.lineWidth=3.5; lctx.lineCap='round';
+  lctx.beginPath(); lctx.moveTo(4,LINE_Y); lctx.lineTo(SW-4,LINE_Y); lctx.stroke();
+  // lattice LOD: draw each power-of-ten level whose px spacing is visible
+  const shimmer = 0.82+0.18*Math.sin(performance.now()/900);
+  for(let k=Math.ceil(Math.log10(cam.w))-3; k<=Math.ceil(Math.log10(cam.w)); k++){
+    const S=Math.pow(10,k), px=SW*S/cam.w;
+    if (px<3.5 || px>SW*2) continue;
+    const alpha=clamp((px-3.5)/26,0,1);
+    const major = px>=SW/12;
+    const h = major?26:9+15*clamp((px-3.5)/(SW/12),0,1);
+    const i0=Math.ceil(cam.lo/S-1e-9), i1=Math.floor((cam.lo+cam.w)/S+1e-9);
+    for(let i=i0;i<=i1;i++){
+      if (!major && i%10===0) continue;                  // coarser level draws it taller
+      const x=(i*S-cam.lo)/cam.w*SW;
+      if (x<-4||x>SW+4) continue;
+      lctx.strokeStyle = major?`rgba(155,227,255,${(0.95*alpha*shimmer).toFixed(3)})`:`rgba(90,150,190,${(0.75*alpha).toFixed(3)})`;
+      lctx.lineWidth = major?3:1.8;
+      lctx.beginPath(); lctx.moveTo(x,LINE_Y-h); lctx.lineTo(x,LINE_Y+h*0.42); lctx.stroke();
+      if (major){ // soft glow cap
+        lctx.fillStyle=`rgba(155,227,255,${(0.5*alpha).toFixed(3)})`;
+        lctx.beginPath(); lctx.arc(x,LINE_Y-h,2.4,0,7); lctx.fill();
+      }
+    }
+  }
+}
+
+// ---- particles ----
+let parts=[], ambient=[], rings=[];
+function burst(x,y,n,palette,up=true){
+  if (REDUCED) return;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, sp=1.5+Math.random()*3.5;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-(up?2:0),g:up?0.09:0.02,
+      r:1.5+Math.random()*3,life:0,max:.5+Math.random()*.45,c:palette[i%palette.length]});
+  }
+}
+function sonarRing(x,y){ rings.push({x,y,R:8,alpha:.9}); rings.push({x,y,R:2,alpha:.9,delay:.18}); }
+function stepFx(dt){
+  fctx.clearRect(0,0,SW,SH);
+  parts=parts.filter(p=>{
+    p.life+=dt/1000; if(p.life>p.max) return false;
+    p.x+=p.vx; p.y+=p.vy; p.vy+=p.g;
+    const a=1-p.life/p.max;
+    fctx.fillStyle=p.c; fctx.globalAlpha=a;
+    fctx.beginPath(); fctx.arc(p.x,p.y,p.r*a,0,7); fctx.fill();
+    return true;
+  });
+  fctx.globalAlpha=1;
+  rings=rings.filter(r=>{
+    if(r.delay){ r.delay-=dt/1000; return true; }
+    r.R+=dt*0.35; r.alpha-=dt/1400;
+    if(r.alpha<=0) return false;
+    fctx.strokeStyle=`rgba(155,227,255,${r.alpha.toFixed(3)})`; fctx.lineWidth=2.5;
+    fctx.beginPath(); fctx.arc(r.x,r.y,r.R,0,7); fctx.stroke();
+    return true;
+  });
+}
+function stepAmbient(dt){
+  amctx.clearRect(0,0,innerWidth,innerHeight);
+  if (REDUCED) return;
+  const depth = Engine.d||0;
+  if (ambient.length<40 && Math.random()<0.05+depth*0.012)
+    ambient.push({x:Math.random()*innerWidth, y:innerHeight+10, r:1+Math.random()*3.2,
+      v:(0.25+Math.random()*0.6)*(1+depth*.12), wob:Math.random()*7, snow:depth>=3&&Math.random()<.5});
+  ambient=ambient.filter(b=>{
+    if (b.snow){ b.y+= b.v*dt*0.018; } else { b.y-=b.v*dt*0.045; }
+    b.wob+=dt*0.002;
+    const x=b.x+Math.sin(b.wob)*8;
+    if (b.y<-12||b.y>innerHeight+40) return false;
+    amctx.fillStyle=b.snow?'rgba(190,220,240,.16)':'rgba(155,227,255,.13)';
+    amctx.beginPath(); amctx.arc(x,b.y,b.r,0,7); amctx.fill();
+    if (!b.snow){ amctx.strokeStyle='rgba(155,227,255,.10)'; amctx.beginPath(); amctx.arc(x,b.y,b.r+1.2,0,7); amctx.stroke(); }
+    return true;
+  });
+}
+
+// ---- depth backdrop crossfade ----
+const tintA=$('tintA'), tintB=$('tintB'); let tintFlip=false;
+function setDepthBg(d){
+  Music.setDepth(d);
+  const [c1,c2]=DEPTH_BG[clamp(d,0,6)];
+  const g=`radial-gradient(130% 100% at 50% -12%, ${c1} 0%, ${c2} 62%, #01040a 100%)`;
+  const showEl=tintFlip?tintA:tintB, hideEl=tintFlip?tintB:tintA;
+  showEl.style.background=g; showEl.style.opacity=1; hideEl.style.opacity=0; tintFlip=!tintFlip;
+  $('caustics').style.opacity = Math.max(0, .5 - d*.2);
+}
+
+/* ================================================================
+   §7 UI — screens, HUD, round choreography
+   ================================================================ */
+const UI = {
+  state:'title', // title | map | intro | play | reveal | sheet | end | fact
+  pinV:5, dragging:false, lastMajor:null,
+  coachTimer:null, runId:0, // runId invalidates in-flight async choreography on exit
+};
+
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); }
+function toast(msg, ms=1800){
+  const t=$('toast'); t.innerHTML=msg; t.classList.add('on');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'), ms);
+}
+function setMuteIcons(){
+  ['btnMute1','btnMute2'].forEach(id=>$(id).textContent=store.muted?'🔇':'🔊');
+  ['btnMusic1','btnMusic2'].forEach(id=>{ const b=$(id); b.style.opacity=store.music?'1':'.4'; b.setAttribute('aria-pressed',String(store.music)); });
+}
+function countUp(el, from, to, dur=500, prefix=''){
+  return tw(dur, e=>{ el.textContent=prefix+Math.round(lerp(from,to,e)).toLocaleString(); });
+}
+
+// ---- title & map ----
+function refreshTitle(){
+  const stars=Object.values(store.best).reduce((s,b)=>s+(b.stars||0),0);
+  $('titleBest').innerHTML = stars? `<b>★ ${stars}</b> collected · best endless <b>${store.endlessBest.toLocaleString()}</b>`:'';
+}
+function starStr(n){ let s=''; for(let i=0;i<3;i++) s+=`<span class="${i<n?'':'off'}">★</span>`; return s; }
+function unlockedThrough(){ // starring a level unlocks the next; a starred level is always itself unlocked
+  let u=0;
+  for(let i=1;i<LEVELS.length;i++){
+    if ((store.best[LEVELS[i-1].id]||{}).stars>=1 || (store.best[LEVELS[i].id]||{}).stars>=1) u=i;
+    else break;
+  }
+  return u;
+}
+function buildMap(){
+  const wrap=$('lvlList'); wrap.innerHTML='';
+  const unlocked=unlockedThrough();
+  LEVELS.forEach((L,i)=>{
+    const b=store.best[L.id]||{}; const locked=i>unlocked;
+    const el=document.createElement('button');
+    el.className='lvl'+(locked?' locked':''); el.disabled=locked;
+    el.innerHTML=`${L.boss?'<span class="boss">BOSS</span>':''}
+      <span class="dot" style="background:${L.color};color:${L.color}"><span style="color:#04101d">${i+1}</span></span>
+      <span><span class="nm">${L.name}</span><br><span class="sub">${locked?'🔒 earn a star above to unlock':L.sub}</span></span>
+      <span class="meta"><span class="stars">${starStr(b.stars||0)}</span>
+      ${b.score?`<div class="bs">BEST ${b.score.toLocaleString()}</div>`:''}</span>`;
+    el.onclick=()=>{ if(!locked){ SFX.ui(); startLevel(i); } };
+    wrap.appendChild(el);
+    const link=document.createElement('div'); link.className='maplink'; wrap.appendChild(link);
+  });
+  // endless node
+  const eb=store.best[LEVELS[3].id]; const elocked=!(eb&&eb.stars>=1);
+  const el=document.createElement('button');
+  el.className='lvl'+(elocked?' locked':''); el.disabled=elocked;
+  el.style.background='linear-gradient(90deg,#0d2c47,#123a5c)';
+  el.innerHTML=`<span class="dot" style="background:linear-gradient(135deg,#35d0ff,#ff5d8f);color:#35d0ff"><span style="color:#04101d">∞</span></span>
+    <span><span class="nm">${ENDLESS.name}</span><br><span class="sub">${elocked?'🔒 star Midnight to unlock':ENDLESS.sub}</span></span>
+    <span class="meta">${store.endlessBest?`<div class="bs">BEST ${store.endlessBest.toLocaleString()}</div>`:''}</span>`;
+  el.onclick=()=>{ if(!elocked){ SFX.ui(); startEndlessRun(); } };
+  wrap.appendChild(el);
+  const total=Object.values(store.best).reduce((s,b)=>s+(b.stars||0),0);
+  $('starTotal').textContent=`★ ${total}/21`;
+}
+function gotoMap(){ UI.runId++; UI.state='map'; keepBracket=null; buildMap(); show('scr-map'); setDepthBg(0); }
+
+// ---- level / round flow ----
+function startLevel(i){
+  Engine.startLevel(i, (Date.now()%2147483647)|1);
+  enterGame();
+}
+function startEndlessRun(){
+  Engine.startEndless((Date.now()%2147483647)|1);
+  enterGame();
+}
+function enterGame(){
+  UI.runId++;
+  show('scr-game'); sizeCanvases();
+  $('sheet').classList.remove('on'); $('endOverlay').classList.remove('on'); $('factOverlay').classList.remove('on');
+  updateHudScore(0,false);
+  startRound();
+}
+function pipsHTML(){
+  const p=$('pips'); p.innerHTML='';
+  if (Engine.endless){
+    p.innerHTML=`<span class="airRow" aria-label="air tanks">${'🫧'.repeat(Math.max(0,Engine.endlessState.air))}<span style="opacity:.25">${'🫧'.repeat(Math.max(0,3-Engine.endlessState.air))}</span></span>`;
+    return;
+  }
+  for(let i=0;i<5;i++){
+    const s=document.createElement('span');
+    s.className='pip'+(i<Engine.roundIdx?(Engine.results[i].q>=0.5?' done':' miss'):(i===Engine.roundIdx?' active':''));
+    p.appendChild(s);
+  }
+}
+function updateHudScore(v, animate=true){
+  const el=$('scoreVal');
+  if (animate) countUp(el, parseInt(el.textContent.replace(/,/g,''))||0, v);
+  else el.textContent=v.toLocaleString();
+  const st=$('streakVal');
+  st.textContent = Engine.streak>=2?`🔥 streak ×${(1+0.1*Math.min(Engine.streak,5)).toFixed(1)}`:(Engine.streak===1?'🔥 streak!':'');
+  st.classList.toggle('hot', Engine.streak>=2);
+}
+
+async function startRound(){
+  const run=UI.runId;
+  const t=Engine.target, L=Engine.level;
+  Engine.startRound();
+  UI.state='intro'; UI.pinV=5; UI.lastMajor=null; aimSeg=-1;
+  camSet(0,10); setDepthBg(0); setZonePill(0,false);
+  $('lvlPill').innerHTML=`<b>${L.name}</b> · ${Engine.endless?`dive ${Engine.endlessState.n+1} · rank ${ZONES[Engine.endlessState.R].pv}`:`dive ${Engine.roundIdx+1} of 5`}`;
+  pipsHTML();
+  $('targetVal').innerHTML=targetHTML(t,true);
+  $('beacon').style.opacity=0; $('errLabel').classList.remove('on');
+  $('boundLo').classList.remove('on'); $('boundHi').classList.remove('on');
+  $('diveChip').classList.remove('on'); $('stamp').className='stamp';
+  $('sheet').classList.remove('on');
+  $('btnLock').disabled=false; $('btnSonar').disabled=false;
+  $('pin').style.display=''; positionPin();
+  // intro card
+  $('introEyebrow').textContent = L.boss?'boss dive · find':'find';
+  $('introVal').innerHTML=targetHTML(t,true);
+  $('introNote').innerHTML = (L.intro && (Engine.roundIdx===0||t.type!=='dec'))
+      ? `${L.intro} · the line runs <i>0 → 10</i>`
+      : `the line runs <i>0 → 10</i> · no labels down there`;
+  $('introOverlay').classList.add('on');
+  SFX.rise();
+  await wait(REDUCED?600:1250);
+  if (run!==UI.runId) return;
+  $('introOverlay').classList.remove('on');
+  UI.state='play';
+  const gp=$('goPulse'); gp.classList.remove('on'); void gp.offsetWidth; gp.classList.add('on');
+  tutorialCoach();
+}
+
+function setZonePill(d, pulse=true){
+  const z=ZONES[clamp(d,0,ZONES.length-1)];
+  $('zoneName').textContent=z.name; $('zonePv').textContent=z.pv; $('zoneMag').textContent=z.mag;
+  if(pulse){ const p=$('depthPill'); p.classList.remove('pulse'); void p.offsetWidth; p.classList.add('pulse'); }
+}
+
+// ---- tutorial coach (first level, first time) ----
+function coach(msg, ms=5200){
+  const c=$('coach'); c.innerHTML=msg; c.classList.add('on');
+  clearTimeout(UI.coachTimer);
+  if(ms) UI.coachTimer=setTimeout(()=>c.classList.remove('on'), ms);
+}
+function coachOff(){ clearTimeout(UI.coachTimer); $('coach').classList.remove('on'); }
+function tutorialCoach(){
+  if (store.tutorialDone || Engine.endless || Engine.levelIdx!==0) return;
+  const r=Engine.roundIdx, tv=Engine.target.text;
+  if (r===0) coach(`count the hashes — drag the <b>buoy</b> onto <b>${tv}</b>, then <i>LOCK IT IN</i>`, 0);
+  if (r===1) coach(`try a dive: <i>tap the stretch</i> around <b>${tv}</b> to zoom ×10 — placing gets easier`, 7000);
+  if (r===2) coach(`feeling lost down deep? <i>SONAR</i> shows where you are — it costs 100`, 6000);
+}
+
+/* ---- aiming & diving ---- */
+function segOfX(x){ return clamp(Math.floor(x/SW*10),0,9); }
+function setAim(seg){
+  if (UI.state!=='play'||cam.moving||!Engine.canDive()){ aimSeg=-1; $('diveChip').classList.remove('on'); return; }
+  if (seg===aimSeg) return;
+  aimSeg=seg;
+  const chip=$('diveChip');
+  if (seg<0){ chip.classList.remove('on'); return; }
+  chip.style.left=(seg+0.5)*10+'%'; chip.style.top=(LINE_Y-92)+'px';
+  chip.classList.add('on'); SFX.aim();
+}
+async function doDive(seg){
+  if (UI.state!=='play'||cam.moving||!Engine.canDive()) return;
+  coachOff(); hideBounds();
+  Engine.dive(seg);
+  const b=Engine.bounds();
+  aimSeg=-1; $('diveChip').classList.remove('on');
+  SFX.dive();
+  setDepthBg(Engine.d); setZonePill(Engine.d);
+  burst(SW*(seg+0.5)/10, LINE_Y, 14, ['rgba(155,227,255,.9)','rgba(212,242,255,.8)'], true);
+  const pinFrac=clamp((UI.pinV-b.lo)/b.w,0.06,0.94);   // keep buoy in the new world
+  await camAnimateTo(b.lo, b.w, REDUCED?100:780);
+  UI.pinV=b.lo+b.w*pinFrac;
+  if (!Engine.canDive()) toast('⚓ trench floor — this is as deep as it goes');
+}
+
+/* ---- sonar ---- */
+function doSonar(){
+  if (UI.state!=='play'||cam.moving) return;
+  Engine.sonar(); SFX.sonar();
+  sonarRing(vx(UI.pinV), LINE_Y);
+  showBounds(Engine.fmtBound('lo'), Engine.fmtBound('hi'));
+  setTimeout(hideBounds, 2600);
+  toast('−100 · sonar reading', 1200);
+}
+function showBounds(loTxt,hiTxt){
+  const a=$('boundLo'), b=$('boundHi');
+  a.textContent=loTxt; b.textContent=hiTxt;
+  a.style.left='6px'; b.style.right='6px';
+  a.classList.add('on'); b.classList.add('on');
+}
+function hideBounds(){ $('boundLo').classList.remove('on'); $('boundHi').classList.remove('on'); }
+
+/* ---- pin ---- */
+function positionPin(){
+  const x=clamp(vx(UI.pinV),0,SW);
+  $('pin').style.left=x+'px';
+  $('pin').style.top='0px';
+  $('pinArt').style.top=(LINE_Y-68)+'px';
+}
+function pinDragTo(x){
+  UI.pinV=clamp(xv(clamp(x,0,SW)), cam.lo, cam.lo+cam.w);
+  // tick when crossing a major hash; glow-assist when hovering one
+  const S=cam.w/10;
+  const near=Math.round(UI.pinV/S)*S;
+  const onHash=Math.abs(UI.pinV-near)<cam.w/220;
+  const major=Math.floor(UI.pinV/S);
+  if (UI.lastMajor!==null && major!==UI.lastMajor) SFX.tick();
+  UI.lastMajor=major;
+  $('pinArt').style.transform=onHash?'translateX(-50%) scale(1.08)':'translateX(-50%)';
+}
+
+/* ---- LOCK IT IN → reveal ---- */
+async function lockIn(){
+  if (UI.state!=='play'||cam.moving) return;
+  const run=UI.runId;
+  UI.state='reveal'; coachOff(); hideBounds();
+  $('btnLock').disabled=true; $('btnSonar').disabled=true;
+  aimSeg=-1; $('diveChip').classList.remove('on');
+  const res=Engine.place(UI.pinV);
+  // slam!
+  SFX.slam(); hitPause(70); shake.mag=REDUCED?0:6; shake.left=240;
+  $('pinArt').querySelector('.bob').style.animation='none';
+  burst(vx(UI.pinV), LINE_Y, 12, ['rgba(255,200,87,.9)','rgba(255,227,160,.9)'], true);
+  await wait(REDUCED?150:430);
+  if (run!==UI.runId) return;
+
+  if (res.outOfView){ await resurfaceReveal(res); }
+  else { await inViewReveal(res); }
+  if (run!==UI.runId) return;
+
+  // stamp + sheet
+  const st=$('stamp');
+  st.textContent=res.smartAnchor?'SMART ANCHOR':res.grade.label;
+  st.style.color=res.smartAnchor?COLORS.buoy:res.grade.color;
+  st.classList.add('on');
+  ({'BULLSEYE!':SFX.bullseye,'GREAT':SFX.great,'GOOD':SFX.good,'CLOSE':SFX.close}[res.grade.label]
+    || (res.smartAnchor?SFX.anchor:SFX.lost))();
+  if (res.bullseye) burst(vx(Engine.target.value), LINE_Y, 26, ['rgba(255,200,87,.95)','rgba(255,93,143,.9)','rgba(155,227,255,.9)']);
+  if (res.q>=0.75 && Engine.streak>=2) SFX.streak(Engine.streak);
+  updateHudScore(Engine.totalScore); pipsHTML();
+  await wait(REDUCED?100:380);
+  if (run!==UI.runId) return;
+  await showSheet(res);
+}
+
+async function inViewReveal(res){
+  const t=Engine.target;
+  // beacon blooms at the true spot
+  const bx=vx(t.value);
+  const bc=$('beacon');
+  bc.style.left=bx+'px'; bc.style.top=LINE_Y+'px'; bc.style.opacity=1;
+  $('beaconChip').innerHTML=conversionText(t);
+  SFX.rise();
+  await wait(REDUCED?120:420);
+  // error bracket between pin and beacon (drawn by the main loop via keepBracket)
+  const px=vx(res.pinV);
+  if (Math.abs(px-bx)>6){
+    await tw(REDUCED?80:300, e=>{ keepBracket=[px, lerp(px,bx,e)]; });
+    keepBracket=[px,bx];
+  }
+  const el=$('errLabel');
+  el.textContent=errWords(res.err);
+  el.style.left=clamp((px+bx)/2,70,SW-70)+'px'; el.style.top=(LINE_Y+52)+'px';
+  el.classList.add('on');
+}
+let keepBracket=null;
+function bracketDraw(x0,x1){
+  const y=LINE_Y+34;
+  fctx.strokeStyle='rgba(255,92,108,.9)'; fctx.lineWidth=2.5; fctx.lineCap='round';
+  fctx.beginPath();
+  fctx.moveTo(x0,y-8); fctx.lineTo(x0,y); fctx.lineTo(x1,y); fctx.lineTo(x1,y-8);
+  fctx.stroke();
+}
+
+async function resurfaceReveal(res){
+  // The teaching moment: climb back up level by level, LABELING each interval
+  // you chose — the only time the line ever shows numbers.
+  const t=Engine.target;
+  toast('🌊 you dove past it — resurfacing…', 2000);
+  await wait(REDUCED?150:600);
+  const hist=Engine.history;
+  for(let i=hist.length-1;i>=0;i--){
+    const h=hist[i], div=Math.pow(10,h.d-1), lo=h.m/div, hi=(h.m+1)/div;
+    const places=Math.max(0,h.d-1);
+    showBounds(lo.toFixed(places),hi.toFixed(places));
+    if (i===hist.length-1){ await wait(REDUCED?150:520); }
+    SFX.rise();
+    const p=i>0?hist[i-1]:null;
+    await camAnimateTo(p?p.m/Math.pow(10,p.d-1):0, p?Math.pow(10,1-p.d):10, REDUCED?100:620);
+    await wait(REDUCED?60:260);
+  }
+  showBounds('0','10');
+  // now show truth vs you
+  const bx=vx(t.value), px=vx(res.pinV);
+  const bc=$('beacon');
+  bc.style.left=bx+'px'; bc.style.top=LINE_Y+'px'; bc.style.opacity=1;
+  $('beaconChip').innerHTML=conversionText(t);
+  keepBracket=[px,bx];
+  const el=$('errLabel');
+  el.innerHTML=`${errWords(res.err)}${res.smartAnchor?' · but you hugged the right edge ⚓':''}`;
+  el.style.left=clamp((px+bx)/2,80,SW-80)+'px'; el.style.top=(LINE_Y+52)+'px';
+  el.classList.add('on');
+  await wait(REDUCED?150:500);
+}
+
+async function showSheet(res){
+  const run=UI.runId;
+  const t=Engine.target;
+  const rows=[['rowAcc',true],['rowSpeed',res.speed>0],['rowBull',res.bullseye],
+              ['rowAnchor',res.smartAnchor],['rowSonar',res.sonarCost>0],['rowMult',res.mult>1],['rowTotal',true]];
+  rows.forEach(([id])=>{ const r=$(id); r.classList.remove('on'); r.style.display='none'; });
+  $('accPts').textContent='+'+res.acc.toLocaleString();
+  $('speedPts').textContent='+'+res.speed;
+  $('sonarPts').textContent='−'+res.sonarCost;
+  $('multVal').textContent='×'+res.mult.toFixed(1);
+  $('totalPts').textContent='+0';
+  const fl=$('factLine'); fl.classList.remove('on');
+  const path=res.path.length?`your dive: <i>${res.path.join(' → ')}</i>`:'';
+  const fact=t.fact||'';
+  fl.innerHTML=[fact,path].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  $('btnNext').textContent = Engine.levelDone()? (Engine.endless?'SURFACE ⏎':'FINISH ⏎') : 'NEXT ⏎';
+  $('sheet').classList.add('on');
+  await wait(REDUCED?60:260);
+  for(const [id,on] of rows){
+    if(!on) continue;
+    if (run!==UI.runId) return;
+    const r=$(id); r.style.display='flex';
+    await wait(REDUCED?30:130); r.classList.add('on');
+    if(id==='rowTotal') countUp($('totalPts'), 0, res.total, 550, '+');
+    else SFX.tick();
+  }
+  if(fl.innerHTML) fl.classList.add('on');
+  if(res.airLost){ toast('🫧 lost an air tank!', 1800); pipsHTML(); }
+  UI.state='sheet';
+  $('btnNext').focus();
+}
+
+function advance(){
+  if (UI.state!=='sheet') return;
+  SFX.ui();
+  $('sheet').classList.remove('on');
+  keepBracket=null; $('errLabel').classList.remove('on'); $('beacon').style.opacity=0;
+  $('pinArt').querySelector('.bob').style.animation='';
+  hideBounds();
+  if (Engine.levelDone()){
+    if (!store.tutorialDone && Engine.levelIdx===0){ store.tutorialDone=true; store.saveTut(); }
+    endLevel();
+  } else { Engine.nextRound(); startRound(); }
+}
+
+/* ---- level end ---- */
+async function endLevel(){
+  UI.state='end';
+  const L=Engine.level, sc=Engine.totalScore;
+  let newBest=false, stars=0;
+  if (Engine.endless){
+    if (sc>store.endlessBest){ store.endlessBest=sc; store.saveEndless(); newBest=true; }
+  } else {
+    stars=Engine.stars();
+    const b=store.best[L.id]||{score:0,stars:0};
+    newBest = sc>b.score;
+    store.best[L.id]={score:Math.max(sc,b.score), stars:Math.max(stars,b.stars)};
+    store.saveBest();
+  }
+  const headline = Engine.endless?'OUT OF AIR!':(stars===3?'MASTER DIVER!':stars===2?'GREAT DIVE!':stars===1?'DIVE COMPLETE':'SURFACED EMPTY');
+  $('endTitle').textContent=headline;
+  $('endSub').textContent = Engine.endless? `${Engine.endlessState.n} dives · reached ${ZONES[Engine.endlessState.R].pv}` : `${L.name} · ${L.sub}`;
+  $('bigStars').style.display=Engine.endless?'none':'';
+  document.querySelectorAll('#bigStars span').forEach(s=>s.classList.remove('lit'));
+  // stats
+  const best=Engine.results.reduce((m,r)=>Math.max(m,r.total),0);
+  const bulls=Engine.results.filter(r=>r.bullseye).length;
+  const maxStreak=Engine.results.reduce((m,r,i)=>{let s=0;for(let j=i;j<Engine.results.length&&Engine.results[j].q>=0.75;j++)s++;return Math.max(m,s);},0);
+  const rows=[
+    [`SCORE`, `<b id="endScore">0</b>${newBest?' <span class="newbest">NEW BEST!</span>':''}`],
+    [`BEST SINGLE DIVE`, `<b>+${best.toLocaleString()}</b>`],
+    [`BULLSEYES`, `<b>${bulls} 🎯</b>`],
+    [`LONGEST STREAK`, `<b>${maxStreak} 🔥</b>`],
+  ];
+  $('endStats').innerHTML=rows.map(([a,b])=>`<div class="row"><span>${a}</span><span>${b}</span></div>`).join('');
+  $('insight').innerHTML=insightFor();
+  const canNext = !Engine.endless && Engine.levelIdx<LEVELS.length-1
+    && ((store.best[L.id]||{}).stars>=1);
+  $('btnNextLvl').style.display = canNext?'':'none';
+  $('endOverlay').classList.add('on');
+  const run=UI.runId;
+  await wait(REDUCED?60:250);
+  if (run!==UI.runId) return;
+  const rEls=[...document.querySelectorAll('#endStats .row')];
+  countUp($('endScore'),0,sc,700);
+  for(let i=0;i<rEls.length;i++){ rEls[i].classList.add('on'); await wait(REDUCED?30:150); }
+  if (!Engine.endless){
+    const starEls=[...document.querySelectorAll('#bigStars span')];
+    for(let i=0;i<stars;i++){ starEls[i].classList.add('lit'); SFX.star(i); await wait(REDUCED?60:330); }
+    if (!stars) SFX.close();
+  }
+  $('btnNextLvl').style.display==='' ? $('btnNextLvl').focus() : $('btnRetry').focus();
+}
+function insightFor(){
+  const rs=Engine.results; if(!rs.length) return '';
+  const worst=rs.reduce((w,r)=>r.q<w.q?r:w, rs[0]);
+  if (worst.q>=0.75) return `Sharp diving. Want more <i>BULLSEYEs</i>? Land within half a hash of the spot — dive one zone deeper to place finer.`;
+  const t=worst.t;
+  const nm = t.type==='dec'?t.text:(t.type==='frac'?`${t.whole||''} ${t.n}/${t.d}`.trim():t.sym);
+  if (t.type==='frac') return `<i>${nm}</i> was your roughest dive. Divide top ÷ bottom first: ${t.n} ÷ ${t.d} = ${t.rep? t.value.toFixed(4)+'…' : t.value}${t.whole?` — then add the ${t.whole}`:''}. The decimal tells you every stretch to dive.`;
+  if (t.type==='irr') return `<i>${nm}</i> got you. Memorize its opening digits (${t.digits.slice(0,6)}…) — each digit is your next dive.`;
+  if (!t.text.includes('.')) return `<i>${nm}</i> was your roughest dive. It sits right ON a hash — count the hashes out from the left end (that end is 0).`;
+  if (/0[0-9]/.test((t.text.split('.')[1]||''))||/\.0/.test(t.text)) return `<i>${nm}</i> was your roughest dive — inner zeros are sneaky. The 0 holds a place open: ${t.text} hides just past ${t.text.split('.')[0]}.${(t.text.split('.')[1]||'')[0]}.`;
+  return `<i>${nm}</i> was your roughest dive. Say it in place values first — “${sayPlaces(t.text)}” — each digit picks your next stretch.`;
+}
+function sayPlaces(txt){
+  const [i,f]=txt.split('.'); if(!f) return `${i} exactly`;
+  const words=['tenths','hundredths','thousandths'];
+  return `${i}, then ${f.split('').map((d,k)=>`${d} ${words[k]||''}`).join(', ')}`;
+}
+
+/* ---- fun-fact cards after certain levels ---- */
+function maybeFact(){
+  const L=Engine.level;
+  if (Engine.endless || !FACTS[L.id] || store.seenFacts[L.id]) return false;
+  const f=FACTS[L.id];
+  store.seenFacts[L.id]=1; store.saveFacts();
+  $('factPath').textContent=f.path; $('factTitle').textContent=f.title; $('factBody').innerHTML=f.body;
+  $('endOverlay').classList.remove('on');
+  $('factOverlay').classList.add('on');
+  UI.state='fact'; $('btnFactOk').focus();
+  return true;
+}
+
+/* ================================================================
+   §8 INPUT
+   ================================================================ */
+let downX=0, downY=0, downOnPin=false, moved=false;
+stage.addEventListener('pointerdown', e=>{
+  if (UI.state!=='play') return;
+  ac().resume && ac().resume();
+  const r=stage.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+  downX=x; downY=y; moved=false;
+  const pinX=vx(UI.pinV);
+  downOnPin = Math.abs(x-pinX)<30 && y<LINE_Y+26;
+  if (downOnPin){
+    UI.dragging=true; stage.style.cursor='grabbing';
+    stage.setPointerCapture(e.pointerId);
+  }
+});
+stage.addEventListener('pointermove', e=>{
+  const r=stage.getBoundingClientRect(), x=e.clientX-r.left;
+  if (UI.dragging){ moved=true; pinDragTo(x); return; }
+  if (Math.abs(x-downX)>8) moved=true;
+  if (e.pointerType==='mouse' && UI.state==='play' && !cam.moving){
+    const y=e.clientY-r.top;
+    const overPin=Math.abs(x-vx(UI.pinV))<30 && y<LINE_Y+26;
+    stage.style.cursor=overPin?'grab':'pointer';
+    setAim(overPin?-1:segOfX(x));
+  }
+});
+stage.addEventListener('pointerup', e=>{
+  const r=stage.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+  if (UI.dragging){ UI.dragging=false; stage.style.cursor=''; return; }
+  if (UI.state!=='play'||moved||cam.moving) return;
+  const overPin=Math.abs(x-vx(UI.pinV))<30;
+  if (overPin && y<LINE_Y+26) return;
+  const seg=segOfX(x);
+  if (e.pointerType==='mouse'){ doDive(seg); return; }        // hover already aimed
+  if (aimSeg===seg) doDive(seg); else setAim(seg);            // touch: tap-tap
+});
+stage.addEventListener('pointerleave', ()=>{ if(!UI.dragging) setAim(-1); });
+$('diveChip').addEventListener('click', e=>{ e.stopPropagation(); if(aimSeg>=0) doDive(aimSeg); });
+
+// buttons
+$('btnPlay').onclick=()=>{ SFX.ui(); const u=unlockedThrough(); u>0?gotoMap():startLevel(0); };
+$('btnMap0').onclick=()=>{ SFX.ui(); gotoMap(); };
+$('btnHome').onclick=()=>{ SFX.ui(); refreshTitle(); show('scr-title'); UI.state='title'; };
+$('btnHow').onclick=()=>{ SFX.ui(); $('howOverlay').classList.add('on'); };
+$('btnHowOk').onclick=()=>{ SFX.ui(); $('howOverlay').classList.remove('on'); };
+$('btnMap').onclick=()=>{ SFX.ui(); gotoMap(); };
+$('btnLock').onclick=lockIn;
+$('btnSonar').onclick=doSonar;
+$('btnNext').onclick=advance;
+$('btnRetry').onclick=()=>{ SFX.ui(); $('endOverlay').classList.remove('on'); Engine.endless?startEndlessRun():startLevel(Engine.levelIdx); };
+$('btnNextLvl').onclick=()=>{ SFX.ui(); if(!maybeFact()){ $('endOverlay').classList.remove('on'); startLevel(Engine.levelIdx+1); } };
+$('btnEndMap').onclick=()=>{ SFX.ui(); if(!maybeFact()){ $('endOverlay').classList.remove('on'); gotoMap(); } };
+$('btnFactOk').onclick=()=>{
+  SFX.ui(); $('factOverlay').classList.remove('on');
+  // resume whatever the end screen would have done next
+  $('endOverlay').classList.add('on'); UI.state='end';
+};
+const toggleMute=()=>{ store.muted=!store.muted; store.saveMuted(); setMuteIcons(); Music.refresh(); if(!store.muted) SFX.ui(); };
+$('btnMute1').onclick=toggleMute; $('btnMute2').onclick=toggleMute;
+const toggleMusic=()=>{ store.music=!store.music; store.saveMusic(); setMuteIcons(); Music.start(); Music.refresh(); if(store.music) SFX.ui(); };
+$('btnMusic1').onclick=toggleMusic; $('btnMusic2').onclick=toggleMusic;
+
+// keyboard
+window.addEventListener('keydown', e=>{
+  if (e.repeat) return;
+  const k=e.key;
+  if (k==='m'||k==='M'){ toggleMute(); return; }
+  if (UI.state==='play'){
+    if (/^[0-9]$/.test(k)){ doDive(parseInt(k,10)); e.preventDefault(); return; }
+    if (k==='Enter'){ lockIn(); return; }
+    if (k==='s'||k==='S'){ doSonar(); return; }
+    if (k==='ArrowLeft'||k==='ArrowRight'){
+      const dir=k==='ArrowRight'?1:-1, step=cam.w*(e.shiftKey?1/40:1/300);
+      UI.pinV=clamp(UI.pinV+dir*step, cam.lo, cam.lo+cam.w);
+      pinDragTo(vx(UI.pinV)); e.preventDefault(); return;
+    }
+  }
+  const focusedBtn = document.activeElement && document.activeElement.tagName==='BUTTON';
+  if (UI.state==='sheet' && (k==='Enter'||k===' ')){ advance(); e.preventDefault(); return; }
+  if (UI.state==='end' && k==='Enter' && !focusedBtn){ ($('btnNextLvl').style.display===''?$('btnNextLvl'):$('btnRetry')).click(); return; }
+  if (UI.state==='fact' && (k==='Enter'||k===' ') && !focusedBtn){ $('btnFactOk').click(); e.preventDefault(); return; }
+  if (k==='Escape'){
+    if ($('howOverlay').classList.contains('on')) $('howOverlay').classList.remove('on');
+    else if (UI.state==='play'||UI.state==='sheet') gotoMap();
+  }
+});
+
+/* ================================================================
+   §9 MAIN LOOP + BOOT
+   ================================================================ */
+let lastT=performance.now();
+function frame(now){
+  let dt=Math.min(100, now-lastT); lastT=now;
+  if (freezeLeft>0){ const f=Math.min(freezeLeft,dt); freezeLeft-=f; dt-=f; }
+  // tweens
+  if (dt>0) tweens=tweens.filter(t=>{
+    t.el+=dt; const e=t.ease(clamp(t.el/t.dur,0,1));
+    t.fn(e);
+    if (t.el>=t.dur){ t.res(); return false; }
+    return true;
+  });
+  // round clock (only while playing & visible)
+  if (UI.state==='play' && Engine.playing){
+    Engine.elapsed+=dt/1000;
+    const fr=clamp(1-Math.max(0,Engine.elapsed-SPEED_GRACE)/(2*parTime(Math.max(1,Engine.target.R))),0,1);
+    $('speedFill').style.width=(fr*100)+'%';
+    $('speedFill').style.opacity=fr>0?1:.25;
+  }
+  // stage shake
+  if (shake.left>0){ shake.left-=dt;
+    const m=shake.mag*(shake.left/240);
+    stage.style.transform=`translate(${(Math.random()*2-1)*m}px,${(Math.random()*2-1)*m}px)`;
+  } else stage.style.transform='';
+  drawLine();
+  stepFx(dt);
+  if (keepBracket) bracketDraw(keepBracket[0],keepBracket[1]);
+  stepAmbient(dt);
+  if (UI.state==='play'||UI.state==='reveal'||UI.state==='sheet') positionPin();
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', ()=>{ sizeCanvases(); });
+setDepthBg(0); setMuteIcons(); refreshTitle(); sizeCanvases();
+requestAnimationFrame(frame);
+
+// tiny engine self-test (console only)
+(function selfTest(){
+  const t=dec('3.47'); console.assert(t.R===2 && t.value===3.47, 'dec parse');
+  Engine.rounds=[t]; Engine.roundIdx=0; Engine.startRound();
+  Engine.dive(3); Engine.dive(4);
+  const b=Engine.bounds();
+  console.assert(Math.abs(b.lo-3.4)<1e-12 && Math.abs(b.w-0.1)<1e-12, 'bounds after 3→4');
+  console.assert(Engine.targetSeg()===7, 'target seg of 3.47 in [3.4,3.5]');
+  const r=Engine.place(3.472);
+  console.assert(r.q>0.8 && !r.outOfView, 'placement quality');
+  console.assert(frac(3,8).R===3 && frac(3,8).value===0.375, 'frac 3/8');
+  console.assert(errWords(0.003).includes('thousandth'), 'err words');
+  // reset engine state after test
+  Engine.rounds=[]; Engine.results=[]; Engine.totalScore=0; Engine.streak=0;
+  Engine.playing=false; Engine.m=0; Engine.d=0; Engine.history=[]; Engine.elapsed=0;
+  console.debug('ZOOM engine self-test ok');
+})();
+
+// debug handle for automated testing (not used by gameplay)
+window.ZOOM_DEBUG={Engine, UI, cam, doDive, lockIn, startLevel, advance, store, frame, Music};
+</script>

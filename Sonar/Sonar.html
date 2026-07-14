@@ -1,0 +1,1592 @@
+<!--
+  SONAR — hunt ships on the coordinate plane
+  A hidden ship sits at integer coordinates on a four-quadrant grid with NO numbers
+  except −10 and 10 at the axis ends. PING anywhere: a sonar ring expands to exactly
+  the ship's distance and stays on the board — the ship is somewhere ON that circle.
+  Two rings cross at two points; three tell you everything. But torpedoes don't fire
+  where you tap — they fire at the COORDINATES YOU TYPE. Read the grid, mind your
+  signs, or watch your shot splash in the wrong quadrant.
+
+  CORE LOOP (≈20-40s/ship): ping (spatial) → reason on rings → ping again or gamble
+  → FIRE: type (x, y) on the keypad → torpedo runs to that point → boom or splash →
+  score by pings saved + speed → next vessel.
+  THE TRANSLATION IS THE MATH: you locate spatially, you must report symbolically.
+  No crosshair coordinates are ever shown; no preview of your typed point.
+
+  Target standards (grades 6-8):
+    6.NS.6b — signs of coordinates as quadrant location; reflections across axes
+              (BOSS: Ghost Fleet — the blip you see is the ship's mirror image)
+    6.NS.6c — plot/read rational-number pairs on the plane
+    6.NS.8  — solve problems by graphing in all four quadrants
+    (8.G.8 preview — distance rings are circles; triangulation is Pythagoras in disguise)
+  Misconceptions ambushed:
+    • (x, y) order swap — asymmetric ships make swaps miss visibly
+    • sign confusion by quadrant — Ghost Fleet is one giant sign-flip drill
+    • "points on an axis have no quadrant / can't have a 0" — on-axis ships appear
+    • "reflection changes both signs" — only across the origin, and the boss says which
+  SMPs: 2 (spatial ↔ symbolic translation), 3 (deduce from ring constraints),
+        6 (exact coordinates or you miss), 1 (boss perseverance).
+  Session shape: patrol = 5 ships ≈ 3 min (warm-up / station). Instant retry.
+
+  Sister game to Zoom — same ocean, same house style (Fredoka+Nunito, ocean palette,
+  gold = you). Single file. No dependencies. Hand-rolled SVG/CSS art, Web-Audio synth
+  (the echo returns later the farther the ship — listen). Progress saved locally
+  when storage allows.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Sonar — hunt the hidden fleet</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---- One palette (ocean house style; gold = you, crimson = the enemy) ---- */
+  :root{
+    --ink:#eaf6ff; --muted:#7fa6c4;
+    --panel:#0d2c47; --panel2:#134066;
+    --line:#9be3ff; --grid:#1d4a6e;
+    --gold:#ffc857;            /* crosshair, torpedo, YOU */
+    --enemy:#ff5c6c;           /* ships, misses, danger */
+    --ghost:#b48cff;           /* ghost fleet */
+    --good:#3fe08f;
+    --radius:18px;
+    --shadow:0 12px 34px rgba(0,4,12,.5);
+    --shadow-sm:0 4px 14px rgba(0,4,12,.4);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(130% 100% at 50% -12%, #082a47 0%, #04101d 62%, #01040a 100%);
+    color:var(--ink); font-family:Nunito,system-ui,sans-serif;
+    overflow:hidden; user-select:none;-webkit-user-select:none; letter-spacing:.2px;
+  }
+  button{font-family:inherit;color:inherit}
+  #ambientCv{position:fixed;inset:0;z-index:1;pointer-events:none}
+
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;padding:16px;opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .3s ease,visibility .3s}
+  .screen.on{opacity:1;pointer-events:auto;visibility:visible}
+  .wrap{width:100%;max-width:980px;margin:0 auto}
+
+  /* ---- shared buttons ---- */
+  .btn{border:none;cursor:pointer;border-radius:16px;font-family:Fredoka;font-weight:600;
+    background:var(--panel);box-shadow:var(--shadow-sm);
+    transition:transform .13s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,background .2s,opacity .2s}
+  .btn:hover{transform:translateY(-2px) scale(1.03)}
+  .btn:active{transform:scale(.94)}
+  .btn:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+  .btn.primary{background:linear-gradient(180deg,#ffd97a,var(--gold));color:#4a2e00;font-weight:700;
+    box-shadow:0 8px 24px rgba(255,200,87,.35),var(--shadow-sm)}
+  .btn.danger{background:linear-gradient(180deg,#ff7d89,var(--enemy));color:#3d0009;font-weight:700;
+    box-shadow:0 8px 24px rgba(255,92,108,.35),var(--shadow-sm)}
+  .btn.big{font-size:23px;padding:16px 44px;border-radius:20px}
+  .btn.ghostb{background:transparent;border:2px solid var(--panel2);box-shadow:none;color:var(--muted)}
+  .btn.ghostb:hover{color:var(--ink);border-color:var(--muted)}
+  .btn:disabled{opacity:.4;pointer-events:none}
+  .icon-btn{width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;flex:none;
+    background:var(--panel);color:var(--ink);font-size:19px;box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s,background .2s}
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn:hover{background:var(--panel2)}
+  .icon-btn:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+
+  /* ---- title ---- */
+  #scr-title{text-align:center}
+  .wordmark{font-family:Fredoka;font-weight:700;font-size:min(17vw,96px);line-height:1;letter-spacing:.04em;
+    display:flex;align-items:center;justify-content:center;gap:.05em}
+  .wordmark .oo{position:relative;width:.78em;height:.78em;display:inline-grid;place-items:center}
+  .wordmark .oo i{position:absolute;border-radius:50%;border:.07em solid var(--gold)}
+  .wordmark .oo i:nth-child(1){inset:36%}
+  .wordmark .oo i:nth-child(2){inset:18%;opacity:.7;border-color:var(--line)}
+  .wordmark .oo i:nth-child(3){inset:0;opacity:.45;border-color:var(--line)}
+  .wordmark .oo::after{content:"";position:absolute;inset:0;border-radius:50%;
+    border:.06em solid var(--line);animation:ringout 2.6s ease-out infinite}
+  @keyframes ringout{0%{transform:scale(.45);opacity:.8}75%{transform:scale(1.8);opacity:0}100%{opacity:0}}
+  .tagline{font-family:Fredoka;font-weight:500;font-size:19px;color:var(--muted);margin:8px 0 24px}
+  .tagline b{color:var(--line);font-weight:600}
+  .titlebest{margin-top:24px;color:var(--muted);font-size:14px;font-weight:700}
+  .titlebest b{color:var(--gold)}
+
+  /* ---- map ---- */
+  #scr-map{justify-content:flex-start;overflow-y:auto;padding-top:14px}
+  #scr-map .wrap{max-width:560px;padding-bottom:30px}
+  .maphead{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+  .maphead .logo{font-family:Fredoka;font-weight:700;font-size:26px}
+  .maphead .logo b{color:var(--gold)}
+  .starTotal{font-family:Fredoka;font-weight:600;font-size:16px;color:var(--gold)}
+  .lvl{width:100%;display:flex;align-items:center;gap:14px;text-align:left;background:var(--panel);
+    border:none;border-radius:var(--radius);cursor:pointer;padding:13px 16px;margin:0 0 10px;
+    box-shadow:var(--shadow-sm);transition:transform .14s cubic-bezier(.34,1.56,.64,1),background .2s;position:relative}
+  .lvl:hover{transform:translateY(-2px) scale(1.015);background:var(--panel2)}
+  .lvl:active{transform:scale(.97)}
+  .lvl:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+  .lvl.locked{opacity:.45;filter:saturate(.4);cursor:not-allowed}
+  .lvl.locked:hover{transform:none;background:var(--panel)}
+  .lvl .dot{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;
+    font-family:Fredoka;font-weight:700;font-size:16px;box-shadow:0 0 16px currentColor}
+  .lvl .nm{font-family:Fredoka;font-weight:600;font-size:18px}
+  .lvl .sub{color:var(--muted);font-size:12.5px;font-weight:700;margin-top:1px}
+  .lvl .meta{margin-left:auto;text-align:right;flex:none}
+  .lvl .stars{font-size:15px;letter-spacing:2px;color:var(--gold)}
+  .lvl .stars .off{color:var(--panel2)}
+  .lvl .bs{color:var(--muted);font-size:11.5px;font-weight:800;margin-top:2px}
+  .lvl .boss{position:absolute;top:-7px;right:12px;background:var(--enemy);color:#3d0009;
+    font-family:Fredoka;font-weight:700;font-size:10.5px;letter-spacing:1.2px;padding:2px 9px;
+    border-radius:99px;box-shadow:0 0 14px rgba(255,92,108,.5)}
+  .maplink{width:2px;height:14px;background:repeating-linear-gradient(180deg,var(--grid) 0 4px,transparent 4px 8px);margin:-6px auto 4px}
+
+  /* ---- game ---- */
+  #scr-game{justify-content:flex-start;padding-top:10px}
+  #scr-game .wrap{display:flex;flex-direction:column;height:100%;max-height:900px}
+  .hud{display:flex;align-items:center;gap:10px}
+  .hud .mid{flex:1;min-width:0;text-align:center}
+  .lvlpill{font-family:Fredoka;font-weight:600;font-size:14.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lvlpill b{color:var(--ink)}
+  .pips{display:flex;gap:5px;justify-content:center;margin-top:4px}
+  .pip{width:26px;height:6px;border-radius:99px;background:var(--panel2);transition:background .4s,box-shadow .4s}
+  .pip.done{background:var(--good);box-shadow:0 0 8px rgba(63,224,143,.5)}
+  .pip.miss{background:var(--enemy)}
+  .pip.active{background:var(--line);box-shadow:0 0 8px rgba(155,227,255,.5)}
+  .scorebox{text-align:right;flex:none;min-width:86px}
+  .scoreval{font-family:Fredoka;font-weight:700;font-size:24px;line-height:1;color:var(--ink)}
+  .streak{font-size:12px;font-weight:800;color:var(--muted);margin-top:2px;transition:color .3s}
+  .streak.hot{color:var(--gold)}
+
+  .briefRow{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px auto 6px;flex-wrap:wrap}
+  .targetCard{display:flex;align-items:center;gap:12px;background:var(--panel);border-radius:var(--radius);
+    padding:8px 18px;box-shadow:var(--shadow);animation:breathe 3.4s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .targetCard .sil{width:56px;height:30px;flex:none;color:var(--enemy)}
+  .targetCard .sil.ghost{color:var(--ghost)}
+  .targetCard .eyebrow{font-size:10px;font-weight:800;letter-spacing:2.5px;color:var(--muted);text-transform:uppercase}
+  .targetCard .shipnm{font-family:Fredoka;font-weight:600;font-size:17px;line-height:1.15}
+  .variantChip{background:var(--panel2);border-radius:99px;padding:6px 14px;font-family:Fredoka;font-weight:600;
+    font-size:13.5px;color:var(--ghost);box-shadow:var(--shadow-sm)}
+  .variantChip.current{color:var(--line)}
+
+  .gridWrap{position:relative;flex:1;min-height:220px;display:grid;place-items:center;margin:2px 0}
+  .stage{position:relative;touch-action:none;cursor:crosshair}
+  .stage canvas{position:absolute;inset:0;width:100%;height:100%}
+  #fxCv{pointer-events:none}
+  .axisLbl{position:absolute;font-family:Fredoka;font-weight:600;font-size:14px;color:var(--line);
+    pointer-events:none;text-shadow:0 0 8px rgba(4,16,29,.9)}
+  .cross{position:absolute;z-index:5;width:0;height:0;pointer-events:none;opacity:0;transition:opacity .15s}
+  .cross.on{opacity:1}
+  .cross::before,.cross::after{content:"";position:absolute;background:var(--gold);border-radius:2px;
+    box-shadow:0 0 10px rgba(255,200,87,.7)}
+  .cross::before{left:-11px;top:-1.5px;width:22px;height:3px}
+  .cross::after{left:-1.5px;top:-11px;width:3px;height:22px}
+  .cross i{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border:2.5px solid var(--gold);
+    border-radius:50%;animation:crossPulse 1.2s ease-in-out infinite}
+  @keyframes crossPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+  .pingChip{position:absolute;z-index:4;transform:translate(-50%,-50%);width:17px;height:17px;border-radius:50%;
+    background:var(--panel2);border:2px solid var(--line);color:var(--line);font-family:Fredoka;font-weight:700;
+    font-size:10.5px;display:grid;place-items:center;pointer-events:none;box-shadow:0 0 10px rgba(155,227,255,.4)}
+  .missChip{position:absolute;z-index:4;transform:translate(-50%,-115%);background:rgba(13,44,71,.94);color:var(--enemy);
+    font-family:Fredoka;font-weight:600;font-size:12.5px;padding:2px 9px;border-radius:9px;pointer-events:none;white-space:nowrap;
+    box-shadow:var(--shadow-sm)}
+  .shipReveal{position:absolute;z-index:6;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .4s}
+  .shipReveal.on{opacity:1}
+  .shipReveal .art{width:74px;height:40px;color:var(--enemy);filter:drop-shadow(0 0 14px rgba(255,92,108,.6))}
+  .shipReveal.sunkGold .art{color:var(--gold);filter:drop-shadow(0 0 14px rgba(255,200,87,.7))}
+  .shipReveal .chip{position:absolute;left:50%;top:-14px;transform:translate(-50%,-100%);background:var(--enemy);
+    color:#3d0009;font-family:Fredoka;font-weight:700;font-size:16px;padding:3px 12px;border-radius:11px;white-space:nowrap;
+    box-shadow:0 6px 18px rgba(255,92,108,.4)}
+  .shipReveal.sunkGold .chip{background:var(--gold);color:#4a2e00;box-shadow:0 6px 18px rgba(255,200,87,.4)}
+  .ghostBlip{position:absolute;z-index:5;transform:translate(-50%,-50%);pointer-events:none;color:var(--ghost);opacity:0;transition:opacity .5s}
+  .ghostBlip.on{opacity:1}
+  .ghostBlip .art{width:64px;height:34px;opacity:.85;filter:drop-shadow(0 0 12px rgba(180,140,255,.7))}
+  .ghostBlip .tag{position:absolute;left:50%;top:-8px;transform:translate(-50%,-100%);font-family:Fredoka;font-weight:600;
+    font-size:12px;color:var(--ghost);white-space:nowrap}
+  .coach{position:absolute;z-index:8;left:50%;transform:translateX(-50%);top:2px;max-width:94%;
+    background:var(--panel2);border-radius:14px;padding:8px 16px;font-size:14.5px;font-weight:700;
+    box-shadow:var(--shadow);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+  .coach.on{opacity:1}
+  .coach b{color:var(--gold)} .coach i{color:var(--line);font-style:normal}
+
+  .subrow{display:flex;align-items:center;justify-content:center;gap:12px;margin:4px 0 8px;min-height:32px}
+  .pingsPill,.torpPill{display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:99px;
+    padding:6px 15px;box-shadow:var(--shadow-sm);font-family:Fredoka;font-weight:600;font-size:14px}
+  .pingsPill .d,.torpPill .d{letter-spacing:2px;font-size:13px}
+  .pingsPill .lbl,.torpPill .lbl{color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:1px}
+  .speedPill{display:flex;align-items:center;gap:7px;background:var(--panel);border-radius:99px;
+    padding:6px 13px;box-shadow:var(--shadow-sm);min-width:104px}
+  .speedBar{flex:1;height:7px;border-radius:99px;background:var(--panel2);overflow:hidden;min-width:52px}
+  .speedFill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--line),#d4f2ff);transition:opacity .4s}
+  .actions{display:flex;align-items:center;justify-content:center;gap:12px;padding:2px 0 12px}
+  #btnPing{font-size:19px;padding:14px 30px}
+  #btnFire{font-size:21px;padding:15px 38px;letter-spacing:.5px}
+
+  /* ---- fire keypad sheet ---- */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:25;transform:translateY(110%);visibility:hidden;
+    transition:transform .35s cubic-bezier(.3,1.3,.5,1),visibility .35s;background:var(--panel);
+    border-radius:26px 26px 0 0;box-shadow:0 -14px 44px rgba(0,4,12,.6);padding:16px 20px calc(14px + env(safe-area-inset-bottom))}
+  .sheet.on{transform:translateY(0);visibility:visible}
+  .sheet .inner{max-width:430px;margin:0 auto}
+  .fireTitle{text-align:center;font-family:Fredoka;font-weight:600;font-size:17px;color:var(--muted);margin-bottom:8px}
+  .fireTitle b{color:var(--gold)}
+  .coordRow{display:flex;align-items:center;justify-content:center;gap:6px;font-family:Fredoka;font-weight:700;
+    font-size:42px;margin-bottom:12px;color:var(--muted)}
+  .cfield{min-width:96px;padding:2px 12px;border-radius:14px;background:var(--panel2);color:var(--ink);
+    text-align:center;cursor:pointer;border:3px solid transparent;transition:border-color .15s;line-height:1.25;min-height:58px}
+  .cfield.active{border-color:var(--gold)}
+  .cfield.empty{color:var(--muted)}
+  .keys{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .key{border:none;border-radius:12px;background:var(--panel2);font-family:Fredoka;font-weight:600;font-size:21px;
+    padding:11px 0;cursor:pointer;box-shadow:var(--shadow-sm);transition:transform .1s,background .15s}
+  .key:hover{background:#1a4f7c}
+  .key:active{transform:scale(.92)}
+  .key.wide{grid-column:span 2}
+  .key.sign{color:var(--gold)}
+  .sheet .cta{display:flex;gap:10px;justify-content:center;margin-top:12px}
+
+  /* ---- score sheet rows (reveal) ---- */
+  .srow{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:16px;
+    color:var(--muted);padding:5px 2px;opacity:0;transform:translateX(-14px);transition:opacity .3s,transform .3s}
+  .srow.on{opacity:1;transform:none}
+  .srow b{font-family:Fredoka;font-weight:600;color:var(--ink);font-size:19px}
+  .srow.total{border-top:2px solid var(--panel2);margin-top:6px;padding-top:10px;color:var(--ink);font-size:18px}
+  .srow.total b{color:var(--gold);font-size:30px;font-weight:700}
+  .srow .plus{color:var(--good)} .srow .minus{color:var(--enemy)} .srow .mult{color:var(--gold)}
+  .factline{color:var(--muted);font-size:13.5px;font-weight:700;text-align:center;margin-top:8px;opacity:0;transition:opacity .4s}
+  .factline.on{opacity:1}
+  .factline i{font-style:normal;color:var(--line)}
+
+  .stamp{position:absolute;z-index:30;left:50%;top:30%;transform:translate(-50%,-50%) rotate(-6deg) scale(0);
+    font-family:Fredoka;font-weight:700;font-size:40px;letter-spacing:1px;padding:6px 26px;border-radius:16px;
+    border:4px solid currentColor;background:rgba(4,16,29,.85);pointer-events:none;white-space:nowrap}
+  .stamp.on{animation:stampin .5s cubic-bezier(.34,1.7,.64,1) forwards}
+  @keyframes stampin{from{transform:translate(-50%,-50%) rotate(-14deg) scale(2.4);opacity:0}
+    to{transform:translate(-50%,-50%) rotate(-6deg) scale(1);opacity:1}}
+
+  .overlay{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:18px;
+    background:rgba(3,10,18,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity .25s,visibility .25s}
+  .overlay.on{opacity:1;pointer-events:auto;visibility:visible}
+  .introCard{text-align:center;background:var(--panel);border-radius:24px;padding:22px 40px 24px;box-shadow:var(--shadow);
+    transform:scale(.6) rotate(-4deg);transition:transform .45s cubic-bezier(.34,1.66,.64,1)}
+  .overlay.on .introCard{transform:scale(1) rotate(0)}
+  .introCard .eyebrow{font-size:12px;font-weight:800;letter-spacing:3px;color:var(--muted)}
+  .introCard .shipArt{width:150px;height:78px;color:var(--enemy);margin:6px auto 2px}
+  .introCard .shipArt.ghost{color:var(--ghost)}
+  .introCard .nm{font-family:Fredoka;font-weight:700;font-size:30px;color:var(--gold)}
+  .introCard .note{color:var(--muted);font-weight:700;font-size:14px;margin-top:8px;max-width:340px}
+  .introCard .note i{font-style:normal;color:var(--line)}
+
+  .endCard{width:min(480px,94vw);background:var(--panel);border-radius:26px;box-shadow:var(--shadow);
+    padding:26px 28px;text-align:center;transform:scale(.85);transition:transform .4s cubic-bezier(.34,1.56,.64,1)}
+  .overlay.on .endCard{transform:scale(1)}
+  .endCard h2{font-family:Fredoka;font-weight:700;font-size:32px;margin:0 0 4px}
+  .endCard .sub{color:var(--muted);font-weight:700;font-size:14px;margin-bottom:12px}
+  .bigstars{font-size:44px;letter-spacing:6px;margin:6px 0 10px;color:var(--gold)}
+  .bigstars span{display:inline-block;opacity:.18;transform:scale(.6)}
+  .bigstars span.lit{opacity:1;animation:starpop .5s cubic-bezier(.34,1.8,.64,1) forwards}
+  @keyframes starpop{from{transform:scale(.2) rotate(-30deg)}to{transform:scale(1) rotate(0)}}
+  .endstats{margin:4px 0 14px}
+  .endstats .row{display:flex;justify-content:space-between;font-weight:800;color:var(--muted);
+    font-size:15px;padding:4px 6px;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+  .endstats .row.on{opacity:1;transform:none}
+  .endstats .row b{font-family:Fredoka;color:var(--ink);font-weight:600;font-size:18px}
+  .newbest{color:#04101d!important;background:var(--gold);border-radius:8px;padding:0 8px;font-weight:800;
+    display:inline-block;animation:crossPulse .8s ease infinite}
+  .insight{background:var(--panel2);border-radius:14px;padding:10px 14px;font-size:14px;
+    font-weight:700;margin-bottom:16px;line-height:1.45}
+  .insight i{font-style:normal;color:var(--gold)}
+  .endCard .cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+  .factCard{width:min(440px,94vw);background:linear-gradient(180deg,var(--panel2),var(--panel));border-radius:26px;
+    box-shadow:var(--shadow);padding:26px;text-align:center;border:2px solid rgba(155,227,255,.25)}
+  .factCard .eyebrow{font-size:11px;font-weight:800;letter-spacing:3px;color:var(--line)}
+  .factCard .path{font-family:Fredoka;font-size:26px;color:var(--line);margin:8px 0 4px;font-weight:600}
+  .factCard h3{font-family:Fredoka;font-weight:600;font-size:22px;margin:8px 0 10px;line-height:1.3}
+  .factCard p{color:var(--muted);font-weight:700;font-size:15px;line-height:1.55;margin:0 0 18px}
+  .factCard p i{font-style:normal;color:var(--gold)}
+
+  .howCard{width:min(470px,94vw);background:var(--panel);border-radius:26px;box-shadow:var(--shadow);padding:24px 26px;
+    max-height:92vh;overflow-y:auto}
+  .howCard h3{font-family:Fredoka;font-weight:600;font-size:24px;margin:0 0 14px;text-align:center}
+  .howstep{display:flex;gap:14px;align-items:center;margin-bottom:13px;text-align:left}
+  .howstep .pic{width:64px;height:56px;flex:none;background:var(--panel2);border-radius:12px;display:grid;place-items:center}
+  .howstep .txt{font-size:14.5px;font-weight:700;color:var(--muted);line-height:1.4}
+  .howstep .txt b{color:var(--ink)} .howstep .txt i{font-style:normal;color:var(--gold)}
+  .hownote{text-align:center;color:var(--muted);font-size:12.5px;font-weight:700;margin:2px 0 14px}
+  .hownote i{font-style:normal;color:var(--line)}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:60;background:var(--panel2);
+    font-weight:800;font-size:14px;padding:10px 20px;border-radius:14px;box-shadow:var(--shadow);
+    opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-height:640px){ .introCard .shipArt{width:110px;height:58px} }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s!important;transition-duration:.06s!important}
+  }
+</style>
+
+<canvas id="ambientCv"></canvas>
+
+<!-- ============================ TITLE ============================ -->
+<div class="screen on" id="scr-title" style="z-index:12">
+  <div class="wordmark">S<span class="oo"><i></i><i></i><i></i></span>NAR</div>
+  <div class="tagline">hunt <b>the hidden fleet</b></div>
+  <button class="btn primary big" id="btnPlay">START PATROL</button>
+  <div style="display:flex;gap:10px;margin-top:12px">
+    <button class="btn ghostb" id="btnHow" style="padding:10px 22px;font-size:15px">HOW TO HUNT</button>
+    <button class="btn ghostb" id="btnMap0" style="padding:10px 22px;font-size:15px">PATROL MAP</button>
+  </div>
+  <div class="titlebest" id="titleBest"></div>
+</div>
+
+<!-- ============================ MAP ============================ -->
+<div class="screen" id="scr-map">
+  <div class="wrap">
+    <div class="maphead">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="icon-btn" id="btnHome" aria-label="Title screen">🏠</button>
+        <div class="logo">S<b>o</b>nar</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="starTotal" id="starTotal">★ 0/18</div>
+        <button class="icon-btn" id="btnMusic1" aria-label="Toggle music" title="Music">🎵</button>
+        <button class="icon-btn" id="btnMute1" aria-label="Toggle sound">🔊</button>
+      </div>
+    </div>
+    <div id="lvlList"></div>
+  </div>
+</div>
+
+<!-- ============================ GAME ============================ -->
+<div class="screen" id="scr-game">
+  <div class="wrap">
+    <div class="hud">
+      <button class="icon-btn" id="btnMap" aria-label="Back to patrol map">🗺️</button>
+      <div class="mid">
+        <div class="lvlpill" id="lvlPill"></div>
+        <div class="pips" id="pips"></div>
+      </div>
+      <div class="scorebox">
+        <div class="scoreval" id="scoreVal">0</div>
+        <div class="streak" id="streakVal"></div>
+      </div>
+      <button class="icon-btn" id="btnMusic2" aria-label="Toggle music" title="Music">🎵</button>
+      <button class="icon-btn" id="btnMute2" aria-label="Toggle sound">🔊</button>
+    </div>
+
+    <div class="briefRow">
+      <div class="targetCard">
+        <svg class="sil" id="targetSil" viewBox="0 0 74 40"></svg>
+        <div><div class="eyebrow">find &amp; sink</div><div class="shipnm" id="shipName">The Crimson Herring</div></div>
+      </div>
+      <div class="variantChip" id="variantChip" style="display:none"></div>
+    </div>
+
+    <div class="gridWrap">
+      <div class="stage" id="stage">
+        <canvas id="gridCv"></canvas>
+        <canvas id="fxCv"></canvas>
+        <div class="axisLbl" id="lblXneg">−10</div>
+        <div class="axisLbl" id="lblXpos">10</div>
+        <div class="axisLbl" id="lblYpos">10</div>
+        <div class="axisLbl" id="lblYneg">−10</div>
+        <div class="cross" id="cross"><i></i></div>
+        <div class="ghostBlip" id="ghostBlip">
+          <div class="tag">the echo…</div>
+          <svg class="art" viewBox="0 0 74 40"></svg>
+        </div>
+        <div class="shipReveal" id="shipReveal">
+          <div class="chip" id="shipChip">(−6, 3)</div>
+          <svg class="art" viewBox="0 0 74 40"></svg>
+        </div>
+        <div class="coach" id="coach"></div>
+      </div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+
+    <div class="subrow">
+      <div class="pingsPill"><span class="lbl">PINGS</span><span class="d" id="pingDots">●●●●</span></div>
+      <div class="torpPill"><span class="lbl">TORPEDOES</span><span class="d" id="torpDots">🚀🚀</span></div>
+      <div class="speedPill" title="Speed bonus remaining"><span style="font-size:13px">⚡</span>
+        <div class="speedBar"><div class="speedFill" id="speedFill" style="width:100%"></div></div></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="btnPing">PING 📡</button>
+      <button class="btn danger" id="btnFire">FIRE 🚀</button>
+    </div>
+
+    <!-- round intro -->
+    <div class="overlay" id="introOverlay">
+      <div class="introCard">
+        <div class="eyebrow" id="introEyebrow">vessel detected</div>
+        <svg class="shipArt" id="introSil" viewBox="0 0 74 40"></svg>
+        <div class="nm" id="introName">The Crimson Herring</div>
+        <div class="note" id="introNote">somewhere out there · <i>ping</i> to hear how far she is</div>
+      </div>
+    </div>
+
+    <!-- fire keypad -->
+    <div class="sheet" id="fireSheet">
+      <div class="inner">
+        <div class="fireTitle" id="fireTitle">Torpedo <b>1</b> of 2 — enter target coordinates</div>
+        <div class="coordRow">
+          <span>(</span><div class="cfield active empty" id="fx">x</div><span>,</span>
+          <div class="cfield empty" id="fy">y</div><span>)</span>
+        </div>
+        <div class="keys" id="keys">
+          <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button>
+          <button class="key" data-k="3">3</button><button class="key" data-k="4">4</button>
+          <button class="key" data-k="5">5</button><button class="key" data-k="6">6</button>
+          <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button>
+          <button class="key" data-k="9">9</button><button class="key" data-k="0">0</button>
+          <button class="key sign" data-k="-">+/−</button><button class="key" data-k="bk">⌫</button>
+        </div>
+        <div class="cta">
+          <button class="btn ghostb" id="btnCancelFire" style="padding:12px 22px;font-size:15px">BACK</button>
+          <button class="btn danger" id="btnLaunch" style="padding:12px 34px;font-size:18px" disabled>LAUNCH 🚀</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- score sheet -->
+    <div class="sheet" id="scoreSheet">
+      <div class="inner">
+        <div class="srow" id="rowHit"><span id="rowHitLbl">TARGET SUNK</span><b class="plus" id="hitPts">+500</b></div>
+        <div class="srow" id="rowEff"><span id="rowEffLbl">PINGS SAVED</span><b class="plus" id="effPts">+300</b></div>
+        <div class="srow" id="rowSpeed"><span>SPEED</span><b class="plus" id="speedPts">+0</b></div>
+        <div class="srow" id="rowMiss"><span>WASTED TORPEDOES</span><b class="minus" id="missPts">−250</b></div>
+        <div class="srow" id="rowMult"><span>STREAK</span><b class="mult" id="multVal">×1.2</b></div>
+        <div class="srow total" id="rowTotal"><span>PATROL SCORE</span><b id="totalPts">+0</b></div>
+        <div class="factline" id="factLine"></div>
+        <div class="cta"><button class="btn primary big" id="btnNext">NEXT ⏎</button></div>
+      </div>
+    </div>
+
+    <!-- level end -->
+    <div class="overlay" id="endOverlay">
+      <div class="endCard">
+        <h2 id="endTitle">PATROL COMPLETE</h2>
+        <div class="sub" id="endSub"></div>
+        <div class="bigstars" id="bigStars"><span>★</span><span>★</span><span>★</span></div>
+        <div class="endstats" id="endStats"></div>
+        <div class="insight" id="insight"></div>
+        <div class="cta">
+          <button class="btn ghostb" id="btnEndMap" style="padding:12px 20px;font-size:15px">MAP</button>
+          <button class="btn" id="btnRetry" style="padding:12px 20px;font-size:16px">RETRY</button>
+          <button class="btn primary" id="btnNextLvl" style="padding:12px 26px;font-size:17px">NEXT PATROL ⏎</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- fun-fact card -->
+    <div class="overlay" id="factOverlay">
+      <div class="factCard">
+        <div class="eyebrow">✦ intel from the deep ✦</div>
+        <div class="path" id="factPath"></div>
+        <h3 id="factTitle"></h3>
+        <p id="factBody"></p>
+        <button class="btn primary" id="btnFactOk" style="padding:12px 30px;font-size:17px">GOT IT ⏎</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- how to play -->
+<div class="overlay" id="howOverlay" style="position:fixed;z-index:50">
+  <div class="howCard">
+    <h3>How to hunt</h3>
+    <div class="howstep">
+      <div class="pic"><svg width="54" height="44" viewBox="0 0 54 44">
+        <line x1="27" y1="4" x2="27" y2="40" stroke="#2e5d80" stroke-width="2"/>
+        <line x1="4" y1="22" x2="50" y2="22" stroke="#2e5d80" stroke-width="2"/>
+        <circle cx="17" cy="14" r="4" fill="none" stroke="#9be3ff" stroke-width="2"/>
+        <circle cx="17" cy="14" r="9" fill="none" stroke="#9be3ff" stroke-width="1.6" opacity=".55"/>
+        <circle cx="17" cy="14" r="1.8" fill="#ffc857"/>
+      </svg></div>
+      <div class="txt"><b>PING anywhere.</b> A ring spreads to <b>exactly the ship's distance</b> — she's hiding somewhere ON that circle. Two rings cross at two spots. Three tell all.</div>
+    </div>
+    <div class="howstep">
+      <div class="pic"><svg width="54" height="44" viewBox="0 0 54 44">
+        <rect x="6" y="8" width="42" height="12" rx="4" fill="#134066"/>
+        <text x="27" y="18" text-anchor="middle" font-size="11" fill="#eaf6ff" font-family="Fredoka,sans-serif">(−6, 3)</text>
+        <path d="M14 30 h6 M24 30 h6 M34 30 h6" stroke="#ffc857" stroke-width="4" stroke-linecap="round"/>
+      </svg></div>
+      <div class="txt"><b>Torpedoes fire at coordinates you TYPE</b>, not where you tap. Read the grid: across is <i>x</i>, up is <i>y</i>, and mind your minus signs — hashes only out here.</div>
+    </div>
+    <div class="howstep">
+      <div class="pic"><svg width="54" height="44" viewBox="0 0 54 44">
+        <circle cx="27" cy="22" r="13" fill="none" stroke="#ff5c6c" stroke-width="2.5" opacity=".8"/>
+        <path d="M20 15 l14 14 M34 15 l-14 14" stroke="#ff5c6c" stroke-width="3.5" stroke-linecap="round"/>
+      </svg></div>
+      <div class="txt"><b>Fewer pings, faster call, first torpedo</b> = bigger score. Fire after two pings if you dare — just know which crossing point is her.</div>
+    </div>
+    <div class="hownote">fully playable muted ✓ · arrow keys move the crosshair · <i>P</i> pings · <i>F</i> fires · type coordinates on your keyboard</div>
+    <div style="text-align:center"><button class="btn primary" id="btnHowOk" style="padding:12px 34px;font-size:17px">GOT IT</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ================================================================
+   §1 CONSTANTS · SHIPS · LEVEL DATA
+   ================================================================ */
+const COLORS={ink:'#eaf6ff',muted:'#7fa6c4',line:'#9be3ff',grid:'#1d4a6e',gold:'#ffc857',
+              enemy:'#ff5c6c',ghost:'#b48cff',good:'#3fe08f'};
+const HIT1=500, HIT2=300, EFF_PER_PING=150, SPEED_MAX=300, MISS_COST=250;
+const SPEED_GRACE=6, PAR=26;                 // gentle: score decays over ~2×PAR
+const STAR_CUTS=[2000,3250,4250];
+const SHIP_NAMES=['The Crimson Herring','SS Misplaced','The Wandering Decimal','HMS Off-By-One',
+  'The Salty Integer','The Negative Nancy','SS Origin Story','The Quadrant Queen',
+  'The Sign Stealer','Old Axis Annie','The Rusty Radius','SS Coordinated'];
+// little SVG silhouettes, drawn in currentColor (one hand-rolled style)
+const SHIP_ART={
+  sub:`<path d="M8 22 Q8 15 20 15 L52 15 Q66 15 66 22 Q66 29 52 29 L20 29 Q8 29 8 22Z" fill="currentColor"/>
+       <rect x="30" y="7" width="10" height="9" rx="2" fill="currentColor"/>
+       <rect x="33.5" y="2" width="3" height="6" rx="1.5" fill="currentColor"/>
+       <circle cx="20" cy="22" r="2.6" fill="#04101d" opacity=".55"/><circle cx="31" cy="22" r="2.6" fill="#04101d" opacity=".55"/><circle cx="42" cy="22" r="2.6" fill="#04101d" opacity=".55"/>`,
+  trawler:`<path d="M6 26 L68 26 L60 36 L14 36 Z" fill="currentColor"/>
+       <rect x="24" y="16" width="18" height="10" rx="2" fill="currentColor"/>
+       <rect x="44" y="10" width="4" height="16" rx="2" fill="currentColor"/>
+       <path d="M48 12 L60 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>`,
+  galleon:`<path d="M8 27 L66 27 L56 37 L18 37 Z" fill="currentColor"/>
+       <rect x="35" y="6" width="3" height="21" fill="currentColor"/>
+       <path d="M38 8 Q52 12 38 20 Z" fill="currentColor"/>
+       <rect x="20" y="12" width="3" height="15" fill="currentColor"/>
+       <path d="M23 13 Q33 16 23 22 Z" fill="currentColor"/>`,
+  tanker:`<path d="M5 25 L69 25 L62 36 L12 36 Z" fill="currentColor"/>
+       <rect x="48" y="14" width="12" height="11" rx="2" fill="currentColor"/>
+       <rect x="14" y="19" width="28" height="6" rx="2" fill="currentColor"/>
+       <rect x="52" y="9" width="3" height="6" fill="currentColor"/>`,
+};
+const SHIP_KINDS=Object.keys(SHIP_ART);
+
+// variants: how a round twists the base hunt
+//  normal — plain triangulation
+//  ghost  — the blip you see is the ship REFLECTED across a stated axis (or origin)
+//  drift  — the ship moves by a shown vector after every ping
+const LEVELS=[
+  {id:'harbor', name:'The Harbor', sub:'Quadrant I · learn the ropes', color:'#35d0ff',
+   pings:4, quad1:true, variant:'normal'},
+  {id:'opensea', name:'Open Sea', sub:'all four quadrants · mind the signs', color:'#35ffc3',
+   pings:4, variant:'normal'},
+  {id:'deep', name:'Deep Patrol', sub:'two pings only · live with the ambiguity', color:'#7f9dff',
+   pings:2, variant:'normal'},
+  {id:'ghost', name:'Ghost Fleet', sub:'BOSS · echoes are reflections — flip the sign', color:'#b48cff', boss:true,
+   pings:1, variant:'ghost'},
+  {id:'current', name:'The Current', sub:'BOSS · she drifts a vector every ping', color:'#ff9857', boss:true,
+   pings:3, variant:'drift'},
+];
+const ENDLESS={id:'endless', name:'Convoy Duty', sub:'ENDLESS · every trick in the book · 3 hull', color:'#35d0ff'};
+const FACTS={
+  opensea:{path:'(−, +) · (+, +) · (−, −) · (+, −)', title:'Signs are directions.',
+    body:'The x-coordinate says how far <i>across</i> (right +, left −). The y says how far <i>up</i> (up +, down −). Read the pair (−6, 3): left 6, up 3 — Quadrant II. The signs alone name the quadrant before you count a single hash.'},
+  deep:{path:'2 rings → 2 suspects', title:'Two circles meet twice.',
+    body:'Two sonar rings can cross at <i>two</i> points — geometry refuses to pick one. A third ring settles it… or YOU can, by reasoning about signs and quadrants. That gamble is worth points.'},
+  ghost:{path:'(−6, 3) ⇄ (−6, −3)', title:'A reflection flips exactly one sign.',
+    body:'Across the x-axis, y flips: (−6, 3) → (−6, −3). Across the y-axis, x flips. Only reflecting through the <i>origin</i> flips both. Opposite signs = mirror images — that\'s all a reflection is.'},
+  current:{path:'(4, −2) + ⟨−1, 2⟩ = (3, 0)', title:'Moving a point is just adding.',
+    body:'A drift of ⟨−1, 2⟩ means x loses 1 and y gains 2 — every single ping. Chasing the ship is coordinate addition. (You\'ve been doing vector translation. Don\'t tell anyone it has a fancy name.)'},
+};
+
+/* ================================================================
+   §2 AUDIO — Web-Audio synth (echo returns later the farther the ship)
+   ================================================================ */
+let actx=null;
+const ac=()=>actx||(actx=new (window.AudioContext||window.webkitAudioContext)());
+function tone(freq,dur=.12,type='sine',vol=.16,slideTo=null,when=0){
+  if (store.muted) return;
+  try{
+    const c=ac(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime+when;
+    o.type=type;o.frequency.setValueAtTime(freq,t);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t+dur);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.05);
+  }catch(e){}
+}
+function noiseBurst(dur=.3,vol=.12,when=0,hp=400){
+  if (store.muted) return;
+  try{
+    const c=ac(),t=c.currentTime+when,n=Math.floor(c.sampleRate*dur);
+    const buf=c.createBuffer(1,n,c.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=c.createBufferSource();s.buffer=buf;
+    const f=c.createBiquadFilter();f.type='highpass';f.frequency.value=hp;
+    const g=c.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    s.connect(f).connect(g).connect(c.destination);s.start(t);
+  }catch(e){}
+}
+const SFX={
+  ui:()=>tone(700,.03,'square',.07),
+  aim:()=>tone(950,.022,'square',.04),
+  key:()=>tone(600,.04,'square',.07),
+  ping:(echoDelay)=>{ tone(1150,.4,'sine',.15,880);
+    tone(920,.28,'sine',.09,760,echoDelay); },       // the return, later if farther
+  launch:()=>{ noiseBurst(.5,.09,0,900); tone(200,.5,'sawtooth',.08,90); },
+  splash:()=>{ noiseBurst(.4,.14,0,500); tone(180,.3,'sine',.12,90,.05); },
+  boom:()=>{ noiseBurst(.6,.2,0,120); tone(70,.55,'sine',.3,40); tone(400,.2,'square',.08,90,.05); },
+  sunk:()=>{ [196,247,330,392].forEach((f,i)=>tone(f,.18,'sawtooth',.09,null,.15+i*.09)); noiseBurst(.14,.07,.5,3000); }, // brass stabs + cymbal
+  lost:()=>{ tone(440,.3,'square',.07,415); tone(370,.45,'square',.08,330,.3); },  // two-tone alarm, falling
+  ghost:()=>{ tone(880,.5,'sine',.1,660); tone(1320,.4,'sine',.06,990,.12); },
+  streak:n=>tone(600+80*Math.min(n,8),.09,'square',.09),
+  star:i=>tone([880,1100,1320][i%3],.12,'square',.1),
+  rise:()=>tone(300,.14,'sine',.09,420),
+  klaxon:()=>{ tone(330,.18,'square',.1,260); tone(330,.18,'square',.1,260,.24); },
+};
+
+/* ---- music: “Silent Running” — a low engine-room pulse at 64 bpm with a
+   lonely ping in the distance; it tightens when you're down to one torpedo.
+   All synthesized; 🎵 toggles music separately from SFX. ---- */
+const Music=(()=>{
+  const VOL=.07, STEP=60/64/2;                 // eighth-note grid at 64 bpm
+  let built=false, master=null, tension=0, nextT=0, stepN=0;
+  function build(){
+    if (built) return; built=true;
+    const c=ac();
+    master=c.createGain(); master.gain.value=0; master.connect(c.destination);
+    nextT=c.currentTime+.15; stepN=0;
+    setInterval(schedule,200);
+  }
+  function thub(t,f,v){ // the engine heartbeat
+    const c=ac(),o=c.createOscillator(),g=c.createGain(),fl=c.createBiquadFilter();
+    o.type='square'; o.frequency.value=f;
+    fl.type='lowpass'; fl.frequency.value=170;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+.02);
+    g.gain.exponentialRampToValueAtTime(.001,t+.32);
+    o.connect(fl); fl.connect(g); g.connect(master); o.start(t); o.stop(t+.45);
+  }
+  function farPing(t){ // someone else is out there
+    const c=ac(),o=c.createOscillator(),g=c.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(1900,t);
+    o.frequency.exponentialRampToValueAtTime(1450,t+1.7);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.04,t+.04);
+    g.gain.exponentialRampToValueAtTime(.0001,t+1.9);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+2.1);
+  }
+  function dyad(t){ // minor-second dread — tension only
+    const c=ac();
+    for(const f of [220,233.08]){
+      const o=c.createOscillator(),g=c.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.022,t+.4);
+      g.gain.exponentialRampToValueAtTime(.0001,t+2.4);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+2.6);
+    }
+  }
+  function schedule(){
+    if (!built) return;
+    const c=ac();
+    if (nextT<c.currentTime-.1) nextT=c.currentTime+.1;  // resync after tab-hide throttling
+    while (nextT<c.currentTime+.7){
+      const s=stepN%16, bar=Math.floor(stepN/16);
+      if (s===0) thub(nextT,55,.5);
+      if (s===8) thub(nextT,55,.38);
+      if (tension>0&&(s===4||s===12)) thub(nextT,61.74,.3);
+      if (s===0&&bar%4===2) farPing(nextT);
+      if (tension>0&&s===8&&bar%2===0) dyad(nextT);
+      nextT+=STEP; stepN++;
+    }
+  }
+  function refresh(){
+    if (!built) return;
+    const on=!store.muted&&store.music&&!document.hidden;
+    master.gain.setTargetAtTime(on?VOL:0, ac().currentTime, .5);
+  }
+  return {
+    start(){ try{ build(); refresh(); }catch(e){} },
+    refresh,
+    setTension(v){ tension=v; },
+    _debug(){ return {built, gain:master&&master.gain.value, nextT, stepN, tension}; },
+  };
+})();
+document.addEventListener('visibilitychange',()=>Music.refresh());
+window.addEventListener('pointerdown',function bootAudio(){
+  try{ ac().resume&&ac().resume(); }catch(e){}
+  Music.start();
+  window.removeEventListener('pointerdown',bootAudio);
+});
+
+/* ================================================================
+   §3 STORAGE — localStorage behind a safe wrapper
+   ================================================================ */
+const store=(()=>{
+  let mem={},ok=false;
+  try{ localStorage.setItem('sonar.t','1'); localStorage.removeItem('sonar.t'); ok=true; }catch(e){}
+  const get=(k,fb)=>{ try{ const v=ok?localStorage.getItem('sonar.'+k):mem[k]; return v==null?fb:JSON.parse(v);}catch(e){return fb} };
+  const set=(k,v)=>{ try{ if(ok)localStorage.setItem('sonar.'+k,JSON.stringify(v)); else mem[k]=v; }catch(e){} };
+  return {
+    get,set,
+    best:get('best',{}), endlessBest:get('endlessBest',0), muted:get('muted',false),
+    music:get('music',true),
+    seenFacts:get('seenFacts',{}), tutorialDone:get('tutorialDone',false),
+    saveBest(){set('best',this.best)}, saveMuted(){set('muted',this.muted)},
+    saveMusic(){set('music',this.music)},
+    saveFacts(){set('seenFacts',this.seenFacts)}, saveTut(){set('tutorialDone',this.tutorialDone)},
+    saveEndless(){set('endlessBest',this.endlessBest)},
+  };
+})();
+
+/* ================================================================
+   §4 ENGINE — pure logic, no DOM
+   Ships live at integer coordinates in [−9,9]² (Quadrant-I levels: [1,9]²).
+   ping(x,y) → distance to the ship (to the GHOST in ghost rounds, at ping
+   time in drift rounds — then she moves). fire(x,y) → hit iff exact.
+   ================================================================ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const fmtN=v=>v<0?'−'+(-v):String(v);
+const fmtPt=(x,y)=>`(${fmtN(x)}, ${fmtN(y)})`;
+
+const Engine={
+  levelIdx:0, endless:false, roundIdx:0, totalScore:0, streak:0, results:[],
+  endlessState:null, rounds:[],
+  // per-round
+  ship:null, pingsLeft:0, pingsUsed:0, torpsLeft:2, misses:[], pings:[],
+  elapsed:0, playing:false,
+
+  genShip(rng, spec){
+    const R=()=>Math.floor(rng()*19)-9;                 // −9..9
+    const R1=()=>1+Math.floor(rng()*9);                 // 1..9
+    let x,y,tries=0;
+    do{
+      if (spec.quad1){ x=R1(); y=R1(); }
+      else { x=R(); y=R(); }
+      tries++;
+      // keep interesting: not the origin, asymmetric often (so (y,x) swaps miss),
+      // ghost ships must move under reflection
+      var bad=(x===0&&y===0)
+        || (spec.variant==='ghost' && spec.axis==='x' && y===0)
+        || (spec.variant==='ghost' && spec.axis==='y' && x===0)
+        || (spec.forceAxis ? (x!==0&&y!==0) : false);
+    } while(bad && tries<60);
+    return {x,y};
+  },
+  genRound(rng, level, i){
+    const spec={variant:level.variant, quad1:!!level.quad1, pings:level.pings};
+    if (level.variant==='ghost'){ spec.axis=['x','y','o'][i%3]; }
+    if (level.variant==='drift'){
+      let vx=0,vy=0;
+      while(vx===0&&vy===0){ vx=Math.floor(rng()*5)-2; vy=Math.floor(rng()*5)-2; }
+      spec.drift={x:vx,y:vy};
+    }
+    // one ship per patrol sits ON an axis (classic confusion) — Open Sea onward
+    if (level.variant==='normal' && !level.quad1 && i===2) spec.forceAxis=true;
+    const ship=this.genShip(rng,spec);
+    if (spec.variant==='drift'){ // keep her on the board for pings+2 drifts
+      const steps=level.pings;
+      ship.x=clamp(ship.x, -9+Math.max(0,-spec.drift.x*steps), 9-Math.max(0,spec.drift.x*steps));
+      ship.y=clamp(ship.y, -9+Math.max(0,-spec.drift.y*steps), 9-Math.max(0,spec.drift.y*steps));
+      if (ship.x===0&&ship.y===0) ship.x=1;
+    }
+    const kind=SHIP_KINDS[Math.floor(rng()*SHIP_KINDS.length)];
+    const name=SHIP_NAMES[Math.floor(rng()*SHIP_NAMES.length)];
+    return {ship, spec, kind, name};
+  },
+  startLevel(levelIdx, seed){
+    this.levelIdx=levelIdx; this.endless=false;
+    const rng=mulberry32(seed);
+    const L=LEVELS[levelIdx];
+    this.rounds=[]; for(let i=0;i<5;i++) this.rounds.push(this.genRound(rng,L,i));
+    this.roundIdx=0; this.totalScore=0; this.streak=0; this.results=[];
+  },
+  startEndless(seed){
+    this.endless=true; this.levelIdx=-1;
+    this.endlessState={rng:mulberry32(seed), wave:0, hull:3};
+    this.rounds=[]; this.roundIdx=0; this.totalScore=0; this.streak=0; this.results=[];
+    this.rounds.push(this.genEndlessRound());
+  },
+  genEndlessRound(){
+    const es=this.endlessState, rng=es.rng, w=es.wave;
+    let level;
+    if (w<2) level={variant:'normal',pings:4};
+    else{
+      const roll=rng();
+      if (roll<0.25) level={variant:'ghost',pings:1};
+      else if (roll<0.45) level={variant:'drift',pings:3};
+      else level={variant:'normal',pings:w<5?3:2};
+    }
+    return this.genRound(rng, level, w);
+  },
+  get round(){ return this.rounds[this.roundIdx]; },
+  get level(){ return this.endless?ENDLESS:LEVELS[this.levelIdx]; },
+
+  startRound(){
+    const r=this.round;
+    this.ship={...r.ship};
+    this.pingsLeft=r.spec.pings; this.pingsUsed=0; this.torpsLeft=2;
+    this.misses=[]; this.pings=[]; this.elapsed=0; this.playing=true;
+  },
+  dist(x,y,tx,ty){ return Math.hypot(x-tx,y-ty); },
+  ping(x,y){
+    if (!this.playing||this.pingsLeft<=0) return null;
+    this.pingsLeft--; this.pingsUsed++;
+    const spec=this.round.spec;
+    let target={...this.ship};
+    if (spec.variant==='ghost'){
+      target = spec.axis==='x' ? {x:this.ship.x, y:-this.ship.y}
+             : spec.axis==='y' ? {x:-this.ship.x, y:this.ship.y}
+             : {x:-this.ship.x, y:-this.ship.y};
+    }
+    const d=this.dist(x,y,target.x,target.y);
+    const rec={x,y,d,ghostAt:spec.variant==='ghost'?target:null};
+    this.pings.push(rec);
+    if (spec.variant==='drift'){ this.ship.x+=spec.drift.x; this.ship.y+=spec.drift.y; }
+    return rec;
+  },
+  fire(x,y){
+    if (!this.playing||this.torpsLeft<=0) return null;
+    this.torpsLeft--;
+    const hit = x===this.ship.x && y===this.ship.y;
+    if (!hit) this.misses.push({x,y});
+    if (hit || this.torpsLeft===0) return this.settle(hit);
+    return {hit:false, done:false, x, y};
+  },
+  settle(hit){
+    this.playing=false;
+    const hitPts = hit ? (this.misses.length===0?HIT1:HIT2) : 0;
+    const eff = hit ? this.pingsLeft*EFF_PER_PING : 0;
+    const speedFrac=clamp(1-Math.max(0,this.elapsed-SPEED_GRACE)/(2*PAR),0,1);
+    const speed = hit ? Math.round(SPEED_MAX*speedFrac) : 0;
+    const missCost=this.misses.length*MISS_COST;
+    if (hit && this.misses.length===0) this.streak++;
+    else if (!hit) this.streak=0;
+    const mult = (hit&&this.misses.length===0) ? 1+0.1*Math.min(this.streak,5) : 1;
+    let total=Math.max(0, Math.round((hitPts+eff+speed)*mult) - missCost);
+    this.totalScore+=total;
+    const stampTxt = !hit ? 'SHE GOT AWAY'
+      : this.misses.length? 'SUNK'
+      : this.pingsLeft>0 ? 'PERFECT TRIANGULATION' : 'DIRECT HIT';
+    const res={hit, hitPts, eff, speed, speedFrac, missCost, mult, total, stampTxt,
+      misses:this.misses.slice(), pingsUsed:this.pingsUsed, pingsSaved:this.pingsLeft,
+      ship:{...this.ship}, round:this.round, elapsed:this.elapsed, done:true};
+    this.results.push(res);
+    if (this.endless){
+      const es=this.endlessState; es.wave++;
+      if (!hit) es.hull--;
+      if (es.hull>0) this.rounds.push(this.genEndlessRound());
+    }
+    return res;
+  },
+  levelDone(){ return this.endless ? this.endlessState.hull<=0 : this.roundIdx>=4; },
+  nextRound(){ this.roundIdx++; },
+  stars(){ return STAR_CUTS.filter(c=>this.totalScore>=c).length; },
+};
+
+/* ================================================================
+   §5 TIME · TWEENS — dt-driven clock (pauses in background tabs)
+   ================================================================ */
+const REDUCED=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+const EASE={
+  outCubic:t=>1-Math.pow(1-t,3),
+  inOutCubic:t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,
+  outBack:t=>{const c=1.70158;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);},
+  linear:t=>t,
+};
+let tweens=[],freezeLeft=0;
+function tw(dur,fn,ease=EASE.outCubic){ return new Promise(res=>{tweens.push({dur,el:0,fn,ease,res});}); }
+const wait=ms=>tw(ms,()=>{},EASE.linear);
+function hitPause(ms){ if(!REDUCED) freezeLeft=Math.max(freezeLeft,ms); }
+
+/* ================================================================
+   §6 RENDER — square grid + rings + particles
+   ================================================================ */
+const $=id=>document.getElementById(id);
+const stage=$('stage'), gridCv=$('gridCv'), fxCv=$('fxCv'), ambientCv=$('ambientCv');
+const gctx=gridCv.getContext('2d'), fctx=fxCv.getContext('2d'), amctx=ambientCv.getContext('2d');
+let S=300, DPR=1;                              // stage is S×S px, 21×21 lattice
+const px=v=>(v+10)/20*S;                       // value → px (x)
+const py=v=>(10-v)/20*S;                       // value → px (y, inverted)
+const vxOf=p=>p/S*20-10, vyOf=p=>10-p/S*20;
+
+function sizeCanvases(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  const gw=$('scr-game').querySelector('.gridWrap');
+  const r=gw.getBoundingClientRect();
+  S=Math.max(240, Math.floor(Math.min(r.width-8, r.height-8, 560)));
+  stage.style.width=S+'px'; stage.style.height=S+'px';
+  for(const cv of [gridCv,fxCv]){ cv.width=S*DPR; cv.height=S*DPR; cv.getContext('2d').setTransform(DPR,0,0,DPR,0,0); }
+  ambientCv.width=innerWidth*DPR; ambientCv.height=innerHeight*DPR; amctx.setTransform(DPR,0,0,DPR,0,0);
+  // the ONLY numbers on the board: −10 / 10 at the axis ends
+  $('lblXneg').style.cssText+=`;left:2px;top:${S/2+6}px`;
+  $('lblXpos').style.cssText+=`;right:2px;top:${S/2+6}px`;
+  $('lblYpos').style.cssText+=`;left:${S/2+8}px;top:0px`;
+  $('lblYneg').style.cssText+=`;left:${S/2+8}px;bottom:0px`;
+}
+let ringDraws=[];       // {x,y,r,cur,alpha} in value units; cur animates outward
+let shakeLeft=0, shakeMag=0;
+function drawGrid(){
+  gctx.clearRect(0,0,S,S);
+  // faint integer gridlines (count these, they're your hashes)
+  gctx.strokeStyle='rgba(29,74,110,.5)'; gctx.lineWidth=1;
+  for(let i=-10;i<=10;i++){
+    if(i===0) continue;
+    const p=px(i);
+    gctx.globalAlpha=(i%5===0)?.75:.4;
+    gctx.beginPath();gctx.moveTo(p,0);gctx.lineTo(p,S);gctx.stroke();
+    gctx.beginPath();gctx.moveTo(0,py(i));gctx.lineTo(S,py(i));gctx.stroke();
+  }
+  gctx.globalAlpha=1;
+  // axes with glow + hash ticks
+  const shimmer=.8+.2*Math.sin(performance.now()/900);
+  gctx.strokeStyle=`rgba(155,227,255,${(.9*shimmer).toFixed(3)})`;
+  gctx.lineWidth=2.5; gctx.lineCap='round';
+  gctx.beginPath();gctx.moveTo(0,S/2);gctx.lineTo(S,S/2);gctx.stroke();
+  gctx.beginPath();gctx.moveTo(S/2,0);gctx.lineTo(S/2,S);gctx.stroke();
+  gctx.strokeStyle='rgba(155,227,255,.9)'; gctx.lineWidth=2;
+  for(let i=-10;i<=10;i++){
+    if(i===0)continue;
+    const t=(i%5===0)?7:4.5;
+    gctx.beginPath();gctx.moveTo(px(i),S/2-t);gctx.lineTo(px(i),S/2+t);gctx.stroke();
+    gctx.beginPath();gctx.moveTo(S/2-t,py(i));gctx.lineTo(S/2+t,py(i));gctx.stroke();
+  }
+  // origin
+  gctx.fillStyle='rgba(155,227,255,.9)';
+  gctx.beginPath();gctx.arc(S/2,S/2,3,0,7);gctx.fill();
+  // sonar rings (permanent, faint; expanding one brighter)
+  for(const r of ringDraws){
+    const R=r.cur*S/20;
+    gctx.strokeStyle=`rgba(155,227,255,${r.alpha.toFixed(3)})`;
+    gctx.lineWidth=r.cur<r.r?2.6:2;
+    gctx.setLineDash(r.cur<r.r?[]:[7,7]);
+    gctx.beginPath();gctx.arc(px(r.x),py(r.y),R,0,7);gctx.stroke();
+    gctx.setLineDash([]);
+  }
+}
+// particles on fx canvas
+let parts=[];
+function burst(xp,yp,n,palette,g=.09){
+  if (REDUCED) return;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,sp=1.5+Math.random()*3.5;
+    parts.push({x:xp,y:yp,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,g,
+      r:1.5+Math.random()*3.2,life:0,max:.5+Math.random()*.5,c:palette[i%palette.length]});
+  }
+}
+function stepFx(dt){
+  fctx.clearRect(0,0,S,S);
+  parts=parts.filter(p=>{
+    p.life+=dt/1000; if(p.life>p.max) return false;
+    p.x+=p.vx; p.y+=p.vy; p.vy+=p.g;
+    const a=1-p.life/p.max;
+    fctx.fillStyle=p.c; fctx.globalAlpha=a;
+    fctx.beginPath();fctx.arc(p.x,p.y,p.r*a,0,7);fctx.fill();
+    return true;
+  });
+  fctx.globalAlpha=1;
+  if (torpedo){ // little gold torpedo streaking to its typed destination
+    torpedo.t+=dt/torpedo.dur;
+    const e=EASE.inOutCubic(clamp(torpedo.t,0,1));
+    const x=lerp(torpedo.x0,torpedo.x1,e), y=lerp(torpedo.y0,torpedo.y1,e);
+    fctx.save();
+    fctx.translate(x,y); fctx.rotate(Math.atan2(torpedo.y1-torpedo.y0,torpedo.x1-torpedo.x0));
+    fctx.fillStyle=COLORS.gold;
+    fctx.beginPath(); fctx.roundRect(-9,-3,18,6,3); fctx.fill();
+    fctx.fillStyle='rgba(255,200,87,.45)';
+    fctx.beginPath(); fctx.roundRect(-19,-2,9,4,2); fctx.fill();
+    fctx.restore();
+    if (torpedo.t>=1){ const cb=torpedo.done; torpedo=null; cb&&cb(); }
+  }
+}
+let torpedo=null;
+function stepAmbient(dt){
+  amctx.clearRect(0,0,innerWidth,innerHeight);
+  if (REDUCED) return;
+  if (ambient.length<34 && Math.random()<0.05)
+    ambient.push({x:Math.random()*innerWidth,y:innerHeight+10,r:1+Math.random()*3,
+      v:.25+Math.random()*.55,wob:Math.random()*7});
+  ambient=ambient.filter(b=>{
+    b.y-=b.v*dt*0.045; b.wob+=dt*0.002;
+    const x=b.x+Math.sin(b.wob)*8;
+    if(b.y<-12) return false;
+    amctx.fillStyle='rgba(155,227,255,.11)';
+    amctx.beginPath();amctx.arc(x,b.y,b.r,0,7);amctx.fill();
+    return true;
+  });
+}
+let ambient=[];
+
+/* ================================================================
+   §7 UI — screens, round choreography
+   ================================================================ */
+const UI={ state:'title', runId:0, crossX:null, crossY:null, coachTimer:null,
+           fireVals:{x:null,y:null}, fireField:'x' };
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); }
+function toast(msg,ms=1800){
+  const t=$('toast'); t.innerHTML=msg; t.classList.add('on');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'),ms);
+}
+function setMuteIcons(){
+  ['btnMute1','btnMute2'].forEach(id=>$(id).textContent=store.muted?'🔇':'🔊');
+  ['btnMusic1','btnMusic2'].forEach(id=>{ const b=$(id); b.style.opacity=store.music?'1':'.4'; b.setAttribute('aria-pressed',String(store.music)); });
+}
+function countUp(el,from,to,dur=500,prefix=''){ return tw(dur,e=>{el.textContent=prefix+Math.round(lerp(from,to,e)).toLocaleString();}); }
+
+function refreshTitle(){
+  const stars=Object.values(store.best).reduce((s,b)=>s+(b.stars||0),0);
+  $('titleBest').innerHTML=stars?`<b>★ ${stars}</b> earned · best convoy <b>${store.endlessBest.toLocaleString()}</b>`:'';
+}
+function starStr(n){ let s='';for(let i=0;i<3;i++)s+=`<span class="${i<n?'':'off'}">★</span>`;return s; }
+function unlockedThrough(){
+  let u=0;
+  for(let i=1;i<LEVELS.length;i++){
+    if((store.best[LEVELS[i-1].id]||{}).stars>=1||(store.best[LEVELS[i].id]||{}).stars>=1) u=i; else break;
+  }
+  return u;
+}
+function buildMap(){
+  const wrap=$('lvlList'); wrap.innerHTML='';
+  const unlocked=unlockedThrough();
+  LEVELS.forEach((L,i)=>{
+    const b=store.best[L.id]||{}; const locked=i>unlocked;
+    const el=document.createElement('button');
+    el.className='lvl'+(locked?' locked':''); el.disabled=locked;
+    el.innerHTML=`${L.boss?'<span class="boss">BOSS</span>':''}
+      <span class="dot" style="background:${L.color};color:${L.color}"><span style="color:#04101d">${i+1}</span></span>
+      <span><span class="nm">${L.name}</span><br><span class="sub">${locked?'🔒 earn a star above to unlock':L.sub}</span></span>
+      <span class="meta"><span class="stars">${starStr(b.stars||0)}</span>
+      ${b.score?`<div class="bs">BEST ${b.score.toLocaleString()}</div>`:''}</span>`;
+    el.onclick=()=>{ if(!locked){SFX.ui();startLevel(i);} };
+    wrap.appendChild(el);
+    const link=document.createElement('div'); link.className='maplink'; wrap.appendChild(link);
+  });
+  const eb=store.best[LEVELS[2].id]; const elocked=!(eb&&eb.stars>=1);
+  const el=document.createElement('button');
+  el.className='lvl'+(elocked?' locked':''); el.disabled=elocked;
+  el.style.background='linear-gradient(90deg,#0d2c47,#123a5c)';
+  el.innerHTML=`<span class="dot" style="background:linear-gradient(135deg,#35d0ff,#ff5c6c);color:#35d0ff"><span style="color:#04101d">∞</span></span>
+    <span><span class="nm">${ENDLESS.name}</span><br><span class="sub">${elocked?'🔒 star Deep Patrol to unlock':ENDLESS.sub}</span></span>
+    <span class="meta">${store.endlessBest?`<div class="bs">BEST ${store.endlessBest.toLocaleString()}</div>`:''}</span>`;
+  el.onclick=()=>{ if(!elocked){SFX.ui();startEndlessRun();} };
+  wrap.appendChild(el);
+  const total=Object.values(store.best).reduce((s,b)=>s+(b.stars||0),0);
+  $('starTotal').textContent=`★ ${total}/${LEVELS.length*3}`;
+}
+function gotoMap(){ UI.runId++; UI.state='map'; buildMap(); show('scr-map'); }
+
+function startLevel(i){ Engine.startLevel(i,(Date.now()%2147483647)|1); enterGame(); }
+function startEndlessRun(){ Engine.startEndless((Date.now()%2147483647)|1); enterGame(); }
+function enterGame(){
+  UI.runId++;
+  show('scr-game'); sizeCanvases();
+  $('scoreSheet').classList.remove('on'); $('fireSheet').classList.remove('on');
+  $('endOverlay').classList.remove('on'); $('factOverlay').classList.remove('on');
+  updateHudScore(0,false);
+  startRound();
+}
+function pipsHTML(){
+  const p=$('pips'); p.innerHTML='';
+  if (Engine.endless){
+    const h=Math.max(0,Engine.endlessState.hull);
+    p.innerHTML=`<span style="font-size:13px;letter-spacing:2px" aria-label="hull">${'🛡️'.repeat(h)}<span style="opacity:.25">${'🛡️'.repeat(3-h)}</span></span>`;
+    return;
+  }
+  for(let i=0;i<5;i++){
+    const s=document.createElement('span');
+    s.className='pip'+(i<Engine.roundIdx?(Engine.results[i].hit?' done':' miss'):(i===Engine.roundIdx?' active':''));
+    p.appendChild(s);
+  }
+}
+function updateHudScore(v,animate=true){
+  const el=$('scoreVal');
+  if(animate) countUp(el,parseInt(el.textContent.replace(/,/g,''))||0,v);
+  else el.textContent=v.toLocaleString();
+  const st=$('streakVal');
+  st.textContent=Engine.streak>=2?`🔥 streak ×${(1+0.1*Math.min(Engine.streak,5)).toFixed(1)}`:(Engine.streak===1?'🔥 streak!':'');
+  st.classList.toggle('hot',Engine.streak>=2);
+}
+function updatePills(){
+  Music.setTension(Engine.playing&&Engine.torpsLeft===1?1:0);
+  $('pingDots').innerHTML='●'.repeat(Engine.pingsLeft)+`<span style="opacity:.25">${'●'.repeat(Math.max(0,Engine.round.spec.pings-Engine.pingsLeft))}</span>`;
+  $('torpDots').innerHTML='🚀'.repeat(Engine.torpsLeft)+`<span style="opacity:.25">${'🚀'.repeat(2-Engine.torpsLeft)}</span>`;
+  $('btnPing').disabled=Engine.pingsLeft<=0||UI.state!=='play';
+  $('btnFire').disabled=UI.state!=='play';
+}
+function clearBoardDom(){
+  ringDraws=[]; UI.crossX=null; UI.crossY=null;
+  $('cross').classList.remove('on');
+  $('shipReveal').classList.remove('on','sunkGold');
+  $('ghostBlip').classList.remove('on');
+  $('stamp').className='stamp';
+  document.querySelectorAll('.pingChip,.missChip').forEach(e=>e.remove());
+}
+
+async function startRound(){
+  const run=UI.runId;
+  Engine.startRound();
+  const r=Engine.round, L=Engine.level;
+  UI.state='intro';
+  clearBoardDom();
+  $('lvlPill').innerHTML=`<b>${L.name}</b> · ${Engine.endless?`ship ${Engine.endlessState.wave+1}`:`ship ${Engine.roundIdx+1} of 5`}`;
+  pipsHTML(); updatePills();
+  // target card + variant chip
+  $('targetSil').innerHTML=SHIP_ART[r.kind];
+  $('targetSil').classList.toggle('ghost',r.spec.variant==='ghost');
+  $('shipName').textContent=r.name;
+  const vc=$('variantChip');
+  if (r.spec.variant==='ghost'){
+    const ax=r.spec.axis==='o'?'the ORIGIN':`the ${r.spec.axis.toUpperCase()}-AXIS`;
+    vc.style.display=''; vc.className='variantChip'; vc.textContent=`👻 echo mirrored across ${ax}`;
+  } else if (r.spec.variant==='drift'){
+    vc.style.display=''; vc.className='variantChip current';
+    vc.textContent=`🌊 current drags her ⟨${fmtN(r.spec.drift.x)}, ${fmtN(r.spec.drift.y)}⟩ per ping`;
+  } else vc.style.display='none';
+  // intro card
+  $('introEyebrow').textContent=L.boss?'boss vessel detected':'vessel detected';
+  $('introSil').innerHTML=SHIP_ART[r.kind];
+  $('introSil').classList.toggle('ghost',r.spec.variant==='ghost');
+  $('introName').textContent=r.name;
+  $('introNote').innerHTML =
+    r.spec.variant==='ghost' ? `her echo appears <i>mirrored across ${r.spec.axis==='o'?'the origin':'the '+r.spec.axis+'-axis'}</i> — fire at the REAL ship`
+    : r.spec.variant==='drift' ? `the current drags her <i>⟨${fmtN(r.spec.drift.x)}, ${fmtN(r.spec.drift.y)}⟩ after every ping</i> — lead your shot`
+    : Engine.levelIdx===0&&!Engine.endless ? `she's hiding in <i>Quadrant I</i> — ping to hear how far she is`
+    : `somewhere in the four quadrants · <i>ping</i> to range her`;
+  $('introOverlay').classList.add('on');
+  SFX.klaxon();
+  await wait(REDUCED?600:1350);
+  if (run!==UI.runId) return;
+  $('introOverlay').classList.remove('on');
+  UI.state='play'; updatePills();
+  tutorialCoach();
+}
+
+function coach(msg,ms=6000){
+  const c=$('coach'); c.innerHTML=msg; c.classList.add('on');
+  clearTimeout(UI.coachTimer);
+  if(ms) UI.coachTimer=setTimeout(()=>c.classList.remove('on'),ms);
+}
+function coachOff(){ clearTimeout(UI.coachTimer); $('coach').classList.remove('on'); }
+function tutorialCoach(){
+  if (store.tutorialDone||Engine.endless||Engine.levelIdx!==0) return;
+  const i=Engine.roundIdx;
+  if(i===0) coach(`tap the water to aim, then <b>PING</b> — the ring spreads to <i>exactly her distance</i>`,0);
+  if(i===1) coach(`two rings cross at the ship — then <b>FIRE</b> and <i>type</i> her coordinates: across, then up`,7000);
+  if(i===2) coach(`count hashes from the axes — right of center is <b>+x</b>, above center is <b>+y</b>`,7000);
+}
+
+/* ---- crosshair + ping ---- */
+function snapFromEvent(e){
+  const r=stage.getBoundingClientRect();
+  const gx=clamp(Math.round(vxOf(e.clientX-r.left)),-10,10);
+  const gy=clamp(Math.round(vyOf(e.clientY-r.top)),-10,10);
+  return {gx,gy};
+}
+function setCross(gx,gy){
+  UI.crossX=gx; UI.crossY=gy;
+  const c=$('cross');
+  c.style.left=px(gx)+'px'; c.style.top=py(gy)+'px';
+  c.classList.add('on');
+}
+async function doPing(){
+  if (UI.state!=='play'||UI.crossX===null||Engine.pingsLeft<=0) return;
+  coachOff();
+  const rec=Engine.ping(UI.crossX,UI.crossY);
+  if(!rec) return;
+  updatePills();
+  const echoDelay=.15+rec.d/16;                 // farther = later echo
+  SFX.ping(echoDelay);
+  // chip with ping number
+  const chip=document.createElement('div');
+  chip.className='pingChip'; chip.textContent=Engine.pingsUsed;
+  chip.style.left=px(rec.x)+'px'; chip.style.top=py(rec.y)+'px';
+  stage.appendChild(chip);
+  // expanding ring, then it stays (dashed)
+  const ring={x:rec.x,y:rec.y,r:rec.d,cur:0,alpha:.9};
+  ringDraws.push(ring);
+  const dur=REDUCED?120:(300+rec.d*55);
+  await tw(dur,e=>{ ring.cur=rec.d*e; ring.alpha=.9-.45*e; },EASE.outCubic);
+  ring.cur=ring.r; ring.alpha=.5;
+  // ghost rounds: the echo blip shows herself (mirrored!)
+  if (rec.ghostAt){
+    const g=$('ghostBlip');
+    g.querySelector('.art').innerHTML=SHIP_ART[Engine.round.kind];
+    g.style.left=px(rec.ghostAt.x)+'px'; g.style.top=py(rec.ghostAt.y)+'px';
+    g.classList.add('on'); SFX.ghost();
+  }
+  if (Engine.pingsLeft===0 && Engine.round.spec.variant==='normal') toast('out of pings — time to do the math 🚀',1600);
+}
+
+/* ---- fire keypad ---- */
+function openFire(){
+  if (UI.state!=='play') return;
+  UI.state='fire'; coachOff();
+  UI.fireVals={x:null,y:null}; UI.fireField='x';
+  renderFire();
+  $('fireTitle').innerHTML=`Torpedo <b>${3-Engine.torpsLeft}</b> of 2 — enter target coordinates`;
+  $('fireSheet').classList.add('on');
+  SFX.ui();
+}
+function closeFire(){ $('fireSheet').classList.remove('on'); if(UI.state==='fire'){UI.state='play'; updatePills();} }
+function renderFire(){
+  for(const f of ['x','y']){
+    const el=$('f'+f), v=UI.fireVals[f];
+    el.textContent = v===null?f:(v<0?'−'+(-v):String(v));
+    el.classList.toggle('empty',v===null);
+    el.classList.toggle('active',UI.fireField===f);
+  }
+  $('btnLaunch').disabled = UI.fireVals.x===null||UI.fireVals.y===null;
+}
+function fireKey(k){
+  const f=UI.fireField, v=UI.fireVals[f];
+  if (k==='bk'){ UI.fireVals[f]=null; }
+  else if (k==='-'){ if(v!==null&&v!==0) UI.fireVals[f]=-v; else if(v===null){ UI.fireVals[f]=null; UI._pendNeg=UI._pendNeg===f?null:f; renderFire(); flashSign(f); return; } }
+  else { // digit
+    const d=parseInt(k,10);
+    let nv;
+    if (v===null) nv = UI._pendNeg===f ? -d : d;
+    else if (Math.abs(v)===1 && d===0) nv = v<0?-10:10;   // allow typing 10
+    else nv = v<0?-d:d;                                    // overwrite otherwise
+    if (Math.abs(nv)>10) nv=v<0?-d:d;
+    UI.fireVals[f]=nv; UI._pendNeg=null;
+    if (f==='x'&&UI.fireVals.y===null&&Math.abs(nv)>1) UI.fireField='y'; // auto-advance when unambiguous
+  }
+  SFX.key(); renderFire();
+}
+function flashSign(f){ const el=$('f'+f); el.textContent='−'; el.classList.remove('empty'); }
+
+async function doLaunch(){
+  if (UI.state!=='fire'||UI.fireVals.x===null||UI.fireVals.y===null) return;
+  const run=UI.runId;
+  const tx=UI.fireVals.x, ty=UI.fireVals.y;
+  $('fireSheet').classList.remove('on');
+  UI.state='torpedo';
+  SFX.launch();
+  // torpedo streaks in from the nearest board edge
+  const x1=px(tx), y1=py(ty);
+  const fromLeft=x1<S/2;
+  await new Promise(res=>{ torpedo={x0:fromLeft?-20:S+20, y0:y1+(Math.random()*60-30), x1, y1, t:0, dur:REDUCED?120:620, done:res}; });
+  if (run!==UI.runId) return;
+  const result=Engine.fire(tx,ty);
+  if (!result){ UI.state='play'; updatePills(); return; }
+  if (result.hit){
+    hitPause(80); shakeMag=REDUCED?0:7; shakeLeft=280;
+    SFX.boom(); SFX.sunk();
+    burst(x1,y1,26,['rgba(255,200,87,.95)','rgba(255,92,108,.9)','rgba(234,246,255,.9)'],.05);
+    await revealShip(result,true);
+    await showSheet(result);
+  } else if (result && !result.done){
+    // splash — you SEE where your typed coordinates landed
+    SFX.splash();
+    burst(x1,y1,14,['rgba(155,227,255,.9)','rgba(212,242,255,.7)'],.12);
+    addMissChip(tx,ty);
+    updatePills();
+    toast(`splash at ${fmtPt(tx,ty)} — one torpedo left`,2200);
+    UI.state='play';
+    await wait(REDUCED?100:500);
+    if (run!==UI.runId) return;
+    openFire();
+  } else if (result){
+    // second miss — she escapes
+    SFX.splash();
+    burst(x1,y1,14,['rgba(155,227,255,.9)','rgba(212,242,255,.7)'],.12);
+    addMissChip(tx,ty);
+    await wait(REDUCED?150:600);
+    if (run!==UI.runId) return;
+    SFX.lost();
+    await revealShip(result,false);
+    await showSheet(result);
+  }
+}
+function addMissChip(x,y){
+  const m=document.createElement('div');
+  m.className='missChip'; m.textContent='✗ '+fmtPt(x,y);
+  m.style.left=px(x)+'px'; m.style.top=py(y)+'px';
+  stage.appendChild(m);
+}
+async function revealShip(res,sunk){
+  const run=UI.runId;
+  const sr=$('shipReveal');
+  sr.querySelector('.art').innerHTML=SHIP_ART[res.round.kind];
+  sr.classList.toggle('sunkGold',sunk);
+  $('shipChip').textContent=fmtPt(res.ship.x,res.ship.y);
+  sr.style.left=px(res.ship.x)+'px'; sr.style.top=py(res.ship.y)+'px';
+  sr.classList.add('on');
+  const st=$('stamp');
+  st.textContent=res.stampTxt;
+  st.style.color = !res.hit?COLORS.enemy : res.stampTxt==='PERFECT TRIANGULATION'?COLORS.gold : res.stampTxt==='DIRECT HIT'?COLORS.good : COLORS.line;
+  st.classList.add('on');
+  if (res.hit&&Engine.streak>=2) SFX.streak(Engine.streak);
+  updateHudScore(Engine.totalScore); pipsHTML();
+  await wait(REDUCED?120:700);
+  if (run!==UI.runId) return;
+}
+async function showSheet(res){
+  const run=UI.runId;
+  UI.state='reveal';
+  const r=Engine.round;
+  $('rowHitLbl').textContent=res.hit?(res.misses.length?'SUNK (second torpedo)':'TARGET SUNK'):'SHE GOT AWAY';
+  $('hitPts').textContent='+'+res.hitPts;
+  $('hitPts').className=res.hit?'plus':'minus';
+  if(!res.hit)$('hitPts').textContent='+0';
+  $('rowEffLbl').textContent=`PINGS SAVED (${res.pingsSaved})`;
+  $('effPts').textContent='+'+res.eff;
+  $('speedPts').textContent='+'+res.speed;
+  $('missPts').textContent='−'+res.missCost;
+  $('multVal').textContent='×'+res.mult.toFixed(1);
+  $('totalPts').textContent='+0';
+  const rows=[['rowHit',true],['rowEff',res.eff>0],['rowSpeed',res.speed>0],
+              ['rowMiss',res.missCost>0],['rowMult',res.mult>1],['rowTotal',true]];
+  rows.forEach(([id])=>{const e=$(id);e.classList.remove('on');e.style.display='none';});
+  const fl=$('factLine'); fl.classList.remove('on');
+  let echoTxt='';
+  if (r.spec.variant==='ghost'){
+    const ax=r.spec.axis;
+    const ex=(ax==='y'||ax==='o')?-res.ship.x:res.ship.x;
+    const ey=(ax==='x'||ax==='o')?-res.ship.y:res.ship.y;
+    echoTxt=` — the echo lied at ${fmtPt(ex,ey)}`;
+  }
+  fl.innerHTML = res.hit
+    ? `she was at <i>${fmtPt(res.ship.x,res.ship.y)}</i>${echoTxt}`
+    : `she was at <i>${fmtPt(res.ship.x,res.ship.y)}</i>${res.misses.length?` — your shots: ${res.misses.map(m=>fmtPt(m.x,m.y)).join(' and ')}`:''}`;
+  $('btnNext').textContent=Engine.levelDone()?(Engine.endless?'TO PORT ⏎':'FINISH ⏎'):'NEXT ⏎';
+  $('scoreSheet').classList.add('on');
+  await wait(REDUCED?60:260);
+  for(const [id,on] of rows){
+    if(!on) continue;
+    if (run!==UI.runId) return;
+    const e=$(id); e.style.display='flex';
+    await wait(REDUCED?30:130); e.classList.add('on');
+    if(id==='rowTotal') countUp($('totalPts'),0,res.total,550,'+');
+    else SFX.ui();
+  }
+  if(fl.innerHTML) fl.classList.add('on');
+  if(Engine.endless&&!res.hit){ toast('🛡️ hull damage!',1800); pipsHTML(); }
+  UI.state='sheet';
+  $('btnNext').focus();
+}
+function advance(){
+  if (UI.state!=='sheet') return;
+  SFX.ui();
+  $('scoreSheet').classList.remove('on');
+  if (Engine.levelDone()){
+    if(!store.tutorialDone&&Engine.levelIdx===0){store.tutorialDone=true;store.saveTut();}
+    endLevel();
+  } else { Engine.nextRound(); startRound(); }
+}
+
+/* ---- level end ---- */
+async function endLevel(){
+  UI.state='end';
+  const L=Engine.level, sc=Engine.totalScore;
+  let newBest=false, stars=0;
+  if (Engine.endless){
+    if(sc>store.endlessBest){store.endlessBest=sc;store.saveEndless();newBest=true;}
+  } else {
+    stars=Engine.stars();
+    const b=store.best[L.id]||{score:0,stars:0};
+    newBest=sc>b.score;
+    store.best[L.id]={score:Math.max(sc,b.score),stars:Math.max(stars,b.stars)};
+    store.saveBest();
+  }
+  const headline=Engine.endless?'CONVOY OVERRUN':(stars===3?'FLEET ADMIRAL!':stars===2?'FINE HUNTING':stars===1?'PATROL COMPLETE':'BACK TO PORT');
+  $('endTitle').textContent=headline;
+  $('endSub').textContent=Engine.endless?`${Engine.endlessState.wave} ships engaged`:`${L.name} · ${L.sub}`;
+  $('bigStars').style.display=Engine.endless?'none':'';
+  document.querySelectorAll('#bigStars span').forEach(s=>s.classList.remove('lit'));
+  const sunk=Engine.results.filter(r=>r.hit).length;
+  const perfect=Engine.results.filter(r=>r.stampTxt==='PERFECT TRIANGULATION').length;
+  const rows=[
+    ['SCORE',`<b id="endScore">0</b>${newBest?' <span class="newbest">NEW BEST!</span>':''}`],
+    ['SHIPS SUNK',`<b>${sunk} / ${Engine.results.length}</b>`],
+    ['PERFECT TRIANGULATIONS',`<b>${perfect} 🎯</b>`],
+    ['TORPEDOES WASTED',`<b>${Engine.results.reduce((s,r)=>s+r.misses.length,0)}</b>`],
+  ];
+  $('endStats').innerHTML=rows.map(([a,b])=>`<div class="row"><span>${a}</span><span>${b}</span></div>`).join('');
+  $('insight').innerHTML=insightFor();
+  const canNext=!Engine.endless&&Engine.levelIdx<LEVELS.length-1&&((store.best[L.id]||{}).stars>=1);
+  $('btnNextLvl').style.display=canNext?'':'none';
+  $('endOverlay').classList.add('on');
+  const run=UI.runId;
+  await wait(REDUCED?60:250);
+  if (run!==UI.runId) return;
+  const rEls=[...document.querySelectorAll('#endStats .row')];
+  countUp($('endScore'),0,sc,700);
+  for(let i=0;i<rEls.length;i++){ rEls[i].classList.add('on'); await wait(REDUCED?30:150); }
+  if(!Engine.endless){
+    const starEls=[...document.querySelectorAll('#bigStars span')];
+    for(let i=0;i<stars;i++){ starEls[i].classList.add('lit'); SFX.star(i); await wait(REDUCED?60:330); }
+    if(!stars) SFX.lost();
+  }
+  ($('btnNextLvl').style.display===''?$('btnNextLvl'):$('btnRetry')).focus();
+}
+function insightFor(){
+  const rs=Engine.results; if(!rs.length) return '';
+  // find the most teachable mistake among the misses
+  for(const r of rs){
+    for(const m of r.misses){
+      if (m.x===r.ship.y&&m.y===r.ship.x&&r.ship.x!==r.ship.y)
+        return `You fired at <i>${fmtPt(m.x,m.y)}</i> when she sat at <i>${fmtPt(r.ship.x,r.ship.y)}</i> — coordinates swapped! Read the pair in order: <i>across</i> first (x), <i>then up</i> (y).`;
+      if (m.x===-r.ship.x&&m.y===r.ship.y&&r.ship.x!==0)
+        return `<i>${fmtPt(m.x,m.y)}</i> vs <i>${fmtPt(r.ship.x,r.ship.y)}</i> — the x-sign flipped on you. Left of the y-axis is negative x.`;
+      if (m.x===r.ship.x&&m.y===-r.ship.y&&r.ship.y!==0)
+        return `<i>${fmtPt(m.x,m.y)}</i> vs <i>${fmtPt(r.ship.x,r.ship.y)}</i> — the y-sign flipped on you. Below the x-axis is negative y.`;
+    }
+  }
+  const worst=rs.find(r=>!r.hit);
+  if (worst) return `<i>${worst.round.name}</i> slipped away from ${fmtPt(worst.ship.x,worst.ship.y)}. Rings never lie: she is exactly ON every circle — find where they all agree.`;
+  if (rs.every(r=>r.stampTxt==='PERFECT TRIANGULATION')) return `Every ship on the first torpedo with pings to spare. The fleet speaks of you in whispers, <i>Admiral</i>.`;
+  return `All ships sunk. Want more <i>PERFECT TRIANGULATION</i> stamps? Fire with pings still in the tube — two rings and sharp sign-sense are enough.`;
+}
+function maybeFact(){
+  const L=Engine.level;
+  if (Engine.endless||!FACTS[L.id]||store.seenFacts[L.id]) return false;
+  const f=FACTS[L.id];
+  store.seenFacts[L.id]=1; store.saveFacts();
+  $('factPath').textContent=f.path; $('factTitle').textContent=f.title; $('factBody').innerHTML=f.body;
+  $('endOverlay').classList.remove('on');
+  $('factOverlay').classList.add('on');
+  UI.state='fact'; $('btnFactOk').focus();
+  return true;
+}
+
+/* ================================================================
+   §8 INPUT
+   ================================================================ */
+let downPt=null, movedFar=false;
+stage.addEventListener('pointerdown',e=>{
+  if (UI.state!=='play') return;
+  ac().resume&&ac().resume();
+  downPt={x:e.clientX,y:e.clientY}; movedFar=false;
+});
+stage.addEventListener('pointermove',e=>{
+  if (UI.state!=='play') return;
+  if (downPt&&Math.hypot(e.clientX-downPt.x,e.clientY-downPt.y)>8) movedFar=true;
+  const {gx,gy}=snapFromEvent(e);
+  if (gx!==UI.crossX||gy!==UI.crossY){ setCross(gx,gy); if(e.pointerType==='mouse') SFX.aim(); }
+});
+stage.addEventListener('pointerup',e=>{
+  if (UI.state!=='play'||movedFar){ downPt=null; return; }
+  downPt=null;
+  const {gx,gy}=snapFromEvent(e);
+  if (gx===UI.crossX&&gy===UI.crossY&&$('cross').classList.contains('on')&&e.pointerType!=='mouse'){
+    doPing(); return;                        // touch: second tap on the spot = ping
+  }
+  setCross(gx,gy);
+  if (e.pointerType==='mouse') doPing();     // mouse: hover aims, click pings
+  else SFX.aim();
+});
+
+$('btnPing').onclick=doPing;
+$('btnFire').onclick=openFire;
+$('btnCancelFire').onclick=()=>{ SFX.ui(); closeFire(); };
+$('btnLaunch').onclick=doLaunch;
+$('keys').addEventListener('click',e=>{
+  const k=e.target.closest('.key'); if(!k) return;
+  fireKey(k.dataset.k);
+});
+['fx','fy'].forEach(f=>$(f).addEventListener('click',()=>{UI.fireField=f[1];renderFire();SFX.ui();}));
+
+$('btnPlay').onclick=()=>{ SFX.ui(); unlockedThrough()>0?gotoMap():startLevel(0); };
+$('btnMap0').onclick=()=>{ SFX.ui(); gotoMap(); };
+$('btnHome').onclick=()=>{ SFX.ui(); refreshTitle(); show('scr-title'); UI.state='title'; };
+$('btnHow').onclick=()=>{ SFX.ui(); $('howOverlay').classList.add('on'); };
+$('btnHowOk').onclick=()=>{ SFX.ui(); $('howOverlay').classList.remove('on'); };
+$('btnMap').onclick=()=>{ SFX.ui(); gotoMap(); };
+$('btnNext').onclick=advance;
+$('btnRetry').onclick=()=>{ SFX.ui(); $('endOverlay').classList.remove('on'); Engine.endless?startEndlessRun():startLevel(Engine.levelIdx); };
+$('btnNextLvl').onclick=()=>{ SFX.ui(); if(!maybeFact()){ $('endOverlay').classList.remove('on'); startLevel(Engine.levelIdx+1);} };
+$('btnEndMap').onclick=()=>{ SFX.ui(); if(!maybeFact()){ $('endOverlay').classList.remove('on'); gotoMap();} };
+$('btnFactOk').onclick=()=>{ SFX.ui(); $('factOverlay').classList.remove('on'); $('endOverlay').classList.add('on'); UI.state='end'; };
+const toggleMute=()=>{ store.muted=!store.muted; store.saveMuted(); setMuteIcons(); Music.refresh(); if(!store.muted)SFX.ui(); };
+$('btnMute1').onclick=toggleMute; $('btnMute2').onclick=toggleMute;
+const toggleMusic=()=>{ store.music=!store.music; store.saveMusic(); setMuteIcons(); Music.start(); Music.refresh(); if(store.music)SFX.ui(); };
+$('btnMusic1').onclick=toggleMusic; $('btnMusic2').onclick=toggleMusic;
+
+window.addEventListener('keydown',e=>{
+  if (e.repeat) return;
+  const k=e.key;
+  if (k==='m'||k==='M'){ toggleMute(); return; }
+  if (UI.state==='play'){
+    if (k.startsWith('Arrow')){
+      const dx=k==='ArrowRight'?1:k==='ArrowLeft'?-1:0;
+      const dy=k==='ArrowUp'?1:k==='ArrowDown'?-1:0;
+      setCross(clamp((UI.crossX??0)+dx,-10,10), clamp((UI.crossY??0)+dy,-10,10));
+      SFX.aim(); e.preventDefault(); return;
+    }
+    if (k==='p'||k==='P'){ doPing(); return; }
+    if (k==='Enter'){ // don't double-fire when a focused button will also click
+      if (!(document.activeElement&&document.activeElement.tagName==='BUTTON')) doPing();
+      return;
+    }
+    if (k==='f'||k==='F'){ openFire(); return; }
+  }
+  if (UI.state==='fire'){
+    if (/^[0-9]$/.test(k)){ fireKey(k); return; }
+    if (k==='-'){ fireKey('-'); return; }
+    if (k==='Backspace'){ fireKey('bk'); return; }
+    if (k===','||k==='Tab'){ UI.fireField=UI.fireField==='x'?'y':'x'; renderFire(); e.preventDefault(); return; }
+    if (k==='Enter'){ UI.fireVals.x!==null&&UI.fireVals.y!==null?doLaunch():(UI.fireField='y',renderFire()); return; }
+    if (k==='Escape'){ closeFire(); return; }
+  }
+  const focusedBtn=document.activeElement&&document.activeElement.tagName==='BUTTON';
+  if (UI.state==='sheet'&&(k==='Enter'||k===' ')){ advance(); e.preventDefault(); return; }
+  if (UI.state==='end'&&k==='Enter'&&!focusedBtn){ ($('btnNextLvl').style.display===''?$('btnNextLvl'):$('btnRetry')).click(); return; }
+  if (UI.state==='fact'&&(k==='Enter'||k===' ')&&!focusedBtn){ $('btnFactOk').click(); e.preventDefault(); return; }
+  if (k==='Escape'){
+    if ($('howOverlay').classList.contains('on')) $('howOverlay').classList.remove('on');
+    else if (UI.state==='play'||UI.state==='sheet') gotoMap();
+  }
+});
+
+/* ================================================================
+   §9 MAIN LOOP + BOOT
+   ================================================================ */
+let lastT=performance.now();
+function frame(now){
+  let dt=Math.min(100,now-lastT); lastT=now;
+  if (freezeLeft>0){ const f=Math.min(freezeLeft,dt); freezeLeft-=f; dt-=f; }
+  if (dt>0) tweens=tweens.filter(t=>{
+    t.el+=dt; const e=t.ease(clamp(t.el/t.dur,0,1));
+    t.fn(e);
+    if(t.el>=t.dur){t.res();return false;}
+    return true;
+  });
+  if ((UI.state==='play'||UI.state==='fire')&&Engine.playing){
+    Engine.elapsed+=dt/1000;
+    const fr=clamp(1-Math.max(0,Engine.elapsed-SPEED_GRACE)/(2*PAR),0,1);
+    $('speedFill').style.width=(fr*100)+'%';
+    $('speedFill').style.opacity=fr>0?1:.25;
+  }
+  if (shakeLeft>0){ shakeLeft-=dt;
+    const m=shakeMag*(shakeLeft/280);
+    stage.style.transform=`translate(${(Math.random()*2-1)*m}px,${(Math.random()*2-1)*m}px)`;
+  } else stage.style.transform='';
+  drawGrid();
+  stepFx(dt);
+  stepAmbient(dt);
+  requestAnimationFrame(frame);
+}
+window.addEventListener('resize',()=>{ sizeCanvases(); });
+setMuteIcons(); refreshTitle(); sizeCanvases();
+requestAnimationFrame(frame);
+
+// engine self-test (console only)
+(function selfTest(){
+  const E=Engine;
+  E.rounds=[{ship:{x:-6,y:3},spec:{variant:'normal',pings:4},kind:'sub',name:'T'}];
+  E.roundIdx=0; E.startRound();
+  const p=E.ping(0,0);
+  console.assert(Math.abs(p.d-Math.hypot(6,3))<1e-9,'ping distance');
+  let r=E.fire(3,-6);                 // the classic swap — must miss
+  console.assert(r&&!r.hit&&!r.done,'swap misses');
+  r=E.fire(-6,3);
+  console.assert(r&&r.hit&&r.hitPts===HIT2,'hit on torpedo 2');
+  E.rounds=[{ship:{x:4,y:5},spec:{variant:'ghost',axis:'x',pings:1},kind:'sub',name:'G'}];
+  E.roundIdx=0; E.startRound();
+  const g=E.ping(0,0);
+  console.assert(g.ghostAt.x===4&&g.ghostAt.y===-5,'ghost mirrors across x-axis');
+  E.rounds=[{ship:{x:2,y:2},spec:{variant:'drift',drift:{x:1,y:-1},pings:3},kind:'sub',name:'D'}];
+  E.roundIdx=0; E.startRound();
+  E.ping(0,0);
+  console.assert(E.ship.x===3&&E.ship.y===1,'drift moves ship after ping');
+  console.assert(fmtPt(-6,3)==='(−6, 3)','fmt');
+  E.rounds=[];E.results=[];E.totalScore=0;E.streak=0;E.playing=false;E.pings=[];E.misses=[];
+  console.debug('SONAR engine self-test ok');
+})();
+
+// debug handle for automated testing (not used by gameplay)
+window.SONAR_DEBUG={Engine,UI,doPing,openFire,fireKey,doLaunch,startLevel,advance,store,frame,setCross,Music};
+</script>

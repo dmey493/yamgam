@@ -1,0 +1,2812 @@
+<!doctype html>
+<!--
+  THE RAMEN CAT — MVP Vertical Slice (Days 1-5)
+  ================================================
+  Built from "Boba Break/ramen-cat-gdd.md". This is the GDD's "build first"
+  milestone: prove the Bowl Builder is delicious and Tonko is lovable.
+  Bike map, districts, pricing screen, weather, Tiers 3-4 are v2/v3 (GDD §9).
+
+  Dad (Big Lu) vanished on a "broth pilgrimage," leaving you Lucky Noodle,
+  a soup-smudged Broth Journal with pages torn out, and TONKO — a round,
+  imperious, talking orange cat who claims to have been Dad's business partner
+  ("I handled quality control. By napping near the stove."). Serve the regulars
+  well, earn hearts, and they remember Dad's recipes as RATIO FRAGMENTS you
+  reconstruct at the counter. NoodlZone(tm) hums fluorescently across the street.
+
+  THE VERB: ladle. Tap/hold ingredient taps; the bowl fills in visible layers.
+  THE LOOP (~15s): read order -> ladle layers (gauge live-updates) -> serve ->
+    customer reaction + tip + Tonko commentary -> next customer.
+  TENSION: sun-arc day timer + queue at the door; ingredients cost real money;
+    tolerance bands tighten as days pass.
+  ESCALATION: Tier 1 follow-the-card (ghost overlay) -> ghosts drop, "the usual"
+    recall -> Tier 2 mods (half tare, 150% chili oil, x2 noodles) computed against
+    a broth-fills-to-the-line complement rule. Ramp: 3 clean Tier-2 serves ->
+    more of them; 2 misses -> ease off (Engine.ramp).
+  SESSION SHAPE: one shop day ~= 2.5-3 min timed + untimed bookends (morning
+    stock buy, evening summary). 5-day slice ~= 20 min. Classroom warm-up = 1 day.
+  FAILURE DESIGN: overfilling sloshes the bowl — a SOUP CRIME. Noodles slap the
+    counter with real physics, the customer's eyes go wide, Tonko delivers a
+    one-liner, you lose the sale (never the day) and gain a secret Soup Crimes
+    stat with its own end-of-day badge. Wrong-but-servable bowls get graduated
+    faces (Perfect/Close/Off/Yikes) with specific, kind hints. No dead ends:
+    Dad's emergency jar floors every morning's budget — you can ALWAYS stock a
+    viable day, and a not-even-close bowl earns $0 (closes the serve-garbage-
+    fast cheese; honest sloppiness still sells at full price with a small tip).
+
+  MATH (invisible to the player — never a quiz):
+    Standards: 6.RP.1 (ratio language: broth-to-tare three-to-one), 6.RP.2/3b
+      (unit-rate package deals on the morning buy screen), 6.RP.3a (recipe cards
+      ARE ratio tables), 6.RP.3c + 7.RP.3 (percent mods: 150% oil, MAX SPICE =
+      200%, half tare), 7.RP.2 (broth-complement fills; recipe reconstruction
+      from constraints — a system of equations worn as a story beat).
+    Super-ideas: EQUIVALENCE (side gauge flips fraction / percent / marks for
+      the same fill — capacities 8 and 16 make eighths, sixteenths, 37.5%
+      moments) and MAGNITUDE (does 150% oil even fit? how big is x2?).
+    Misconception ambushes:
+      "percent of a number is always less"   -> 150% / 200% orders that must FIT
+      "scaling means adding"                 -> x2 noodles vs +2 noodles differ
+      "longer decimal = bigger"              -> unit rates like 43c vs 38c/scoop
+      "bigger package is always the better deal" -> unit-rate flips daily
+      "half tare = fill the bowl halfway"    -> Tonko will not let it slide
+    Five Laws: ladling IS the ratio work (no gates); bad bowls still serve for
+      small tips (fluency = advantage, not access); next customer in <1s
+      (failure is the loop); soup crimes are the funniest outcome (visible
+      consequences + Tonko roasts); the gauge toggle interleaves representations.
+    SMPs: 2 (representation switching), 4 (stock-vs-demand modeling),
+      6 (precision or slosh), 7 (part-whole structure of the bowl).
+
+  STRUCTURE (yamgam house conventions — single file, no build, no deps,
+  in-memory state only; the GDD's Phaser spec is deferred to v2's bike-map town,
+  this slice doesn't need an engine): DATA (content-as-data: recipes /
+  characters / days / Tonko's line pools) -> Engine (pure logic, zero DOM —
+  window.RC.Engine in the console, Engine.solve() for verification) -> Sound
+  (Web Audio blips + one precious meow, mute toggle) -> Art (hand-rolled pixel
+  painters, Resurrect-64 subset ONLY) -> UI controller.
+  Save: copyable save code (btoa JSON) in the Journal — no localStorage (school
+  policy). Seeded RNG (?seed=) so a whole class can play an identical day.
+
+  Controls: tap/click taps to ladle (hold = stream), U = scoop out, Enter/S =
+  serve, G = flip gauge, J = journal, M = mute, keys 1-5 ladle. "Ask Tonko"
+  costs a quarter from the till — hints are strategic, not free.
+  Accessibility: playable muted; every layer gets a pattern as well as a color;
+  reduced-motion swaps shakes/sloshes for flashes; focus rings; touch-first.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>The Ramen Cat — Lucky Noodle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ PALETTE: Resurrect-64 subset, nothing else ============ */
+:root{
+  --ink:#2e222f; --ink2:#3e3546; --plum:#625565; --mauve:#7f708a;
+  --wood:#9e4539; --wood2:#cd683d; --wooddk:#7a3045;
+  --paper:#fdcbb0; --paper2:#fca790; --cream:#ffffff; --pale:#c7dcd0;
+  --gold:#f9c22b; --gold2:#f79617; --tang:#fb6b1d; --amber:#e6904e;
+  --pink:#ed8099; --rose:#f04f78; --danger:#e83b3b; --dangerdk:#ae2334;
+  --leaf:#91db69; --green:#1ebc73; --olive:#a2a947; --corn:#fbff86;
+  --sky:#8fd3ff; --blue:#4d9be6; --navy:#484a77; --dusk:#905ea9;
+  --shadow:0 5px 0 rgba(46,34,47,.28);
+  --shadow-sm:0 3px 0 rgba(46,34,47,.25);
+  --r:8px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(1100px 500px at 50% -140px, #625565 0%, #3e3546 55%, #2e222f 100%);
+  color:var(--ink);
+  font-family:"Pixelify Sans",monospace;
+  letter-spacing:.3px;
+  display:flex;justify-content:center;
+  padding:12px 12px 30px;
+  overflow-x:hidden;
+}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+button{font-family:inherit;letter-spacing:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+input{font-family:inherit}
+#app{width:100%;max-width:1020px;position:relative}
+.hidden{display:none!important}
+
+/* ============ chunky pixel UI primitives ============ */
+.panel{
+  background:var(--paper);
+  border:3px solid var(--ink);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+}
+.btn{
+  background:var(--gold);
+  border:3px solid var(--ink);
+  border-radius:var(--r);
+  box-shadow:0 5px 0 var(--ink);
+  color:var(--ink);
+  font-weight:700;
+  padding:10px 18px;
+  font-size:18px;
+  transition:transform .07s ease, box-shadow .07s ease, filter .15s;
+  user-select:none;
+  touch-action:manipulation;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+.btn.big{font-size:22px;padding:14px 26px}
+.btn.ghostbtn{background:var(--paper);box-shadow:0 4px 0 var(--ink)}
+.btn.green{background:var(--leaf)}
+.btn.blue{background:var(--sky)}
+.btn.pink{background:var(--pink)}
+.btn[disabled]{opacity:.45;cursor:default;transform:none;box-shadow:0 5px 0 var(--ink)}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--ink);color:var(--paper);
+  border-radius:6px;padding:3px 9px;font-size:14px;font-weight:600;
+  white-space:nowrap;
+}
+.chip.warn{background:var(--dangerdk);color:var(--cream)}
+.chip.goldc{background:var(--gold);color:var(--ink)}
+
+/* ============ HUD header ============ */
+#hud{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:0 0 10px; color:var(--paper);
+}
+#hud .brand{font-size:22px;font-weight:700;line-height:1;white-space:nowrap}
+#hud .brand b{color:var(--gold2)}
+#hud .brand .rc-dot{color:var(--rose)}
+#daychip{font-size:14px;color:var(--pale);font-weight:600;letter-spacing:1px;text-transform:uppercase}
+#hud .tools{display:flex;gap:8px;align-items:center}
+.cashpill{
+  font-size:19px;font-weight:700;background:var(--ink);border:3px solid var(--ink2);
+  color:var(--gold);border-radius:10px;padding:6px 12px;white-space:nowrap;
+  transition:transform .15s ease;
+}
+.cashpill.pop{transform:scale(1.16)}
+.iconbtn{
+  width:44px;height:44px;border:3px solid var(--ink);border-radius:10px;
+  background:var(--paper);font-size:20px;box-shadow:var(--shadow-sm);
+  display:grid;place-items:center;transition:transform .1s;
+}
+.iconbtn:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+
+/* ============ TITLE ============ */
+#scr-title{display:flex;flex-direction:column;align-items:center;gap:18px;padding:26px 8px 10px;text-align:center}
+#title-sign{
+  position:relative;
+  background:var(--ink2);border:4px solid var(--ink);border-radius:14px;
+  padding:26px 34px 22px;box-shadow:0 8px 0 var(--ink), 0 0 0 4px var(--wooddk) inset;
+}
+#title-sign h1{
+  margin:0;font-size:clamp(36px,8.5vw,70px);line-height:.95;color:var(--paper);
+  text-shadow:0 4px 0 var(--ink), 0 0 18px rgba(247,150,23,.35);
+  font-weight:700;
+}
+#title-sign h1 .t1{color:var(--gold2)}
+#title-sign h1 .t2{color:var(--pink)}
+#title-sign .flick{animation:flicker 4.2s infinite}
+@keyframes flicker{
+  0%,86%,90%,94%,100%{opacity:1} 88%,92%{opacity:.35}
+}
+#title-sub{margin:-8px 0 0;color:var(--pale);font-size:15px;letter-spacing:2px;text-transform:uppercase}
+#title-tag{color:var(--pale);font-size:17px;max-width:560px;line-height:1.45;margin:0}
+#title-bowl{margin:-2px 0 -6px}
+#title-menu{display:flex;flex-direction:column;gap:12px;align-items:center}
+#loadrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+#savecode-in{
+  background:var(--ink);border:3px solid var(--plum);border-radius:8px;color:var(--pale);
+  padding:9px 10px;font-size:14px;width:220px;
+}
+.smallnote{color:var(--mauve);font-size:13px}
+
+/* ============ generic screen scaffolding ============ */
+.screen{animation:scrIn .35s ease both}
+@keyframes scrIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.scr-head{color:var(--paper);margin:2px 2px 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.scr-head h2{margin:0;font-size:26px;font-weight:700}
+.scr-head .sub{color:var(--pale);font-size:15px}
+
+/* ============ MORNING (stock buy) ============ */
+#scr-morning .cols{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:840px){#scr-morning .cols{grid-template-columns:340px 1fr}}
+.stockcard{padding:12px}
+.stockrow{
+  display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;
+  padding:9px 6px;border-bottom:3px dashed rgba(46,34,47,.18);
+}
+.stockrow:last-child{border-bottom:none}
+.stockrow .icon{width:44px;height:44px}
+.stockrow .body{min-width:0}
+.stockrow .nm{font-weight:700;font-size:17px;display:flex;justify-content:space-between;align-items:baseline}
+.stockrow .have{font-size:13px;color:var(--wooddk);font-weight:600}
+.dealrow{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.deal{
+  flex:1;min-width:118px;
+  background:var(--cream);border:3px solid var(--ink);border-radius:8px;
+  padding:6px 8px;text-align:left;box-shadow:var(--shadow-sm);
+  transition:transform .08s;position:relative;
+}
+.deal:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+.deal .qty{font-weight:700;font-size:15px}
+.deal .price{font-size:18px;font-weight:700;color:var(--wooddk)}
+.deal .unit{font-size:12.5px;color:var(--plum)}
+.deal .bought{
+  position:absolute;top:-10px;right:-8px;background:var(--green);color:var(--ink);
+  border:3px solid var(--ink);border-radius:99px;min-width:26px;height:26px;
+  display:grid;place-items:center;font-size:13.5px;font-weight:700;padding:0 4px;
+}
+.deal[disabled]{opacity:.5}
+#budgetbar{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:10px}
+#budgetbar .b{font-size:22px;font-weight:700}
+#morn-note{padding:12px 14px;color:var(--ink);line-height:1.5;font-size:15.5px;display:flex;gap:12px;align-items:flex-start}
+#morn-note .mn-cat{flex:0 0 72px}
+#morn-note .mn-text{white-space:pre-line}
+#morn-note .mn-who{font-size:12px;font-weight:700;letter-spacing:1.4px;color:var(--wooddk);text-transform:uppercase}
+#featured-pick{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.featbtn{
+  flex:1;min-width:130px;background:var(--cream);border:3px solid var(--ink);border-radius:8px;
+  padding:8px;font-size:15px;font-weight:700;box-shadow:var(--shadow-sm);
+  display:flex;align-items:center;gap:8px;justify-content:center;
+}
+.featbtn.sel{background:var(--gold);box-shadow:0 0 0 var(--ink), 0 0 14px rgba(249,194,43,.55)}
+#morn-actions{display:flex;justify-content:flex-end;margin-top:12px;gap:10px;align-items:center}
+
+/* ============ SHOP DAY ============ */
+#scr-shop .grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:860px){#scr-shop .grid{grid-template-columns:minmax(320px,380px) 1fr}}
+
+/* --- stage: window, sky, stockpot, customer, Tonko --- */
+#stage{
+  position:relative;border-radius:12px;border:3px solid var(--ink);
+  overflow:hidden;box-shadow:var(--shadow);
+  background:var(--ink2);
+  min-height:236px;
+}
+#skywin{position:absolute;inset:0;width:100%;height:100%}
+#stage .counter{
+  position:absolute;left:0;right:0;bottom:0;height:56px;
+  background:linear-gradient(180deg,var(--wood2) 0 8px, var(--wood) 8px 100%);
+  border-top:4px solid var(--ink);
+}
+#potcanvas{position:absolute;bottom:40px;left:12px;width:96px;height:84px}
+#custcanvas{position:absolute;bottom:34px;left:47%;transform:translateX(-50%)}
+#catcanvas{position:absolute;bottom:42px;right:10px;width:112px;height:84px;cursor:pointer}
+#bubble{
+  position:absolute;left:10px;right:10px;top:8px;z-index:3;
+  background:var(--cream);border:3px solid var(--ink);border-radius:10px;
+  padding:9px 12px;font-size:15.5px;line-height:1.4;box-shadow:var(--shadow-sm);
+  opacity:0;transform:translateY(-6px) scale(.96);transition:opacity .25s,transform .25s;
+}
+#bubble.show{opacity:1;transform:none}
+#bubble .who{font-weight:700;color:var(--wooddk);font-size:13px;text-transform:uppercase;letter-spacing:1px}
+#bubble.tonko{background:var(--gold);}
+#bubble:after{
+  content:"";position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:var(--ink);
+}
+#bubble.tonko:after{left:auto;right:36px}
+#hearts-fly{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+
+/* --- sun arc --- */
+#sunbar{position:relative;height:26px;margin:8px 2px 2px}
+#suntrack{position:absolute;left:12px;right:12px;top:12px;height:5px;border-radius:99px;background:var(--ink2);border:2px solid var(--ink)}
+#sundot{
+  position:absolute;top:1px;left:0;width:22px;height:22px;border-radius:99px;
+  background:var(--gold);border:3px solid var(--ink);box-shadow:0 0 10px rgba(249,194,43,.7);
+  transition:background .8s;
+}
+#sunbar .closelbl{position:absolute;right:12px;top:-4px;font-size:12px;color:var(--pink);font-weight:700;letter-spacing:1px;opacity:0}
+#sunbar .closelbl.on{opacity:1;animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.12)}}
+
+/* --- queue dots --- */
+#queuedots{position:absolute;top:8px;right:10px;display:flex;gap:5px;z-index:2}
+#queuedots .qd{
+  width:14px;height:14px;border-radius:99px;background:var(--paper);border:3px solid var(--ink);
+  animation:qbob 1.6s ease-in-out infinite;
+}
+#queuedots .qd:nth-child(2){animation-delay:.2s}
+#queuedots .qd:nth-child(3){animation-delay:.4s}
+@keyframes qbob{50%{transform:translateY(-3px)}}
+
+/* --- order card --- */
+#ordercard{margin-top:12px;padding:12px 14px;position:relative}
+#ordercard .oc-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+#ordercard h3{margin:0;font-size:20px;font-weight:700}
+#oc-size{font-size:13.5px}
+#oc-table{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.oc-row{
+  display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;
+  font-size:16.5px;font-weight:600;
+  background:rgba(255,255,255,.55);border:2px solid rgba(46,34,47,.25);border-radius:6px;
+  padding:3px 8px;
+}
+.oc-row .amt{font-size:19px;font-weight:700}
+.oc-row .sw{width:18px;height:18px;border:2px solid var(--ink);border-radius:4px}
+.modchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.modchip{
+  background:var(--dusk);color:var(--cream);border:3px solid var(--ink);
+  border-radius:8px;padding:4px 10px;font-size:15px;font-weight:700;
+  animation:modIn .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+.modchip.fill{background:var(--navy)}
+@keyframes modIn{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+#oc-hint{font-size:13.5px;color:var(--plum);margin-top:8px;line-height:1.4}
+#askbtn{margin-top:8px}
+#fragments{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.frag{
+  background:var(--cream);border:3px solid var(--ink);border-radius:10px;
+  padding:8px 12px;font-size:15.5px;line-height:1.4;position:relative;
+  box-shadow:var(--shadow-sm);
+  display:flex;gap:10px;align-items:center;
+}
+.frag .fmark{font-size:20px;width:26px;text-align:center;flex:0 0 26px}
+.frag.ok{background:var(--leaf)}
+.frag.bad{background:var(--paper2)}
+.frag.hint{background:var(--gold)}
+
+/* --- build area --- */
+#buildpanel{padding:14px;display:flex;flex-direction:column;gap:12px}
+#bowlzone{display:flex;gap:14px;justify-content:center;align-items:flex-end;min-height:300px;position:relative}
+#bowlwrap{position:relative}
+#bowlcanvas{filter:drop-shadow(0 6px 0 rgba(46,34,47,.25))}
+#bowlwrap.wob{animation:bowlwob .5s ease}
+@keyframes bowlwob{0%{transform:rotate(0)}25%{transform:rotate(-2deg)}50%{transform:rotate(1.6deg)}75%{transform:rotate(-1deg)}100%{transform:rotate(0)}}
+#bowlwrap.shakeit{animation:bowlshake .6s ease}
+@keyframes bowlshake{
+  0%,100%{transform:translate(0)}12%{transform:translate(-6px,3px) rotate(-3deg)}
+  25%{transform:translate(6px,-2px) rotate(2.4deg)}38%{transform:translate(-5px,-3px) rotate(-2.4deg)}
+  52%{transform:translate(5px,2px) rotate(1.6deg)}70%{transform:translate(-3px,1px)}85%{transform:translate(2px,-1px)}
+}
+#gauge{
+  width:96px;user-select:none;cursor:pointer;
+  background:var(--ink);border:3px solid var(--ink);border-radius:10px;
+  color:var(--paper);padding:8px 6px;text-align:center;
+  display:flex;flex-direction:column;gap:4px;justify-content:center;
+  transition:transform .12s;
+}
+#gauge:active{transform:scale(.96)}
+#gauge .glabel{font-size:11px;color:var(--mauve);letter-spacing:1.5px;text-transform:uppercase}
+#gauge .gval{font-size:30px;font-weight:700;line-height:1;min-height:64px;display:grid;place-items:center}
+#gauge .gsub{font-size:13px;color:var(--pale);min-height:18px}
+#gauge .gmode{font-size:12px;color:var(--sky);font-weight:600}
+.frac{display:inline-flex;flex-direction:column;align-items:center;line-height:.95;font-weight:700}
+.frac .nu{font-size:26px}
+.frac .vin{width:34px;height:4px;background:var(--paper);border-radius:2px;margin:2px 0}
+.frac .de{font-size:26px}
+.frac.mini{transform:scale(.55)}
+#fillwarn{
+  position:absolute;top:-14px;left:50%;transform:translateX(-50%);z-index:2;
+  background:var(--danger);color:var(--cream);border:3px solid var(--ink);border-radius:8px;
+  font-size:13px;font-weight:700;padding:2px 8px;opacity:0;white-space:nowrap;
+}
+#fillwarn.on{opacity:1;animation:pulse .7s infinite}
+
+/* --- ingredient taps --- */
+#taps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.tap{
+  position:relative;
+  border:3px solid var(--ink);border-radius:10px;box-shadow:0 5px 0 var(--ink);
+  background:var(--cream);
+  padding:7px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:78px;transition:transform .07s, box-shadow .07s, filter .2s;
+  touch-action:none;user-select:none;
+}
+.tap:active,.tap.pressing{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+.tap .ticon{width:36px;height:36px}
+.tap .tname{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.tap .tcount{font-size:16px;font-weight:700;line-height:1}
+.tap .tstock{font-size:11px;color:var(--plum)}
+.tap.empty{filter:grayscale(.7) brightness(.85)}
+.tap.empty .tstock{color:var(--danger);font-weight:700}
+.tap .key{position:absolute;top:2px;left:5px;font-size:10px;color:var(--mauve)}
+.tap.bounce{animation:tapbounce .3s ease}
+@keyframes tapbounce{40%{transform:scale(1.09)}}
+
+#buildactions{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+#servebtn{min-width:170px}
+#servebtn.ready{animation:servePulse 1.1s ease-in-out infinite}
+@keyframes servePulse{50%{box-shadow:0 5px 0 var(--ink), 0 0 22px rgba(145,219,105,.65);transform:scale(1.03)}}
+
+/* --- reaction overlay --- */
+#reaction{
+  position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:5;
+}
+#reaction .rcard{
+  background:var(--cream);border:4px solid var(--ink);border-radius:14px;
+  padding:14px 22px;text-align:center;box-shadow:var(--shadow);
+  transform:scale(.5);opacity:0;max-width:min(440px,90%);
+}
+#reaction.show .rcard{animation:rIn .45s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes rIn{to{transform:scale(1);opacity:1}}
+#reaction .rword{font-size:27px;font-weight:700;margin:2px 0}
+#reaction .rhint{font-size:15px;color:var(--plum);line-height:1.4}
+#reaction .rcat{font-size:14.5px;color:var(--wooddk);line-height:1.4;margin-top:6px;font-weight:600}
+#reaction .rtip{font-size:20px;font-weight:700;color:var(--gold2);margin-top:4px}
+
+/* ============ EVENING ============ */
+#scr-evening .cols{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:840px){#scr-evening .cols{grid-template-columns:1.15fr .85fr}}
+#daysum{padding:14px 16px}
+#daysum h3{margin:0 0 8px;font-size:22px}
+.sumline{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:7px 4px;border-bottom:3px dashed rgba(46,34,47,.18);
+  font-size:16.5px;font-weight:600;opacity:0;transform:translateX(-12px);
+}
+.sumline.in{animation:sumIn .4s ease forwards}
+@keyframes sumIn{to{opacity:1;transform:none}}
+.sumline .v{font-size:20px;font-weight:700}
+.sumline .v.money{color:var(--wooddk)}
+.sumline.total .v{font-size:26px;color:var(--ink)}
+.badge{
+  display:inline-block;background:var(--dusk);color:var(--cream);
+  border:3px solid var(--ink);border-radius:8px;padding:3px 10px;
+  font-size:14px;font-weight:700;margin:6px 6px 0 0;
+  animation:modIn .45s cubic-bezier(.34,1.56,.64,1) both;
+}
+#tonko-review{
+  margin-top:10px;padding:10px 12px;background:var(--gold);
+  border:3px solid var(--ink);border-radius:10px;font-size:15px;line-height:1.45;
+  display:flex;gap:10px;align-items:center;
+}
+#tonko-review canvas{flex:0 0 56px}
+#upgrades{padding:14px 16px}
+#upgrades h3{margin:0 0 4px;font-size:20px}
+#upgrades .uphint{font-size:13.5px;color:var(--plum);margin-bottom:8px}
+.upg{
+  display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;
+  background:var(--cream);border:3px solid var(--ink);border-radius:10px;
+  padding:8px 10px;margin-bottom:8px;box-shadow:var(--shadow-sm);
+}
+.upg .uic{font-size:24px;text-align:center}
+.upg .unm{font-weight:700;font-size:16px}
+.upg .udesc{font-size:13px;color:var(--plum);line-height:1.3}
+.upg.owned{background:var(--leaf)}
+.upg .ubuy{white-space:nowrap}
+#eve-actions{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap}
+
+/* ============ POSTCARD / STORY MODAL ============ */
+#modal{
+  position:fixed;inset:0;background:rgba(46,34,47,.72);z-index:60;
+  display:grid;place-items:center;padding:16px;
+}
+#modal .mcard{
+  background:var(--paper);border:4px solid var(--ink);border-radius:14px;
+  max-width:540px;width:100%;padding:18px 20px;box-shadow:0 10px 0 rgba(46,34,47,.5);
+  animation:rIn .4s cubic-bezier(.34,1.56,.64,1) both;
+  max-height:86vh;overflow:auto;
+}
+#modal .mcard.postcard{
+  background:
+    linear-gradient(0deg, rgba(253,203,176,.93), rgba(253,203,176,.93)),
+    repeating-linear-gradient(45deg, var(--gold) 0 14px, var(--paper) 14px 28px, var(--rose) 28px 42px, var(--paper) 42px 56px);
+}
+#modal h3{margin:0 0 6px;font-size:22px}
+#modal .mtext{font-size:16.5px;line-height:1.55;white-space:pre-line}
+#modal .stamp{
+  float:right;width:56px;height:56px;border:3px dashed var(--wooddk);border-radius:6px;
+  display:grid;place-items:center;font-size:28px;margin:0 0 6px 10px;background:rgba(255,255,255,.5);
+  transform:rotate(6deg);
+}
+#modal .mactions{display:flex;justify-content:flex-end;margin-top:14px;gap:8px}
+
+/* ============ JOURNAL ============ */
+#journal{
+  position:fixed;inset:0;background:rgba(46,34,47,.72);z-index:50;
+  display:grid;place-items:center;padding:14px;
+}
+#journal .jbook{
+  background:var(--paper);border:4px solid var(--ink);border-radius:14px;
+  width:100%;max-width:640px;max-height:88vh;overflow:auto;
+  padding:16px 18px;box-shadow:0 10px 0 rgba(46,34,47,.5);
+  animation:rIn .35s cubic-bezier(.34,1.56,.64,1) both;
+}
+#journal .jtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#journal h3{margin:0;font-size:24px}
+.jtabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.jtab{
+  background:var(--cream);border:3px solid var(--ink);border-radius:8px;
+  padding:5px 12px;font-size:15px;font-weight:700;box-shadow:var(--shadow-sm);
+}
+.jtab.on{background:var(--gold);box-shadow:0 0 0 var(--ink)}
+.jrecipe{
+  border:3px solid var(--ink);border-radius:10px;background:var(--cream);
+  padding:10px 12px;margin-bottom:10px;
+}
+.jrecipe .jr-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.jrecipe h4{margin:0;font-size:18px}
+.jrecipe .jr-note{font-size:13px;color:var(--plum);margin-top:2px}
+.jratio{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.jr-cell{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  border:2px solid var(--ink);border-radius:8px;padding:5px 9px;background:var(--paper);
+  font-size:13px;font-weight:700;min-width:52px;
+}
+.jr-cell .n{font-size:19px}
+.jrecipe.locked{background:var(--paper2);border-style:dashed}
+.jrecipe.locked .jr-lock{font-size:14px;color:var(--wooddk);font-weight:700}
+.jheart-row{display:flex;align-items:center;gap:10px;border-bottom:3px dashed rgba(46,34,47,.18);padding:8px 2px}
+.jheart-row canvas{flex:0 0 44px}
+.jheart-row .hmid{flex:1;min-width:0}
+.jheart-row .hnm{font-weight:700;font-size:16.5px}
+.jheart-row .hlike{font-size:12.5px;color:var(--plum)}
+.hearts{letter-spacing:2px;font-size:17px;color:var(--rose);font-weight:700;white-space:nowrap}
+.jpost{
+  background:var(--cream);border:3px solid var(--ink);border-radius:10px;
+  padding:10px 12px;margin-bottom:10px;font-size:15px;line-height:1.5;white-space:pre-line;
+}
+.jpost .pfrom{font-size:12.5px;color:var(--wooddk);font-weight:700;letter-spacing:1px;text-transform:uppercase}
+#savebox{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+#savecode-out{
+  flex:1;min-width:200px;background:var(--ink);color:var(--pale);border:3px solid var(--plum);
+  border-radius:8px;padding:8px;font-size:12.5px;word-break:break-all;user-select:all;
+  max-height:110px;overflow:auto;
+}
+
+/* ============ FX layers ============ */
+#fxcanvas{position:fixed;inset:0;pointer-events:none;z-index:70;width:100vw;height:100vh}
+#toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:var(--paper);border:3px solid var(--plum);
+  border-radius:10px;padding:9px 16px;font-size:15.5px;font-weight:600;z-index:80;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);max-width:90vw;text-align:center;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+.floatup{
+  position:fixed;font-weight:700;pointer-events:none;z-index:75;
+  animation:floatup 1s ease-out forwards;white-space:nowrap;
+  text-shadow:0 2px 0 var(--ink);font-size:22px;
+}
+@keyframes floatup{
+  0%{opacity:0;transform:translateY(6px) scale(.7)}
+  18%{opacity:1;transform:translateY(-4px) scale(1.15)}
+  100%{opacity:0;transform:translateY(-46px) scale(1)}
+}
+body.dayshake{animation:bodyshake .35s linear}
+@keyframes bodyshake{
+  0%,100%{transform:translate(0)}20%{transform:translate(-8px,3px)}40%{transform:translate(7px,-3px)}
+  60%{transform:translate(-5px,2px)}80%{transform:translate(4px,-1px)}
+}
+body.flashonly{animation:flashonly .3s ease}
+@keyframes flashonly{50%{filter:brightness(1.5)}}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001s!important;transition-duration:.05s!important}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud" class="hidden">
+    <div>
+      <div class="brand">THE <b>RAMEN</b> CAT<span class="rc-dot">.</span></div>
+      <div id="daychip">Day 1 · Morning</div>
+    </div>
+    <div class="tools">
+      <div class="cashpill" id="cashpill">$20.00</div>
+      <button class="iconbtn" id="journalbtn" title="Broth Journal (J)" aria-label="Open journal">&#128214;</button>
+      <button class="iconbtn" id="musicbtn" title="Kitchen radio" aria-label="Toggle music">&#127925;</button>
+      <button class="iconbtn" id="mutebtn" title="Sound (M)" aria-label="Toggle sound">&#128266;</button>
+    </div>
+  </header>
+
+  <!-- ============ TITLE ============ -->
+  <section id="scr-title" class="screen">
+    <div id="title-sign">
+      <h1><span class="t1">THE RAMEN</span><br><span class="t2 flick">CAT</span></h1>
+    </div>
+    <p id="title-sub">a Lucky Noodle story</p>
+    <canvas id="title-bowl" width="96" height="76" style="width:336px;height:266px"></canvas>
+    <p id="title-tag">Dad vanished on a &ldquo;broth pilgrimage.&rdquo; He left you the keys, a soup-stained
+      journal with the recipes torn out&hellip; and Tonko, his talking cat, who remembers everything.
+      Vaguely. Win the town back — one perfect bowl at a time.</p>
+    <div id="title-menu">
+      <button class="btn big" id="playbtn">OPEN THE SHOP</button>
+      <div id="loadrow">
+        <input id="savecode-in" placeholder="paste a save code&hellip;" aria-label="Save code">
+        <button class="btn ghostbtn" id="loadbtn">LOAD</button>
+      </div>
+      <div class="smallnote" id="seednote"></div>
+    </div>
+  </section>
+
+  <!-- ============ MORNING ============ -->
+  <section id="scr-morning" class="screen hidden">
+    <div class="scr-head"><h2 id="morn-title">Morning Prep</h2><span class="sub" id="morn-sub"></span></div>
+    <div class="cols">
+      <div>
+        <div class="panel" id="morn-note">
+          <canvas class="mn-cat" id="morncat" width="28" height="21"></canvas>
+          <div><div class="mn-who">Tonko</div><div class="mn-text" id="morn-text"></div></div>
+        </div>
+        <div class="panel" style="margin-top:12px;padding:12px 14px">
+          <b style="font-size:17px">Featured bowl</b>
+          <div class="smallnote" style="color:var(--plum)">+$1 tip on good serves of the featured recipe</div>
+          <div id="featured-pick"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel" id="budgetbar">
+          <span>Till: <b class="b" id="morn-cash"></b></span>
+          <span class="smallnote" style="color:var(--plum)" id="morn-spent"></span>
+        </div>
+        <div class="panel stockcard" id="stocklist"></div>
+        <div id="morn-actions">
+          <span class="smallnote" style="color:var(--pale)" id="morn-warn"></span>
+          <button class="btn big green" id="openshopbtn">OPEN SHOP &#9654;</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHOP DAY ============ -->
+  <section id="scr-shop" class="screen hidden">
+    <div id="sunbar">
+      <div id="suntrack"></div>
+      <div id="sundot"></div>
+      <span class="closelbl" id="closelbl">CLOSING SOON</span>
+    </div>
+    <div class="grid">
+      <div>
+        <div id="stage">
+          <canvas id="skywin" width="190" height="114"></canvas>
+          <div class="counter"></div>
+          <canvas id="potcanvas" width="24" height="21"></canvas>
+          <canvas id="custcanvas" width="18" height="22" style="width:126px;height:154px"></canvas>
+          <canvas id="catcanvas" width="28" height="21" title="Tonko"></canvas>
+          <div id="queuedots" aria-label="customers waiting"></div>
+          <div id="bubble"><span class="who" id="bubwho"></span><div id="bubtext"></div></div>
+          <div id="hearts-fly"></div>
+        </div>
+        <div class="panel" id="ordercard">
+          <div class="oc-top">
+            <h3 id="oc-name">&mdash;</h3>
+            <span class="chip" id="oc-size"></span>
+          </div>
+          <div id="oc-table"></div>
+          <div class="modchips" id="oc-mods"></div>
+          <div id="oc-hint"></div>
+          <button class="btn ghostbtn hidden" id="askbtn">&#128049; Ask Tonko (25&cent;)</button>
+          <div id="fragments" class="hidden"></div>
+        </div>
+      </div>
+      <div class="panel" id="buildpanel">
+        <div id="bowlzone">
+          <div id="bowlwrap">
+            <div id="fillwarn">NEARLY FULL!</div>
+            <canvas id="bowlcanvas" width="88" height="80" style="width:352px;height:320px"></canvas>
+          </div>
+          <div id="gauge" role="button" tabindex="0" aria-label="Bowl gauge — tap to change readout">
+            <span class="glabel">BOWL</span>
+            <span class="gval" id="gaugeval"></span>
+            <span class="gsub" id="gaugesub"></span>
+            <span class="gmode" id="gaugemode">&#8635; fraction</span>
+          </div>
+          <div id="reaction"></div>
+        </div>
+        <div id="taps"></div>
+        <div id="buildactions">
+          <button class="btn ghostbtn" id="undobtn" title="U">&#8630; SCOOP OUT</button>
+          <button class="btn green big" id="servebtn" title="Enter">GARNISH &amp; SERVE</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ EVENING ============ -->
+  <section id="scr-evening" class="screen hidden">
+    <div class="scr-head"><h2>Closing Bell</h2><span class="sub" id="eve-sub"></span></div>
+    <div class="cols">
+      <div class="panel" id="daysum"></div>
+      <div>
+        <div class="panel" id="upgrades"></div>
+        <div id="eve-actions">
+          <span class="smallnote" style="color:var(--pale)" id="eve-note"></span>
+          <button class="btn big" id="sleepbtn">SLEEP &#127769;</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ overlays ============ -->
+  <div id="journal" class="hidden">
+    <div class="jbook">
+      <div class="jtop"><h3>&#128214; Dad&rsquo;s Broth Journal</h3><button class="btn ghostbtn" id="jclose">CLOSE</button></div>
+      <div class="jtabs">
+        <button class="jtab on" data-jtab="recipes">Recipes</button>
+        <button class="jtab" data-jtab="friends">Friends</button>
+        <button class="jtab" data-jtab="postcards">Postcards</button>
+        <button class="jtab" data-jtab="save">Save</button>
+      </div>
+      <div id="jbody"></div>
+    </div>
+  </div>
+  <div id="modal" class="hidden"></div>
+  <div id="toast"></div>
+</div>
+<canvas id="fxcanvas"></canvas>
+<script>
+'use strict';
+/* =====================================================================
+   DATA — content as data (the GDD's src/data/*.json, inlined).
+   Teachers/writers can retune days, dialogue, recipes and Tonko's
+   line pools here without touching engine or UI code.
+   ===================================================================== */
+const PAL = {
+  ink:'#2e222f', ink2:'#3e3546', plum:'#625565', mauve:'#7f708a',
+  wood:'#9e4539', wood2:'#cd683d', wooddk:'#7a3045',
+  paper:'#fdcbb0', paper2:'#fca790', cream:'#ffffff', pale:'#c7dcd0',
+  gold:'#f9c22b', gold2:'#f79617', tang:'#fb6b1d', amber:'#e6904e',
+  pink:'#ed8099', rose:'#f04f78', danger:'#e83b3b', dangerdk:'#ae2334',
+  leaf:'#91db69', green:'#1ebc73', olive:'#a2a947', corn:'#fbff86',
+  sky:'#8fd3ff', blue:'#4d9be6', navy:'#484a77', dusk:'#905ea9',
+  brown:'#966c6c', tan:'#ab947a', maroon:'#831c5d', chashu:'#cf657f',
+};
+
+/* ingredients: unit = one visible layer band in the bowl.
+   costc = base cost in CENTS per unit. broth is the complement:
+   modified orders re-fill with broth "to the line". */
+const ING = {
+  noodles:{ name:'Noodles', unit:'portion', costc:40, color:PAL.gold,   hi:PAL.corn,   pattern:'wave'   },
+  broth:  { name:'Broth',   unit:'ladle',   costc:20, color:PAL.amber,  hi:'#f79617',  pattern:'plain'  },
+  topping:{ name:'Topping', unit:'scoop',   costc:25, color:PAL.chashu, hi:PAL.pink,   pattern:'chunk'  },
+  tare:   { name:'Tare',    unit:'spoon',   costc:35, color:PAL.wood,   hi:PAL.wood2,  pattern:'stripe' },
+  oil:    { name:'Chili Oil', unit:'spoon', costc:15, color:PAL.danger, hi:PAL.tang,   pattern:'drops'  },
+};
+const INGS = ['noodles','broth','topping','tare','oil'];
+
+/* recipes: r = units for a REGULAR bowl (capacity 8). BIG BOWL = x2 (16). */
+const RECIPES = {
+  classic:  { name:"Lu's Classic Shoyu", topName:'Chashu', topColor:PAL.chashu,
+              r:{noodles:2,broth:3,topping:2,tare:1,oil:0},
+              note:'Dad’s daily. Broth to tare, three to one. It never lies.' },
+  blizzard: { name:'The Corn Blizzard', topName:'Corn', topColor:PAL.corn,
+              r:{noodles:2,broth:2,topping:3,tare:1,oil:0},
+              note:'More corn than broth. Dad said it shouldn’t work. It works.' },
+  midnight: { name:'The Midnight Shio', topName:'—', topColor:PAL.pale,
+              r:{noodles:0,broth:5,topping:0,tare:1,oil:2},
+              note:'No noodles. “Soup with ambition.” — Tonko' },
+  kickflip: { name:'The Kickflip', topName:'—', topColor:PAL.pale,
+              r:{noodles:1,broth:4,topping:0,tare:1,oil:2},
+              note:'Dad’s hottest bowl, rebuilt from Dex’s memory. Fire, not pain.',
+              locked:true },
+};
+const CAP = { R:8, L:16 };
+const SIZENAME = { R:'REGULAR', L:'BIG BOWL' };
+const SALEC = { R:400, L:600 };            /* sale price, cents */
+const TIPC  = { perfect:200, close:100, off:25, yikes:0, disaster:0 };
+const ASKC  = 25;                          /* Ask Tonko, cents */
+
+/* order mods (Tier 2). mul/set apply to one ingredient; every modded order
+   then refills: broth = cap - everything else ("fill to the line"). */
+const MODS = {
+  oil200:    { ing:'oil',    mul:2,   chip:'CHILI OIL &times;2 &nbsp;(200%)' },
+  oil150:    { ing:'oil',    mul:1.5, chip:'CHILI OIL &times;1&frac12; &nbsp;(150%)' },
+  tare50:    { ing:'tare',   mul:.5,  chip:'TARE &times;&frac12; &nbsp;(go light)' },
+  noodles150:{ ing:'noodles',mul:1.5, chip:'NOODLES &times;1&frac12; &nbsp;(150%)' },
+  noodles200:{ ing:'noodles',mul:2,   chip:'NOODLES &times;2' },
+  nonoodles: { ing:'noodles',set:0,   chip:'NO NOODLES' },
+};
+const WALKIN_MODS = ['tare50','oil150','noodles200','nonoodles','noodles150'];
+
+const CHARS = {
+  dex:  { name:'Dex', shirt:PAL.green, likes:'Skater. Dad’s biggest fan. MAX SPICE — but he’s working on it, by percents.',
+          heartHint:'Perfect his orders to jog his memory of THE KICKFLIP.' },
+  petro:{ name:'Mrs. Petrossian', shirt:PAL.dusk, likes:'Retired math teacher. Knows exactly what you’re up to. Approves.',
+          heartHint:'She expects you to know bowls by heart.' },
+  marm: { name:'Officer Marmalade', shirt:PAL.navy, likes:'A corgi. A police officer. The town accepts this. Tonko does not. Tips DOUBLE for fast service.',
+          heartHint:'Serve him in under 25 seconds for double tips.' },
+  twins:{ name:'Mia & Mio', shirt:PAL.tang, likes:'One bowl, split EXACTLY in half, or there will be consequences.',
+          heartHint:'They order weird. Roll with it.' },
+  glizz:{ name:'Manager Glizzman', shirt:PAL.maroon, likes:'Regional manager, NoodlZone™. Smells like fluorescent lighting.', cameo:true },
+  town1:{ name:'Boardwalk Regular', shirt:PAL.blue,  walkin:true },
+  town2:{ name:'Old Town Regular',  shirt:PAL.olive, walkin:true },
+};
+const REGULARS = ['dex','petro','marm','twins'];
+
+/* ---------------- TONKO — the charm budget. Keep this pool LARGE. -------- */
+const TONKO = {
+  perfect:[
+    '“Acceptable. Dad would have said perfect, but he was sentimental.”',
+    '“I felt a whisker twitch. That’s the good kind.”',
+    '“Correct ratios. I will pretend I never doubted you.”',
+    '“That bowl smelled like the old days. Carry on.”',
+    '“Hm. Yes. This is why I stayed. Also the warm stove.”',
+    '“Even the corgi could not ruin this moment. And he tries.”',
+    '“Dad talked to his broth. I see you listen to yours.”',
+    '“Flawless. I take full credit for supervising.”',
+  ],
+  close:[
+    '“Nearly. The spoon is a measuring tool, not a suggestion.”',
+    '“Close. Dad never eyeballed the tare. Eyeballing is for amateurs and dogs.”',
+    '“A whisker off. I counted.”',
+    '“Almost the memory. Not quite the memory.”',
+    '“Fine-ish. ‘Ish’ is doing heavy lifting.”',
+    '“One more splash of care next time.”',
+  ],
+  off:[
+    '“That ratio was a rumor of the recipe.”',
+    '“I watched you pour that. I have questions.”',
+    '“The card. Read it like it owes you money.”',
+    '“Dad’s ghost just sighed, and he isn’t even dead.”',
+    '“We do not freestyle broth in this establishment.”',
+    '“The customer is being polite. I am not: count again.”',
+  ],
+  yikes:[
+    '“That is not the bowl they ordered. That is barely a decision.”',
+    '“No charge for that one. We have standards. Low ones. But standards.”',
+    '“I’m going to sit in my box until the shame passes.”',
+    '“The order was RIGHT THERE.”',
+    '“We’ll call that one ‘practice.’”',
+    '“Broth is a promise. That was a fib.”',
+  ],
+  crime:[
+    '“I have seen soup crimes. This is a soup felony.”',
+    '“The mop remembers. The mop always remembers.”',
+    '“That bowl had a family.”',
+    '“Twenty years of quality control, and I have never napped through anything this loud.”',
+    '“I’m adding this to the incident log. It’s a napkin. It’s full.”',
+    '“The health inspector can never know about this.”',
+    '“Somewhere, a noodle farmer felt a chill.”',
+    '“Bold interpretation of ‘bowl’ as ‘geyser.’”',
+    '“I would have stopped you, but I was busy being horrified.”',
+    '“New rule: the soup stays IN the bowl. Write it down.”',
+    '“Even NoodlZone doesn’t do this. And they microwave EVERYTHING.”',
+    '“Dad once did this exact thing. I never let him forget it either.”',
+  ],
+  idle:[
+    '“I supervised this shop for twenty years. From this exact spot. Napping.”',
+    '“The stove is warm. All is not lost.”',
+    '“The corgi walked past the window. I hissed. Balance restored.”',
+    '“Dad used to hum while the broth simmered. Off-key. I miss it.”',
+    '“Quality control update: I am in a box, and the box is good.”',
+    '“A fly. Standby. …It lives. This time.”',
+    '“NoodlZone’s mascot blinked wrong again. Soulless.”',
+    '“The customers can smell hesitation. Ladle with confidence.”',
+    '“I’ll allow the radio. Dad liked this song.”',
+    '“Fill to the line. The line is not a decoration.”',
+  ],
+  dayendGood:[
+    '“A good day. The shop smelled like Dad again. …Quiet. I have soup in my eye.”',
+    '“Profitable AND edible. We may survive you yet.”',
+    '“The till is heavier. My respect: also slightly heavier.”',
+    '“I’d have done it faster, but I lack thumbs. Well done.”',
+  ],
+  dayendMid:[
+    '“A day happened. Some of it was soup.”',
+    '“Adequate. The word Dad used when he meant ‘try again tomorrow.’”',
+    '“We made money. We also made mistakes. Mostly money, though.”',
+    '“Tomorrow: same energy, better ratios.”',
+  ],
+  dayendBad:[
+    '“We do not speak of today. Feed me and sleep.”',
+    '“I have reviewed today’s performance. I will be in the box.”',
+    '“The good news: tomorrow has no memory. Unlike me.”',
+    '“Dad rebuilt this place twice. You get the same grace. Once.”',
+  ],
+  market:[
+    '“Bold. Wasteful, but bold.”',
+    '“Buying MORE is not the same as buying WELL. Check the per-scoop.”',
+    '“Dad checked the unit price twice. Every time. Deeply annoying. Always right.”',
+    '“The big bag is only a bargain when it’s a bargain. Revolutionary, I know.”',
+    '“We cannot serve money. Buy soup parts.”',
+  ],
+  hint:[
+    '“Fine. FINE. Here’s the card. That’s a quarter, and some of my pride.”',
+    '“You could have known this. A quarter, please. *flips card over*”',
+    '“Dad never peeked. …Dad also WROTE the cards. Unfair comparison. Quarter.”',
+    '“I remember it PERFECTLY. Ahem. Here.”',
+  ],
+  hiss:'“HISSSSS. (That’s a formal hiss. It’s going in the minutes.)”',
+  cushion:'“…For me? It’s adequate. (It’s perfect. Tell no one.)”',
+  postcardIntro:'“It’s addressed to ME, obviously. I’ll read it aloud. Ahem.”',
+  postcardOutro:'“He’s fine. Obviously. …He’s fine.”',
+  recoveryIntro:'“Dex is vibrating about Dad’s fire bowl. I remember it. Vaguely. Take your time — the stove and I will judge silently.”',
+  recoveryFail:['“Not that. I’d remember THAT.”','“The nose says no.”','“Warmer. Colder. One of those.”'],
+  recoveryHint:'“…ONE portion of noodles. I was awake for that part. Briefly.”',
+  recoverySolve:'“THAT’S the smell. That’s— excuse me. I have soup in my eye. AGAIN.”',
+  finale:'“Five days. The shop stands. Dad would say something sentimental here, so: imagine I said it.”',
+  lowstock:'“We are opening with, what, hope? Buy soup parts next time.”',
+};
+const pick=(arr,rng)=>arr[Math.floor((rng?rng():Math.random())*arr.length)];
+
+/* ------------- the five scripted days ------------- */
+const DAYS = {
+  1:{ len:150, sub:'Learning the ladle',
+      note:'“So. You’re the kid. I’m Tonko — Dad’s business partner. Twenty years. Quality control.\nDay one: buy ingredients with the till, follow the recipe cards, and fill every bowl TO THE LINE.\nThe Classic never lies. Dad said that. He was right about twice a day.”',
+      walkins:false,
+      customers:[
+        {c:'dex',recipe:'midnight',size:'L',mods:['oil200'],ghost:true,
+         say:'Wait. You’re LU’S KID?! Okay okay — the Midnight, big bowl, MAX SPICE. Double the chili oil. Noodles slow me down, dude.'},
+        {c:'marm',recipe:'classic',size:'R',ghost:true,
+         say:'Morning, citizen. The usual — a regular Classic Shoyu. Lu could build it in 25 seconds flat. I time these things.'},
+        {c:'petro',recipe:'blizzard',size:'R',ghost:true,
+         say:'A Corn Blizzard, dear. Read the card twice, ladle once. That’s how your father learned.'},
+        {c:'twins',recipe:'midnight',size:'R',ghost:true,
+         say:'One Midnight Shio! —HALF THE SOUP IS MINE. —WE’RE SPLITTING IT. —EXACTLY IN HALF.'},
+      ],
+      eveStory:{ title:'Across the street…', emoji:'🍜',
+        text:'A fluorescent sign buzzes to life: NOODLZONE™. A cup called NOODL BLAST X-TREME rotates on a glowing pedestal.\n\nTonko stares at it for a long time.\n\n“Soulless,” he says finally, and goes back to sleep.' } },
+
+  2:{ len:155, sub:'The regulars return',
+      note:'“The regulars are testing you today. Petrossian wants her bowl FROM MEMORY — no card.\nYou can Ask Me if you must. It costs a quarter, and I will be smug about it. That’s the deal.”',
+      walkins:true,
+      customers:[
+        {c:'petro',recipe:'blizzard',size:'R',noGhost:true,noCard:true,
+         say:'Same as yesterday, love. And no — don’t you dare ask the cat. You KNOW it. I can tell.'},
+        {c:'dex',recipe:'midnight',size:'L',mods:['oil200'],noGhost:true,
+         say:'Same as yesterday, my dude! MAX SPICE, big bowl, DOUBLE oil. You remember. I believe in you. Mostly.'},
+        {c:'twins',recipe:'blizzard',size:'R',ghost:true,
+         say:'The corn one!! — half the corn is MINE. — count MY half first. — EXACTLY half.'},
+        {c:'marm',recipe:'classic',size:'R',noGhost:true,noCard:true,
+         say:'The usual, chief. Clock’s running.'},
+        {c:'glizz',cutscene:true,
+         say:'Salutations, soup child. NoodlZone Corporate is prepared to offer FIFTY dollars for this… structure. The cat is not included. Nothing personal.'},
+      ],
+      eveStory:{ title:'Buyout offer: $50', emoji:'💼',
+        text:'You write it in the Journal, under Tonko’s formal hiss (notarized, apparently).\n\nThe shop made more than that TODAY. He’ll be back with a bigger number.\n\nLet him watch it grow.' } },
+
+  3:{ len:160, sub:'Percent weather',
+      postcard:{ title:'Postcard #1 — addressed to Tonko', emoji:'🌋',
+        text:'“T —\nFound a broth master living on a volcano. He salts by MOONLIGHT. Long story.\nTell the kid: when an order changes an amount, the broth still fills the bowl to the line. The bowl does not negotiate.\nScratch the counter for me. — L\n\nP.S. The miso never outnumbers the broth. Never. It’ll matter.”' },
+      note:'“Hot one today. People will want MORE of things — more oil, more everything.\nListen carefully: 150% of a thing is MORE than the thing. It still has to fit.\nThe bowl does not negotiate. Dad’s words. The bowl and I are alike that way.”',
+      walkins:true,
+      customers:[
+        {c:'dex',recipe:'midnight',size:'L',mods:['oil150'],noGhost:true,
+         say:'Okay so. Coach says cut back on the spice. So: 150% oil. That’s still EXTRA — it’s just… responsible extra. Don’t look at me like that.'},
+        {c:'petro',recipe:'midnight',size:'R',mods:['oil150'],noGhost:true,
+         say:'A bold day, dear. My Midnight — spice at 150%. That’s three-eighths of the bowl in oil, if you’re counting. I am.'},
+        {c:'marm',recipe:'classic',size:'R',noGhost:true,noCard:true,
+         say:'Usual. Speed appreciated. The department is timing me timing you.'},
+        {c:'twins',recipe:'blizzard',size:'R',mods:['nonoodles'],noGhost:true,
+         say:'Mio got BRACES tightened!! — ow. — a Blizzard with NO NOODLES, doctor’s orders. — fill it with broth so it’s still FULL. — EXACTLY full.'},
+      ],
+      eveStory:null },
+
+  4:{ len:165, sub:'Double or nothing',
+      note:'“Dex keeps squinting at the menu and humming. He’s trying to remember Dad’s fire bowl.\nServe him well today. It’s close. I can smell it.\nI can smell everything.”',
+      walkins:true,
+      customers:[
+        {c:'marm',recipe:'classic',size:'R',noGhost:true,noCard:true,
+         say:'The usual, chief. Surprise me only with the speed.'},
+        {c:'dex',recipe:'blizzard',size:'L',mods:['tare50'],noGhost:true,
+         say:'Big Blizzard… HALF the tare. Coach says sodium. My past self would be SO mad at me right now.'},
+        {c:'twins',recipe:'classic',size:'R',mods:['noodles200'],noGhost:true,
+         say:'DOUBLE NOODLES!! — she means times two. — not plus two, TIMES two. — less broth so it fits! — EXACTLY double.'},
+        {c:'petro',recipe:'blizzard',size:'R',noGhost:true,noCard:true,
+         say:'My Blizzard, from memory, dear. You’ve built it enough times now. Show me.'},
+      ],
+      eveStory:null },
+
+  5:{ len:170, sub:'The Kickflip lives?',
+      note:'“Last day of the week, and the whole town knows it. Big crowd coming.\nMake Dad proud. Make ME proud.\nHarder. The second one.”',
+      walkins:true,
+      customers:[
+        {c:'dex',DYNAMIC:'dexday5'},
+        {c:'petro',recipe:'blizzard',size:'R',noGhost:true,noCard:true,
+         say:'The usual, dear — and stand up straight. The whole town is watching this little comeback of yours.'},
+        {c:'marm',recipe:'classic',size:'L',noGhost:true,scaleHint:true,
+         say:'Big day, big bowl. The usual… but the BIG BOWL. Same soup, twice the bowl, citizen. You can double a thing.'},
+        {c:'twins',DYNAMIC:'twinsday5'},
+      ],
+      eveStory:null },
+};
+
+/* dynamic day-5 orders depend on whether the Kickflip was recovered */
+const DYNAMIC_ORDERS = {
+  dexday5(unlocked){
+    return unlocked
+      ? {c:'dex',recipe:'kickflip',size:'L',ghost:true,
+         say:'THE KICKFLIP LIVES. Big bowl. Exactly like Dad made it — I’ll know, dude. I’ll KNOW.'}
+      : {c:'dex',recipe:'midnight',size:'L',noGhost:true,
+         say:'Just… Dad’s way today. Regular oil. 100%. Exactly the card. Feels right.'};
+  },
+  twinsday5(unlocked){
+    return unlocked
+      ? {c:'twins',recipe:'kickflip',size:'R',ghost:true,
+         say:'DEX SAYS THE FIRE ONE IS BACK. — one Kickflip! — half the fire is mine. — EXACTLY half.'}
+      : {c:'twins',recipe:'midnight',size:'R',mods:['oil150'],noGhost:true,
+         say:'It’s HOT out but we want HOTTER. — oil at 150 percent!! — EXACTLY 150.'};
+  },
+};
+
+/* Dex's recipe-recovery fragments: a system of constraints with a unique
+   integer solution in the 8-unit bowl: broth 4, oil 2, tare 1, noodles 1,
+   topping 0. Tonko holds the crucial unreliable clue (noodles = 1). */
+const FRAGMENTS = [
+  { id:'half', who:'Dex',  text:'“The broth filled HALF the bowl. Dad was strict about it.”',
+    check:p => p.broth === 4 },
+  { id:'same', who:'Dex',  text:'“Tare and noodles: same amount. Same-same. And there WAS tare — I’d taste it, dude.”',
+    check:p => p.tare === p.noodles && p.tare >= 1 },
+  { id:'oil2', who:'Dex',  text:'“Exactly 2 spoons of chili oil. Fire, not pain.”',
+    check:p => p.oil === 2 },
+  { id:'full', who:'Dex',  text:'“Filled right to the line. Dad hated a shy pour.”',
+    check:p => (p.noodles+p.broth+p.topping+p.tare+p.oil) === 8 },
+];
+
+const UPGRADES = {
+  lanterns:{ name:'Paper Lanterns', icon:'🏮', costc:1200,
+    desc:'The shop glows warm. Tips +25% on every serve.' },
+  burner:  { name:'Second Burner', icon:'🔥', costc:1800,
+    desc:'Faster service: one extra customer catches the door each day.' },
+  cellar:  { name:'Cold Cellar', icon:'🧊', costc:1000,
+    desc:'Leftover ingredients keep overnight instead of spoiling.' },
+  cushion: { name:'Tonko’s Cushion', icon:'🐈', costc:800,
+    desc:'Purely cosmetic. He deserves it.' },
+};
+
+/* =====================================================================
+   ENGINE — pure logic, zero DOM. window.RC.Engine in the console.
+   Money is integer CENTS everywhere (no float dust, house rule).
+   Standards: 6.RP.1/2/3a/3b/3c, 7.RP.2/3 — see header comment.
+   ===================================================================== */
+const Engine = (() => {
+
+  /* ---- seeded RNG (classroom determinism: ?seed=WHATEVER) ---- */
+  function hashStr(s){ let h=2166136261>>>0; for(const c of String(s)){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); } return h>>>0; }
+  function mulberry32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+  const dayRng = (G,salt)=>mulberry32(hashStr(G.seed)^Math.imul(G.day+7,2654435761)^hashStr(salt||''));
+
+  function newGame(seed){
+    return {
+      seed:String(seed||'LUCKY-NOODLE'), day:1, phase:'morning',
+      cashc:2000, stock:{noodles:0,broth:0,topping:0,tare:0,oil:0},
+      hearts:{dex:0,petro:0,marm:0,twins:0},      /* pips: 2 pips = 1 heart, max 10 */
+      perfects:{}, crimes:0, servedTotal:0, jarUsed:false,
+      unlocked:{classic:true,blizzard:true,midnight:true,kickflip:false},
+      upgrades:{lanterns:false,burner:false,cellar:false,cushion:false},
+      ramp:{t2:0.25, clean:0, miss:0},
+      buyout:0, postcards:[], featured:'classic',
+      usage:{noodles:0,broth:0,topping:0,tare:0,oil:0},  /* yesterday's, for the buy screen */
+    };
+  }
+
+  /* ---- morning market: two package deals per ingredient, seeded per day.
+     Unit-rate ambush: the bigger package is only SOMETIMES the better deal. ---- */
+  function priceTable(G){
+    const t={};
+    for(const k of INGS){
+      const rng=dayRng(G,'mkt-'+k), base=ING[k].costc;
+      const smallU = base*(0.9+rng()*0.35);              /* unit cost, small pack */
+      const bigBetter = rng()<0.55;
+      const bigU = smallU*(bigBetter ? 0.72+rng()*0.16 : 1.08+rng()*0.22);
+      const qS = k==='oil'?4: (3+Math.floor(rng()*3));    /* 3-5 */
+      const qB = qS*2 + (rng()<0.5?0:2);                  /* 6-12 */
+      const round5=c=>Math.max(5,Math.round(c/5)*5);
+      t[k]=[ {qty:qS, pricec:round5(smallU*qS)}, {qty:qB, pricec:round5(bigU*qB)} ];
+      for(const d of t[k]) d.unitc = d.pricec/d.qty;      /* display only */
+    }
+    return t;
+  }
+  function buy(G, ing, deal){
+    if(G.cashc < deal.pricec) return false;
+    G.cashc -= deal.pricec; G.stock[ing]+=deal.qty; return true;
+  }
+  /* Dad's emergency jar: every morning is viable. No dead ends, ever. */
+  function morningFloor(G){
+    if(G.cashc < 600){ G.jarUsed=true; G.cashc = 600; return true; }
+    return false;
+  }
+
+  /* ---- orders ---- */
+  function targetFor(order){
+    const rec=RECIPES[order.recipe], mul=order.size==='L'?2:1, cap=CAP[order.size];
+    const t={}; for(const k of INGS) t[k]=(rec.r[k]||0)*mul;
+    if(order.mods&&order.mods.length){
+      for(const id of order.mods){
+        const m=MODS[id];
+        t[m.ing] = m.set!==undefined ? m.set : t[m.ing]*m.mul;
+      }
+      const others = t.noodles+t.topping+t.tare+t.oil;
+      t.broth = cap - others;                      /* fill to the line */
+    }
+    t.cap=cap; return t;
+  }
+  function validOrder(order){
+    const t=targetFor(order);
+    let sum=0;
+    for(const k of INGS){
+      if(t[k]<0 || !Number.isInteger(t[k])) return false;
+      sum+=t[k];
+    }
+    if(order.mods&&order.mods.length && t.broth<1) return false;
+    return sum<=t.cap;
+  }
+  const solve = order => { const t=targetFor(order); const o={}; for(const k of INGS)o[k]=t[k]; return o; };
+
+  /* ---- walk-in generation (after scripted customers, until sundown) ---- */
+  function makeWalkin(G, n){
+    const rng=dayRng(G,'walkin-'+n);
+    const menu=Object.keys(RECIPES).filter(r=>G.unlocked[r]);
+    let recipe = rng()<0.42 ? G.featured : menu[Math.floor(rng()*menu.length)];
+    if(!G.unlocked[recipe]) recipe=menu[0];
+    const size = rng()<0.7?'R':'L';
+    const c = rng()<0.5?'town1':'town2';
+    const wantT2 = G.day>=3 && rng()<G.ramp.t2;
+    if(wantT2){
+      const shuffled=[...WALKIN_MODS].sort(()=>rng()-0.5);
+      for(const m of shuffled){
+        const o={c,recipe,size,mods:[m],noGhost:true,walkin:true};
+        const t=targetFor(o), base=targetFor({recipe,size});
+        if(validOrder(o) && INGS.some(k=>t[k]!==base[k])) return o;
+      }
+    }
+    return {c,recipe,size,ghost:true,walkin:true};
+  }
+
+  /* ---- judging: graduated, never right/wrong ---- */
+  function bands(day){ return day<=2 ? {close:2,off:4} : {close:1,off:3}; }
+  function judge(G, order, poured, opts){
+    opts=opts||{};
+    if(opts.slosh){
+      return { grade:'disaster', tipc:0, salec:0, heartPips:0, err:99,
+        hint:'The bowl is not a suggestion. It overflowed. Gloriously.' };
+    }
+    const t=targetFor(order); let err=0; const diffs={};
+    for(const k of INGS){ diffs[k]=(poured[k]||0)-t[k]; err+=Math.abs(diffs[k]); }
+    const b=bands(G.day);
+    const grade = err===0?'perfect': err<=b.close?'close': err<=b.off?'off':'yikes';
+    let tipc=TIPC[grade];
+    let salec=SALEC[order.size];
+    /* a not-even-close bowl doesn't sell — closes the "serve anything fast" cheese */
+    if(grade==='yikes'){ salec=0; }
+    if((grade==='perfect'||grade==='close') && order.recipe===G.featured) tipc+=100;
+    if(order.c==='marm' && opts.elapsed!==undefined && opts.elapsed<=25 && grade!=='yikes') tipc*=2;
+    if(G.upgrades.lanterns) tipc=Math.round(tipc*1.25/5)*5;
+    const heartPips = grade==='perfect'?2: grade==='close'?1: 0;
+    return { grade, tipc, salec, heartPips, err, diffs, hint:hintFor(order,t,diffs,grade) };
+  }
+  function hintFor(order,t,diffs,grade){
+    if(grade==='perfect') return 'Exactly like Big Lu’s ' + RECIPES[order.recipe].name + '!';
+    let worstK=null,worst=0;
+    for(const k of INGS){ if(Math.abs(diffs[k])>Math.abs(worst)){worst=diffs[k];worstK=k;} }
+    if(!worstK) return '';
+    const nm=(worstK==='topping'?RECIPES[order.recipe].topName:ING[worstK].name).toLowerCase();
+    const n=Math.abs(worst), u=ING[worstK].unit+(n>1?'s':'');
+    if(grade==='close') return (worst>0?`A touch heavy on the ${nm}.`:`Just a ${ING[worstK].unit} short on the ${nm}.`);
+    if(grade==='off')   return (worst>0?`That’s ${n} ${u} too much ${nm}.`:`Short ${n} ${u} of ${nm}.`);
+    return 'That… is not the bowl. The card was right there, friend.';
+  }
+
+  /* commit a serve: consume ingredients, move money, hearts, ramp, counters */
+  function applyServe(G, order, poured, res){
+    for(const k of INGS){
+      G.stock[k]=Math.max(0, G.stock[k]-(poured[k]||0));
+      G.usage[k]+=(poured[k]||0);
+    }
+    if(res.grade!=='disaster'){ G.cashc += res.salec + res.tipc; }
+    else G.crimes++;
+    if(res.grade==='perfect'){ G.perfects[order.recipe]=(G.perfects[order.recipe]||0)+1; }
+    if(!order.walkin && !order.cutscene && G.hearts[order.c]!==undefined){
+      G.hearts[order.c]=Math.min(10, G.hearts[order.c]+res.heartPips);
+    }
+    G.servedTotal++;
+    const isT2=!!(order.mods&&order.mods.length);
+    if(isT2){
+      if(res.grade==='perfect'||res.grade==='close'){ G.ramp.clean++; G.ramp.miss=0; }
+      else { G.ramp.miss++; G.ramp.clean=0; }
+      if(G.ramp.clean>=3){ G.ramp.t2=Math.min(0.8,G.ramp.t2+0.2); G.ramp.clean=0; }
+      if(G.ramp.miss>=2){ G.ramp.t2=Math.max(0.15,G.ramp.t2-0.2); G.ramp.miss=0; }
+    }
+    return res;
+  }
+
+  /* end of day: waste + numbers for the summary screen */
+  function closeDay(G, dayStats){
+    let wastec=0;
+    if(!G.upgrades.cellar){
+      for(const k of INGS){ wastec += G.stock[k]*ING[k].costc; G.stock[k]=0; }
+    }
+    dayStats.wastec=wastec;
+    dayStats.netc = dayStats.salesc + dayStats.tipsc - dayStats.spentc - wastec;
+    return dayStats;
+  }
+
+  /* Dex's fragment puzzle */
+  function checkFragments(poured){
+    return FRAGMENTS.map(f=>({id:f.id, ok:!!f.check(poured)}));
+  }
+
+  /* save codes (no storage APIs — school policy) */
+  function saveCode(G){
+    return 'RC1.'+btoa(unescape(encodeURIComponent(JSON.stringify(G))));
+  }
+  function loadCode(str){
+    try{
+      const m=String(str).trim();
+      if(!m.startsWith('RC1.')) return null;
+      const G=JSON.parse(decodeURIComponent(escape(atob(m.slice(4)))));
+      if(!G || !G.day || !G.stock || G.stock.broth===undefined) return null;
+      return G;
+    }catch(e){ return null; }
+  }
+
+  const fmt$ = c => '$'+(c/100).toFixed(2);
+  const fmtCents = c => c>=100 ? '$'+(c/100).toFixed(2) : Math.round(c)+'¢';
+
+  return { newGame, priceTable, buy, morningFloor, targetFor, validOrder, solve,
+           makeWalkin, judge, applyServe, closeDay, checkFragments, bands,
+           saveCode, loadCode, fmt$, fmtCents, dayRng, hashStr };
+})();
+
+/* =====================================================================
+   SOUND — Web Audio blips + one precious meow. Mute toggle.
+   Never information-critical: the game is fully playable silent.
+   ===================================================================== */
+const Sound = (() => {
+  let ctx=null, master=null, muted=false;
+  function ensure(){
+    if(!ctx){
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return false;
+      ctx=new AC(); master=ctx.createGain(); master.gain.value=.5; master.connect(ctx.destination);
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return true;
+  }
+  function tone(freq,dur,type,vol,slideTo,delay){
+    if(muted||!ensure())return;
+    const t0=ctx.currentTime+(delay||0);
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type||'square'; o.frequency.setValueAtTime(freq,t0);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(vol||.16,t0+.012);
+    g.gain.exponentialRampToValueAtTime(.0008,t0+dur);
+    o.connect(g);g.connect(master);o.start(t0);o.stop(t0+dur+.05);
+  }
+  function noise(dur,vol,delay,lp){
+    if(muted||!ensure())return;
+    const t0=ctx.currentTime+(delay||0);
+    const n=Math.floor(ctx.sampleRate*dur), buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=ctx.createBufferSource(); s.buffer=buf;
+    const g=ctx.createGain(); g.gain.value=vol||.2;
+    let node=s;
+    if(lp){ const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=lp; s.connect(f); node=f; }
+    node.connect(g); g.connect(master); s.start(t0);
+  }
+  const S={
+    click(){ tone(880,.04,'square',.08); },
+    ladle(i){ tone(300+i*40,.1,'triangle',.11,360+i*40); if(Math.random()<.5)tone(900+Math.random()*500,.03,'sine',.05,undefined,.05); },
+    plop(){ tone(210,.1,'sine',.16,80); },
+    undo(){ tone(500,.06,'triangle',.1,320); },
+    garnish(){ noise(.09,.12,0,1800); tone(1200,.06,'sine',.07,undefined,.1); noise(.1,.12,.2,1600); },
+    perfect(){ [523,659,784,1047].forEach((f,i)=>tone(f,.14,'square',.13,undefined,i*.07)); tone(1568,.25,'triangle',.1,undefined,.32); },
+    close(){ tone(523,.1,'square',.12); tone(659,.16,'square',.12,undefined,.1); },
+    off(){ tone(330,.2,'square',.11,262); },
+    yikes(){ tone(220,.3,'sawtooth',.1,110); },
+    slosh(){ tone(700,.5,'sawtooth',.12,90); noise(.55,.22,.08,700); [0,.12,.22,.3,.42].forEach((d,i)=>tone(180-i*20,.09,'sine',.12,60,.15+d)); },
+    coin(){ tone(1200,.07,'square',.1); tone(1600,.12,'square',.1,undefined,.07); },
+    bigcoin(){ [880,1175,1568].forEach((f,i)=>tone(f,.1,'square',.11,undefined,i*.06)); },
+    heart(){ tone(1319,.09,'sine',.12); tone(1760,.16,'sine',.12,undefined,.08); },
+    page(){ noise(.08,.1,0,3200); },
+    post(){ [659,880,1109].forEach((f,i)=>tone(f,.12,'triangle',.11,undefined,i*.08)); },
+    unlock(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,.16,'triangle',.13,undefined,i*.09)); },
+    buy(){ tone(700,.05,'square',.1); tone(940,.08,'square',.1,undefined,.05); },
+    bell(){ tone(1568,.4,'triangle',.14); tone(2093,.6,'triangle',.1,undefined,.12); },
+    denied(){ tone(200,.12,'square',.1,150); },
+    meow(){ /* reserved for Tonko heart-moments */
+      tone(760,.16,'triangle',.16,980);
+      tone(980,.24,'triangle',.15,430,.14);
+    },
+  };
+  return { ...S,
+    get muted(){return muted;},
+    get context(){ return ensure()? ctx : null; },
+    toggle(){ muted=!muted; if(!muted){ensure(); S.click();} return muted; },
+    ensure };
+})();
+
+/* =====================================================================
+   MUSIC — Ramen Cat's own audio identity (house rule): a synthesized
+   lo-fi "kitchen radio" loop. Slow pentatonic melody over a warm bass,
+   brushed-noise offbeats like a simmering pot. No files. Own 🎵 toggle,
+   persisted (localStorage behind try/catch, degrades to memory).
+   Scenes nudge it: morning = sparse, shop = full simmer, night = low.
+   ===================================================================== */
+const Music = (() => {
+  const pref=(()=>{ try{ return localStorage.getItem('ramencat.music'); }catch(e){ return null; } })();
+  let on = pref===null ? true : pref==='1';
+  let started=false, gain=null, timer=null, bar=0, scene='title';
+  const SCENES={ title:{den:.5,vol:.16}, morning:{den:.55,vol:.15}, day:{den:.85,vol:.18},
+                 evening:{den:.6,vol:.15}, night:{den:.4,vol:.12} };
+  /* C-major pentatonic, warm register; I-vi-IV-V feel in the bass */
+  const PENT=[261.63,293.66,329.63,392.0,440.0,523.25];
+  const BASS=[130.81,110.0,87.31,98.0];
+  const BPM=76, BEAT=60/BPM, BAR=BEAT*4;
+  function note(ctx,t,f,dur,type,vol){
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type; o.frequency.value=f;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+.03);
+    g.gain.exponentialRampToValueAtTime(.0006,t+dur);
+    o.connect(g); g.connect(gain); o.start(t); o.stop(t+dur+.05);
+  }
+  function brush(ctx,t){
+    const n=Math.floor(ctx.sampleRate*.05), b=ctx.createBuffer(1,n,ctx.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n)*.5;
+    const s=ctx.createBufferSource(); s.buffer=b;
+    const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=4000;
+    const g=ctx.createGain(); g.gain.value=.05;
+    s.connect(f); f.connect(g); g.connect(gain); s.start(t);
+  }
+  function rng(n){ /* deterministic per bar — no Math.random melodies drifting off-vibe */
+    let x=(n*2654435761)>>>0; x^=x>>13; x=Math.imul(x,1597334677); x^=x>>16; return (x>>>0)/4294967296;
+  }
+  function scheduleBar(){
+    const ctx=Sound.context; if(!ctx||!gain) return;
+    const t0=Math.max(ctx.currentTime+.05, scheduleBar.next||0);
+    scheduleBar.next=t0+BAR;
+    const sc=SCENES[scene]||SCENES.title;
+    gain.gain.setTargetAtTime((on&&!Sound.muted&&!document.hidden)?sc.vol:0, t0, .4);
+    const root=BASS[bar%4];
+    note(ctx,t0,root,BEAT*1.9,'sine',.5);
+    note(ctx,t0+BEAT*2,root*(bar%8<4?1.5:1),BEAT*1.9,'sine',.42);
+    for(let b8=0;b8<8;b8++){
+      const r=rng(bar*8+b8);
+      if(b8%2===1 && r<.8) brush(ctx,t0+b8*BEAT/2);
+      if(r<sc.den*.7){
+        const f=PENT[Math.floor(rng(bar*80+b8*7)*PENT.length)];
+        note(ctx,t0+b8*BEAT/2, f, BEAT*(r<.2?1.4:.7), 'triangle', .16+r*.08);
+      }
+    }
+    if(bar%4===3 && rng(bar)<.6) note(ctx,t0+BEAT*3.5,PENT[0]*2,BEAT,'sine',.09);
+    bar++;
+    timer=setTimeout(scheduleBar,(scheduleBar.next-ctx.currentTime-.35)*1000);
+  }
+  function start(){
+    if(started) return;
+    const ctx=Sound.context; if(!ctx) return;
+    started=true;
+    gain=ctx.createGain(); gain.gain.value=0; gain.connect(ctx.destination);
+    scheduleBar.next=0; scheduleBar();
+  }
+  function refresh(){ const ctx=started&&Sound.context;
+    if(ctx&&gain){ const sc=SCENES[scene]||SCENES.title;
+      gain.gain.setTargetAtTime((on&&!Sound.muted&&!document.hidden)?sc.vol:0, ctx.currentTime, .3); } }
+  if(typeof document!=='undefined') document.addEventListener('visibilitychange', refresh);
+  return {
+    get on(){return on;},
+    start, refresh,
+    setScene(s){ scene=s; refresh(); },
+    toggle(){ on=!on; try{ localStorage.setItem('ramencat.music', on?'1':'0'); }catch(e){}
+      if(on&&!started) start(); refresh(); return on; },
+  };
+})();
+/* =====================================================================
+   UI — everything below touches the DOM. Engine stays pure above.
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmt$ = Engine.fmt$;
+
+function toast(msg, ms){
+  const t=$('toast'); t.innerHTML=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), ms||2100);
+}
+function floatText(xy, text, color){
+  const f=document.createElement('div');
+  f.className='floatup'; f.textContent=text;
+  f.style.left=xy.x+'px'; f.style.top=xy.y+'px'; f.style.color=color||PAL.gold;
+  document.body.appendChild(f); setTimeout(()=>f.remove(),1050);
+}
+function centerOf(elm){ const r=elm.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
+function animateNum(elm, to, ms, fmt){
+  const from = elm._val||0; const t0=performance.now(); fmt=fmt||(v=>Math.round(v));
+  elm._val=to;
+  (function tick(now){
+    const p=Math.min(1,(now-t0)/(ms||500)), e=1-Math.pow(1-p,3);
+    elm.textContent=fmt(from+(to-from)*e);
+    if(p<1) requestAnimationFrame(tick);
+  })(t0);
+}
+function popCash(){
+  const p=$('cashpill'); p.textContent=fmt$(G.cashc);
+  p.classList.remove('pop'); void p.offsetWidth; p.classList.add('pop');
+}
+function shakeBody(){ if(RM){document.body.classList.add('flashonly');setTimeout(()=>document.body.classList.remove('flashonly'),320);}
+  else {document.body.classList.add('dayshake');setTimeout(()=>document.body.classList.remove('dayshake'),380);} }
+
+/* ---------------- FX: one shared particle canvas ---------------- */
+const FX = (() => {
+  const cv=$('fxcanvas'), cx=cv.getContext('2d');
+  let parts=[], running=false;
+  function fit(){ cv.width=innerWidth; cv.height=innerHeight; }
+  addEventListener('resize', fit); fit();
+  function run(){
+    if(running)return; running=true;
+    (function loop(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      parts=parts.filter(p=>p.life>0);
+      if(!parts.length){ running=false; return; }
+      for(const p of parts){
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life--;
+        if(p.floorY && p.y>p.floorY && p.vy>0){ p.y=p.floorY; p.vy*=-0.45; p.vx*=0.7; if(Math.abs(p.vy)<0.4)p.vy=0; }
+        cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot);
+        cx.globalAlpha=Math.min(1,p.life/22);
+        cx.fillStyle=p.color;
+        if(p.shape==='circle'){ cx.beginPath(); cx.arc(0,0,p.r,0,7); cx.fill();
+          cx.fillStyle='rgba(255,255,255,.35)'; cx.fillRect(-p.r*.4,-p.r*.5,p.r*.5,p.r*.5); }
+        else if(p.shape==='noodle'){ cx.fillRect(-p.r*2.6,-1.4,p.r*5.2,2.8); }
+        else if(p.shape==='heart'){ cx.font=(p.r*3|0)+'px "Pixelify Sans"'; cx.fillText('♥',-p.r,p.r); }
+        else cx.fillRect(-p.r,-p.r,p.r*2,p.r*2);
+        cx.restore();
+      }
+      requestAnimationFrame(loop);
+    })();
+  }
+  function burst(x,y,colors,n,opt){
+    if(RM) n=Math.min(6,n);
+    opt=opt||{};
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, sp=(opt.speed||3)*(0.4+Math.random());
+      parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-(opt.up||2),g:opt.g??0.14,
+        r:2+Math.random()*3,color:colors[i%colors.length],shape:opt.shape||'rect',
+        life:36+Math.random()*22,rot:Math.random()*6,vr:(Math.random()-.5)*.3,floorY:opt.floorY});
+    }
+    run();
+  }
+  /* the soup crime: broth drops + noodle strands slap the counter */
+  function slosh(rect){
+    const x=rect.left+rect.width/2, y=rect.top+rect.height*0.3, floorY=rect.top+rect.height-10;
+    for(let i=0;i<(RM?8:36);i++){
+      const noodle=i%3===0;
+      parts.push({x:x+(Math.random()-.5)*40, y,
+        vx:(Math.random()-.5)*7, vy:-(4.5+Math.random()*5.5), g:0.34,
+        r:noodle?2.6:2+Math.random()*2.4,
+        color:noodle?PAL.gold:(i%4===1?PAL.danger:PAL.amber),
+        shape:noodle?'noodle':(i%4===2?'circle':'rect'), life:110+Math.random()*40,
+        rot:Math.random()*3,vr:(Math.random()-.5)*.4, floorY:floorY+Math.random()*26});
+    }
+    run();
+  }
+  function hearts(x,y,n){
+    for(let i=0;i<n;i++)
+      parts.push({x:x+(Math.random()-.5)*30,y:y+(Math.random()-.5)*10,
+        vx:(Math.random()-.5)*1.2,vy:-1.6-Math.random()*1.4,g:-0.01,
+        r:4+Math.random()*3,color:i%2?PAL.rose:PAL.pink,shape:'heart',
+        life:60+Math.random()*30,rot:0,vr:(Math.random()-.5)*.1});
+    run();
+  }
+  return { burst, slosh, hearts };
+})();
+
+/* ---------------- pixel portrait painter ----------------
+   Parametric 16x16 faces + shoulders on an 18x22 canvas. One style,
+   one palette, hand-tuned per character. Expressions: n / h / s. */
+const Portrait = (() => {
+  const SK={dex:'#ab947a', petro:PAL.paper, marm:PAL.gold2, twins:'#966c6c',
+            glizz:PAL.pale, town1:PAL.paper2, town2:'#966c6c'};
+  function painter(cx){
+    return {
+      px:(x,y,c)=>{cx.fillStyle=c;cx.fillRect(x,y,1,1);},
+      rc:(x,y,w,h,c)=>{cx.fillStyle=c;cx.fillRect(x,y,w,h);},
+    };
+  }
+  function head(p,skin,ox){ /* 10-wide head at col ox..ox+9, rows 2..13 */
+    p.rc(ox,3,10,10,skin);
+    p.rc(ox+1,2,8,1,skin);
+    p.rc(ox+1,13,8,1,skin);
+    p.rc(ox+1,1,8,1,PAL.ink); p.rc(ox-1,3,1,10,PAL.ink); p.rc(ox+10,3,1,10,PAL.ink);
+    p.px(ox,2,PAL.ink); p.px(ox+9,2,PAL.ink);
+    p.rc(ox+1,14,8,1,PAL.ink); p.px(ox,13,PAL.ink); p.px(ox+9,13,PAL.ink);
+  }
+  function eyes(p,expr,blink,ox,ecol){
+    const L=ox+2,Rr=ox+7,y=7; ecol=ecol||PAL.ink;
+    if(blink){ p.rc(L,y+1,2,1,ecol); p.rc(Rr,y+1,2,1,ecol); return; }
+    if(expr==='h'){ p.px(L,y,ecol);p.px(L+1,y-1,ecol);p.px(L-1,y,ecol); p.px(Rr,y-1,ecol);p.px(Rr+1,y,ecol);p.px(Rr-1,y,ecol); }
+    else if(expr==='s'){ p.rc(L-1,y-1,3,3,PAL.cream); p.px(L,y,ecol); p.rc(Rr,y-1,3,3,PAL.cream); p.px(Rr+1,y,ecol); }
+    else { p.rc(L,y,2,2,ecol); p.rc(Rr,y,2,2,ecol); }
+  }
+  function mouth(p,expr,ox){
+    const m=ox+4;
+    if(expr==='h'){ p.px(m-1,10,PAL.ink); p.rc(m,11,2,1,PAL.ink); p.px(m+2,10,PAL.ink); }
+    else if(expr==='s'){ p.rc(m,10,2,2,PAL.ink); p.px(m,11,PAL.wooddk); }
+    else p.rc(m,11,2,1,PAL.ink);
+  }
+  const draw={
+    dex(p,e,b){ head(p,SK.dex,3);
+      p.rc(3,1,10,3,PAL.green); p.rc(4,0,8,1,PAL.ink); p.rc(3,2,10,1,PAL.leaf);
+      p.rc(2,1,1,3,PAL.ink); p.rc(13,1,1,3,PAL.ink); p.rc(3,4,10,1,PAL.green);
+      eyes(p,e,b,3); mouth(p,e,3);
+      p.rc(11,9,2,2,PAL.cream); p.px(11,9,PAL.pale); /* band-aid */
+    },
+    petro(p,e,b){ head(p,SK.petro,3);
+      p.rc(5,0,6,2,PAL.pale); p.rc(4,1,8,1,PAL.pale); p.rc(3,2,10,2,PAL.pale);
+      p.rc(6,0,4,1,PAL.mauve);
+      eyes(p,e,b,3);
+      p.rc(4,6,3,1,PAL.ink);p.rc(4,9,3,1,PAL.ink);p.px(4,7,PAL.ink);p.px(4,8,PAL.ink);p.px(6,7,PAL.ink);p.px(6,8,PAL.ink);
+      p.rc(9,6,3,1,PAL.ink);p.rc(9,9,3,1,PAL.ink);p.px(9,7,PAL.ink);p.px(9,8,PAL.ink);p.px(11,7,PAL.ink);p.px(11,8,PAL.ink);
+      p.px(7,7,PAL.ink);p.px(8,7,PAL.ink);
+      mouth(p,e,3);
+      p.px(4,10,PAL.pink); p.px(11,10,PAL.pink);
+    },
+    marm(p,e,b){ /* corgi officer */
+      p.rc(2,1,3,3,PAL.gold2); p.rc(11,1,3,3,PAL.gold2);
+      p.px(2,1,PAL.ink);p.px(4,1,PAL.ink);p.px(11,1,PAL.ink);p.px(13,1,PAL.ink);
+      p.px(3,2,PAL.paper2); p.px(12,2,PAL.paper2);
+      head(p,SK.marm,3);
+      p.rc(4,2,8,2,PAL.navy); p.rc(3,4,10,1,PAL.navy); p.px(7,3,PAL.gold); p.px(8,3,PAL.gold);
+      p.rc(5,8,6,5,PAL.cream); p.rc(6,13,4,1,PAL.cream);
+      eyes(p,e,b,3);
+      p.rc(7,8,2,2,PAL.ink);
+      if(e==='h'){ p.rc(7,11,2,2,PAL.rose); p.px(6,10,PAL.ink); p.px(9,10,PAL.ink); }
+      else if(e==='s'){ p.rc(7,11,2,1,PAL.ink); }
+      else p.rc(6,11,4,1,PAL.ink);
+    },
+    twins(p,e,b){ /* two 7px heads: Mia left, Mio right */
+      for(const [ox,hair] of [[1,PAL.rose],[8,PAL.blue]]){
+        p.rc(ox,4,7,8,SK.twins);
+        p.rc(ox,3,7,1,PAL.ink); p.rc(ox-1,4,1,8,PAL.ink); p.rc(ox+7,4,1,8,PAL.ink); p.rc(ox,12,7,1,PAL.ink);
+        if(ox===1){ p.rc(ox,4,7,2,PAL.ink2); p.rc(ox-1,5,1,4,hair); p.rc(ox+7,5,1,4,hair); }
+        else { p.rc(ox,4,7,2,hair); p.px(ox+6,5,PAL.sky); }
+        const ey=8;
+        if(b){ p.rc(ox+1,ey,2,1,PAL.ink); p.rc(ox+4,ey,2,1,PAL.ink); }
+        else if(e==='h'){ p.px(ox+1,ey-1,PAL.ink);p.px(ox+2,ey,PAL.ink); p.px(ox+4,ey,PAL.ink);p.px(ox+5,ey-1,PAL.ink); }
+        else if(e==='s'){ p.rc(ox+1,ey-1,2,2,PAL.cream);p.px(ox+1,ey,PAL.ink); p.rc(ox+4,ey-1,2,2,PAL.cream);p.px(ox+5,ey,PAL.ink); }
+        else { p.rc(ox+1,ey,2,2,PAL.ink); p.rc(ox+4,ey,2,2,PAL.ink); }
+        if(e==='s') p.rc(ox+3,10,1,2,PAL.ink);
+        else if(e==='h'){p.px(ox+2,10,PAL.ink);p.px(ox+3,11,PAL.ink);p.px(ox+4,10,PAL.ink);}
+        else p.rc(ox+2,11,3,1,PAL.ink);
+      }
+    },
+    glizz(p,e,b){ head(p,SK.glizz,3);
+      /* noodle-cup hat */
+      p.rc(5,0,6,3,PAL.danger); p.rc(5,0,6,1,PAL.cream); p.rc(4,3,8,1,PAL.dangerdk);
+      p.px(11,0,PAL.sky);
+      p.rc(4,5,3,1,PAL.plum); p.rc(9,5,3,1,PAL.plum); /* brows */
+      if(e==='s'){ eyes(p,'s',b,3); }
+      else { p.rc(5,7,2,1,PAL.ink); p.rc(10,7,2,1,PAL.ink); }
+      if(e==='h'){ p.rc(6,10,4,1,PAL.ink); p.px(10,9,PAL.ink); }
+      else if(e==='s') p.rc(7,10,2,2,PAL.ink);
+      else { p.rc(6,11,4,1,PAL.ink); p.px(10,10,PAL.ink); }
+    },
+    town1(p,e,b){ head(p,SK.town1,3);
+      p.rc(3,1,10,2,PAL.ink2); p.rc(2,2,2,4,PAL.ink2); p.rc(12,2,2,5,PAL.ink2);
+      eyes(p,e,b,3); mouth(p,e,3); p.px(4,9,PAL.pink); p.px(11,9,PAL.pink);
+    },
+    town2(p,e,b){ head(p,SK.town2,3);
+      p.rc(3,1,10,2,PAL.olive); p.rc(2,2,2,10,PAL.olive); p.rc(12,2,2,10,PAL.olive);
+      p.rc(3,3,10,1,'#676633');
+      eyes(p,e,b,3); mouth(p,e,3);
+    },
+  };
+  function render(cv, charId, expr, blink){
+    cv.width=18; cv.height=22;
+    const cx=cv.getContext('2d'); cx.clearRect(0,0,18,22);
+    cx.save(); cx.translate(1,0);
+    const p=painter(cx);
+    const shirt=(CHARS[charId]&&CHARS[charId].shirt)||PAL.blue;
+    p.rc(2,16,12,5,shirt); p.rc(1,17,14,4,shirt);
+    p.rc(0,17,1,4,PAL.ink); p.rc(15,17,1,4,PAL.ink); p.rc(2,15,12,1,PAL.ink);
+    p.rc(1,16,1,1,PAL.ink); p.rc(14,16,1,1,PAL.ink);
+    p.rc(6,15,4,2,SK[charId]||PAL.paper);
+    (draw[charId]||draw.town1)(p, expr||'n', !!blink);
+    cx.restore();
+  }
+  return { render };
+})();
+
+/* ---------------- TONKO painter — the charm budget ----------------
+   28x21 canvas. Half-lidded by default (he is judging you). */
+const Cat = (() => {
+  function render(cv, o){
+    o=o||{};
+    cv.width=28; cv.height=21;
+    const cx=cv.getContext('2d');
+    const px=(x,y,c)=>{cx.fillStyle=c;cx.fillRect(x,y,1,1);};
+    const rc=(x,y,w,h,c)=>{cx.fillStyle=c;cx.fillRect(x,y,w,h);};
+    cx.clearRect(0,0,28,21);
+    const O=PAL.gold2, D=PAL.tang, C=PAL.paper;
+    /* cushion (upgrade) */
+    if(o.cushion){ rc(3,18,22,3,PAL.rose); rc(2,19,24,2,PAL.dangerdk); rc(4,18,20,1,PAL.pink); }
+    const gy = o.cushion? -1 : 0; /* lift him slightly on the cushion */
+    cx.save(); cx.translate(0,gy);
+    /* tail: 3 flick phases */
+    const t=o.tail||0;
+    if(t===0){ rc(20,12,6,2,O); rc(25,8,2,5,O); px(25,7,D); }
+    else if(t===1){ rc(20,13,7,2,O); px(26,12,O); px(26,11,D); }
+    else { rc(20,14,7,2,O); rc(26,15,1,2,D); }
+    /* body (loaf-ish) */
+    rc(7,10,14,9,O); rc(6,12,16,7,O); rc(8,9,12,1,O);
+    rc(6,19,16,1,PAL.ink); rc(5,13,1,6,PAL.ink); rc(22,13,1,6,PAL.ink);
+    rc(10,14,8,5,C); /* chest */
+    rc(8,11,12,1,D); rc(7,13,2,1,D); rc(19,13,2,1,D); /* stripes */
+    /* paws */
+    rc(9,17,3,2,C); rc(15,17,3,2,C); px(10,18,PAL.paper2); px(16,18,PAL.paper2);
+    /* head */
+    rc(8,2,12,9,O); rc(7,4,14,6,O);
+    /* ears */
+    px(8,1,O); px(9,1,O); rc(8,0,1,1,PAL.ink); px(18,1,O); px(19,1,O); px(19,0,PAL.ink);
+    px(9,2,PAL.pink); px(18,2,PAL.pink);
+    /* head outline hints */
+    rc(7,2,1,1,PAL.ink); rc(20,2,1,1,PAL.ink);
+    rc(9,3,10,1,D); /* head stripe */
+    /* muzzle */
+    rc(11,7,6,4,C);
+    px(13,7,PAL.pink); px(14,7,PAL.pink); /* nose */
+    /* eyes by expression */
+    const e=o.expr||'j';
+    if(o.blink){ rc(9,6,3,1,PAL.ink); rc(16,6,3,1,PAL.ink); }
+    else if(e==='j'){ /* judging: half-lidded */
+      rc(9,5,3,1,PAL.ink2); rc(16,5,3,1,PAL.ink2);
+      rc(9,6,3,1,PAL.ink); rc(16,6,3,1,PAL.ink);
+    } else if(e==='h'){ px(9,6,PAL.ink);px(10,5,PAL.ink);px(11,6,PAL.ink); px(16,6,PAL.ink);px(17,5,PAL.ink);px(18,6,PAL.ink); }
+    else if(e==='s'){ rc(9,5,3,2,PAL.cream); px(10,6,PAL.ink); rc(16,5,3,2,PAL.cream); px(17,6,PAL.ink); }
+    else if(e==='l'){ px(9,5,PAL.rose);px(10,6,PAL.rose);px(11,5,PAL.rose); px(16,5,PAL.rose);px(17,6,PAL.rose);px(18,5,PAL.rose); }
+    else { rc(9,5,2,2,PAL.ink); rc(17,5,2,2,PAL.ink); }
+    /* mouth */
+    if(e==='s') rc(13,9,2,1,PAL.ink); else { px(13,9,PAL.ink); px(14,9,PAL.ink); }
+    /* whiskers */
+    rc(4,7,3,1,'rgba(255,255,255,.75)'); rc(21,7,3,1,'rgba(255,255,255,.75)');
+    cx.restore();
+  }
+  return { render };
+})();
+
+/* ---------------- stockpot (idle steam, stage-left) ---------------- */
+const Pot = (() => {
+  let wisps=[{y:8,x:8},{y:4,x:13},{y:11,x:11}];
+  function render(cv){
+    cv.width=24; cv.height=21;
+    const cx=cv.getContext('2d');
+    const rc=(x,y,w,h,c)=>{cx.fillStyle=c;cx.fillRect(x,y,w,h);};
+    cx.clearRect(0,0,24,21);
+    /* steam */
+    for(const w of wisps){
+      w.y-=0.5; if(w.y<0){ w.y=12; w.x=7+Math.random()*9; }
+      cx.globalAlpha=Math.max(0,w.y/14);
+      rc(w.x+Math.sin(w.y)*1.5,w.y,2,2,PAL.pale);
+    }
+    cx.globalAlpha=1;
+    /* pot */
+    rc(3,13,18,7,PAL.plum); rc(2,12,20,2,PAL.ink); rc(3,19,18,1,PAL.ink);
+    rc(2,14,1,5,PAL.ink); rc(21,14,1,5,PAL.ink);
+    rc(4,15,16,1,PAL.mauve);
+    rc(10,11,4,1,PAL.ink); /* lid handle */
+    rc(4,13,16,1,PAL.amber); /* broth glow at rim */
+  }
+  return { render };
+})();
+
+/* ---------------- bowl renderer (cutaway side view) ---------------- */
+const Bowl = (() => {
+  const cv=$('bowlcanvas'), cx=cv.getContext('2d');
+  const ST={ size:'R', stack:[], ghost:null, drop:null, bubbles:[], steam:[], topColor:PAL.chashu };
+  const geom = () => ST.size==='R'
+    ? {x0:24,x1:64,yBot:60,band:4}
+    : {x0:14,x1:74,yBot:60,band:3};
+  const capN = () => CAP[ST.size];
+  const yTopCap = g => g.yBot - capN()*g.band;
+
+  function counts(){ const c={noodles:0,broth:0,topping:0,tare:0,oil:0}; for(const k of ST.stack)c[k]++; return c; }
+  function ordered(){ /* physical truth: noodles sink; toppings float; oil floats highest */
+    const c=counts();
+    const mid=ST.stack.filter(k=>k==='broth'||k==='tare');
+    return [...Array(c.noodles).fill('noodles'), ...mid,
+            ...Array(c.topping).fill('topping'), ...Array(c.oil).fill('oil')];
+  }
+  function layerColor(k){ return k==='topping' ? ST.topColor : ING[k].color; }
+  function pat(k,x0,w,yTop,h){
+    if(k==='noodles'){
+      cx.fillStyle='rgba(46,34,47,.28)';
+      for(let y=yTop+1;y<yTop+h;y+=3)
+        for(let x=x0+1;x<x0+w-1;x+=4) cx.fillRect(x+((y%6)?2:0),y,3,1);
+      cx.fillStyle='rgba(255,255,255,.35)';
+      for(let x=x0+3;x<x0+w-2;x+=8) cx.fillRect(x,yTop+1,2,1);
+    } else if(k==='topping'){
+      cx.fillStyle='rgba(46,34,47,.3)';
+      for(let x=x0+2;x<x0+w-3;x+=6) for(let y=yTop+1;y<yTop+h-1;y+=3) cx.fillRect(x+((y%6)?1:0),y,3,1);
+      cx.fillStyle='rgba(255,255,255,.3)';
+      for(let x=x0+2;x<x0+w-3;x+=6) cx.fillRect(x,yTop+1,1,1);
+    } else if(k==='tare'){
+      cx.fillStyle='rgba(255,255,255,.22)';
+      for(let x=x0-10;x<x0+w;x+=5){ for(let d=0;d<h;d++){ const xx=x+d; if(xx>=x0+1&&xx<x0+w-1) cx.fillRect(xx,yTop+d,2,1); } }
+    } else if(k==='oil'){
+      cx.fillStyle=PAL.tang;
+      for(let x=x0+2;x<x0+w-2;x+=5) cx.fillRect(x,yTop+1,2,2);
+      cx.fillStyle='rgba(255,255,255,.4)';
+      for(let x=x0+4;x<x0+w-2;x+=10) cx.fillRect(x,yTop+1,1,1);
+    } else { /* broth: plain with a darker settle line */
+      cx.fillStyle='rgba(46,34,47,.12)'; cx.fillRect(x0+1,yTop+h-1,w-2,1);
+    }
+  }
+  function drawRuns(seq, alpha){
+    const g=geom(), w=g.x1-g.x0;
+    let y=g.yBot, i=0;
+    cx.globalAlpha=alpha;
+    while(i<seq.length){
+      let j=i; while(j<seq.length && seq[j]===seq[i]) j++;
+      const n=j-i, h=n*g.band, yTop=y-h;
+      cx.fillStyle=layerColor(seq[i]); cx.fillRect(g.x0,yTop,w,h);
+      if(alpha===1) pat(seq[i],g.x0,w,yTop,h);
+      y=yTop; i=j;
+    }
+    /* faint unit separators */
+    if(alpha===1 && seq.length){
+      cx.fillStyle='rgba(46,34,47,.12)';
+      for(let u=1;u<seq.length;u++) cx.fillRect(g.x0+2,g.yBot-u*g.band,w-4,1);
+      cx.fillStyle='rgba(255,255,255,.4)'; cx.fillRect(g.x0,g.yBot-seq.length*g.band,w,1);
+    }
+    cx.globalAlpha=1;
+  }
+  function draw(){
+    cx.clearRect(0,0,88,80);
+    const g=geom(), w=g.x1-g.x0, yCap=yTopCap(g);
+    /* ceramic behind interior */
+    cx.fillStyle='rgba(199,220,208,.14)'; cx.fillRect(g.x0,yCap,w,g.yBot-yCap);
+    /* ghost bands (recipe order) */
+    if(ST.ghost){
+      const seq2=[...Array(ST.ghost.noodles||0).fill('noodles'),
+                  ...Array(ST.ghost.broth||0).fill('broth'),
+                  ...Array(ST.ghost.tare||0).fill('tare'),
+                  ...Array(ST.ghost.topping||0).fill('topping'),
+                  ...Array(ST.ghost.oil||0).fill('oil')];
+      drawRuns(seq2,.3);
+      if(seq2.length){
+        cx.fillStyle=PAL.ink2; const yT=g.yBot-seq2.length*geom().band;
+        for(let x=g.x0;x<g.x1;x+=3) cx.fillRect(x,yT,2,1);
+      }
+    }
+    /* contents */
+    drawRuns(ordered(),1);
+    /* bowl walls (cutaway sides) */
+    cx.fillStyle=PAL.cream;
+    cx.fillRect(g.x0-4,yCap-1,4,g.yBot-yCap+3); cx.fillRect(g.x1,yCap-1,4,g.yBot-yCap+3);
+    cx.fillStyle=PAL.navy; /* ceramic stripe */
+    cx.fillRect(g.x0-4,yCap+6,4,3); cx.fillRect(g.x1,yCap+6,4,3);
+    cx.fillStyle=PAL.ink;
+    cx.fillRect(g.x0-5,yCap-3,5,2); cx.fillRect(g.x1,yCap-3,5,2);          /* rim lip */
+    cx.fillRect(g.x0-6,yCap-1,2,g.yBot-yCap+4); cx.fillRect(g.x1+4,yCap-1,2,g.yBot-yCap+4);
+    /* bottom + foot */
+    cx.fillStyle=PAL.cream; cx.fillRect(g.x0-2,g.yBot,w+4,3);
+    cx.fillStyle=PAL.ink; cx.fillRect(g.x0-4,g.yBot+3,w+8,2);
+    cx.fillRect(36,g.yBot+5,16,3); cx.fillStyle=PAL.ink; cx.fillRect(34,g.yBot+8,20,2);
+    /* capacity ticks */
+    cx.fillStyle='rgba(127,112,138,.65)';
+    for(let i=1;i<capN();i++){ const y=g.yBot-i*g.band; cx.fillRect(g.x1+1,y,3,1); }
+    cx.fillStyle=PAL.mauve; cx.fillRect(g.x0-9,yCap,3,1); cx.fillRect(g.x1+6,yCap,3,1); /* the line */
+    /* falling ladle blob */
+    if(ST.drop){
+      cx.fillStyle=ST.drop.color;
+      cx.fillRect(42,ST.drop.y,4,7);
+    }
+    /* bubbles in liquid */
+    cx.fillStyle='rgba(255,255,255,.5)';
+    for(const b of ST.bubbles) cx.fillRect(b.x,b.y,2,2);
+    /* steam wisps above surface */
+    for(const s of ST.steam){
+      cx.globalAlpha=Math.max(0,s.life/26);
+      cx.fillStyle=PAL.pale;
+      cx.fillRect(s.x+Math.sin(s.y*.4)*2,s.y,2,2);
+    }
+    cx.globalAlpha=1;
+  }
+  let raf=null;
+  function animLoop(){
+    let live=false;
+    const g=geom();
+    if(ST.drop){ ST.drop.y+=6; if(ST.drop.y>=ST.drop.until){ST.drop=null;} live=true; }
+    ST.bubbles=ST.bubbles.filter(b=>(b.y-=1.2)>b.min);
+    if(ST.bubbles.length) live=true;
+    for(const s of ST.steam){ s.y-=0.7; s.life--; }
+    ST.steam=ST.steam.filter(s=>s.life>0);
+    if(ST.steam.length) live=true;
+    draw();
+    raf = live? requestAnimationFrame(animLoop) : null;
+  }
+  function kick(){ if(!raf) raf=requestAnimationFrame(animLoop); }
+  function puffSteam(n){
+    const g=geom(); const surf=g.yBot-ST.stack.length*g.band;
+    for(let i=0;i<n;i++) ST.steam.push({x:g.x0+4+Math.random()*(g.x1-g.x0-8), y:surf-3-Math.random()*3, life:20+Math.random()*10});
+    kick();
+  }
+  return {
+    get state(){return ST;},
+    reset(size, ghost, topColor){
+      ST.size=size; ST.stack=[]; ST.ghost=ghost||null;
+      ST.topColor=topColor||PAL.chashu; ST.drop=null; ST.bubbles=[]; ST.steam=[]; draw();
+    },
+    pour(k){
+      const g=geom();
+      ST.stack.push(k);
+      const n=ST.stack.length;
+      ST.drop={ y:6, until:g.yBot-n*g.band-4, color:layerColor(k) };
+      for(let i=0;i<2;i++) ST.bubbles.push({x:g.x0+6+Math.random()*(g.x1-g.x0-12), y:g.yBot-4, min:g.yBot-n*g.band+2});
+      if(k==='broth'||ST.stack.length>2) puffSteam(1);
+      kick();
+    },
+    unpour(){ const k=ST.stack.pop(); draw(); return k; },
+    drain(done){ /* soup-crime empty-out */
+      const iv=setInterval(()=>{
+        ST.stack.splice(0,2); draw();
+        if(!ST.stack.length){ clearInterval(iv); done&&done(); }
+      },40);
+    },
+    fill(){ return ST.stack.length; },
+    puffSteam, counts, draw,
+  };
+})();
+
+/* ---------------- sky window + sun arc ---------------- */
+const Sky = (() => {
+  const cv=$('skywin'), cx=cv.getContext('2d');
+  const KEY=[
+    {t:0,  top:[143,211,255], bot:[253,203,176]},
+    {t:.45,top:[77,155,230],  bot:[143,211,255]},
+    {t:.78,top:[247,150,23],  bot:[240,79,120]},
+    {t:1,  top:[144,94,169],  bot:[72,74,119]},
+  ];
+  const lerp=(a,b,p)=>a+(b-a)*p;
+  const mix=(c1,c2,p)=>`rgb(${Math.round(lerp(c1[0],c2[0],p))},${Math.round(lerp(c1[1],c2[1],p))},${Math.round(lerp(c1[2],c2[2],p))})`;
+  function skyAt(t){
+    let a=KEY[0],b=KEY[KEY.length-1];
+    for(let i=0;i<KEY.length-1;i++) if(t>=KEY[i].t&&t<=KEY[i+1].t){a=KEY[i];b=KEY[i+1];break;}
+    const p=(t-a.t)/Math.max(.0001,b.t-a.t);
+    return {top:mix(a.top,b.top,p), bot:mix(a.bot,b.bot,p)};
+  }
+  function draw(t, day, lanterns){
+    const W=cv.width,H=cv.height;
+    const s=skyAt(t);
+    const gr=cx.createLinearGradient(0,0,0,H);
+    gr.addColorStop(0,s.top); gr.addColorStop(1,s.bot);
+    cx.fillStyle=gr; cx.fillRect(0,0,W,H);
+    /* sun */
+    const sx=14+(W-28)*t, sy=H*0.62-Math.sin(t*Math.PI)*H*0.42;
+    cx.fillStyle=t>.7?PAL.gold2:PAL.gold;
+    cx.fillRect(sx-5,sy-5,10,10); cx.fillRect(sx-7,sy-2,14,4); cx.fillRect(sx-2,sy-7,4,14);
+    /* drifting cloud */
+    cx.fillStyle='rgba(255,255,255,.65)';
+    const cxo=(t*80)%(W+40)-20;
+    cx.fillRect(cxo,16,26,5); cx.fillRect(cxo+5,12,14,5);
+    /* street across: NoodlZone */
+    cx.fillStyle=PAL.ink2; cx.fillRect(0,H-34,W,34);
+    cx.fillStyle='#3e3546'; cx.fillRect(8,H-52,66,52); cx.fillRect(W-70,H-46,62,46);
+    cx.fillStyle='rgba(249,194,43,.75)';
+    for(let x=14;x<64;x+=12) cx.fillRect(x,H-42,6,7);
+    if(day>=1){
+      cx.fillStyle=PAL.danger; cx.fillRect(W-64,H-40,52,14);
+      cx.fillStyle=PAL.cream; cx.font='10px "Pixelify Sans"'; cx.textBaseline='top';
+      cx.fillText('NOODL',W-59,H-38);
+      if(day>=5 && Math.floor(t*40)%2){ cx.fillStyle=PAL.gold; cx.font='8px "Pixelify Sans"'; cx.fillText('30% OFF',W-61,H-24); }
+    }
+    /* window frame */
+    cx.fillStyle=PAL.ink;
+    cx.fillRect(0,0,W,3); cx.fillRect(0,H-3,W,3); cx.fillRect(0,0,3,H); cx.fillRect(W-3,0,3,H);
+    cx.fillRect(Math.floor(W/2)-1,0,3,H); cx.fillRect(0,Math.floor(H/2)-14,W,3);
+    /* paper lanterns (upgrade) hang inside the frame */
+    if(lanterns){
+      for(const lx of [10, W-18]){
+        cx.fillStyle=PAL.ink; cx.fillRect(lx+3,3,1,4);
+        cx.fillStyle=PAL.danger; cx.fillRect(lx,7,8,9);
+        cx.fillStyle=PAL.gold; cx.fillRect(lx+1,9,6,5);
+        cx.fillStyle=PAL.ink; cx.fillRect(lx+2,16,4,2);
+      }
+    }
+  }
+  return { draw };
+})();
+
+/* ---------------- title bowl idle art ---------------- */
+(function titleBowl(){
+  const cv=$('title-bowl'); if(!cv)return;
+  const cx=cv.getContext('2d');
+  let t=0;
+  const wisps=[{x:34,y:26},{x:46,y:18},{x:56,y:30}];
+  function draw(){
+    t+=.03;
+    cx.clearRect(0,0,96,76);
+    const bob=Math.sin(t)*1.4;
+    /* steam */
+    for(const w of wisps){
+      w.y-=0.35; if(w.y<2){ w.y=30; w.x=30+Math.random()*32; }
+      cx.globalAlpha=Math.max(0,(w.y-2)/30);
+      cx.fillStyle=PAL.pale; cx.fillRect(w.x+Math.sin(w.y*.3)*3,w.y,3,3);
+    }
+    cx.globalAlpha=1;
+    cx.save(); cx.translate(0,bob);
+    /* bowl */
+    const x0=20,x1=72,yCap=36,yBot=60,w=x1-x0;
+    cx.fillStyle=PAL.amber; cx.fillRect(x0,yCap+2,w,yBot-yCap-2);
+    /* noodle coil peeking */
+    cx.fillStyle=PAL.gold;
+    for(let x=x0+4;x<x1-4;x+=7){ cx.fillRect(x,yCap+2,5,3); cx.fillRect(x+2,yCap+4,4,2); }
+    cx.fillStyle='rgba(46,34,47,.25)';
+    for(let x=x0+5;x<x1-4;x+=7) cx.fillRect(x,yCap+3,4,1);
+    /* egg half + chashu */
+    cx.fillStyle=PAL.cream; cx.fillRect(30,yCap,10,5); cx.fillStyle=PAL.gold; cx.fillRect(33,yCap+1,4,3);
+    cx.fillStyle=PAL.chashu; cx.fillRect(50,yCap,12,5); cx.fillStyle='rgba(255,255,255,.4)'; cx.fillRect(52,yCap+1,8,1);
+    /* walls */
+    cx.fillStyle=PAL.cream; cx.fillRect(x0-4,yCap-1,4,yBot-yCap+3); cx.fillRect(x1,yCap-1,4,yBot-yCap+3);
+    cx.fillStyle=PAL.navy; cx.fillRect(x0-4,yCap+8,4,4); cx.fillRect(x1,yCap+8,4,4);
+    cx.fillStyle=PAL.ink;
+    cx.fillRect(x0-5,yCap-3,5,2); cx.fillRect(x1,yCap-3,5,2);
+    cx.fillRect(x0-6,yCap-1,2,yBot-yCap+4); cx.fillRect(x1+4,yCap-1,2,yBot-yCap+4);
+    cx.fillStyle=PAL.cream; cx.fillRect(x0-2,yBot,w+4,3);
+    cx.fillStyle=PAL.ink; cx.fillRect(x0-4,yBot+3,w+8,2); cx.fillRect(38,yBot+5,18,3);
+    /* chopsticks */
+    cx.save(); cx.translate(64,6); cx.rotate(.5);
+    cx.fillStyle=PAL.wood2; cx.fillRect(0,0,3,30); cx.fillRect(6,-2,3,32);
+    cx.restore();
+    cx.restore();
+    /* Tonko sits beside the bowl, judging (blinks every ~3s) */
+    const catCv=document.createElement('canvas');
+    Cat.render(catCv,{tail:Math.floor(t*1.2)%3, blink:(Math.floor(t*10)%30)===0, expr:'j'});
+    cx.imageSmoothingEnabled=false;
+    cx.drawImage(catCv,2,52,22.4,16.8);
+    if(!$('scr-title').classList.contains('hidden')) requestAnimationFrame(draw);
+  }
+  draw();
+})();
+/* =====================================================================
+   GAME CONTROLLER — screens, day flow, builder, story beats.
+   ===================================================================== */
+let G = null;
+const UI = { gaugeMode:0, lastPoured:null, paused:false, catTail:0, catBlink:false };
+let D = null;   /* runtime day state */
+
+function newDayState(){
+  return { stats:{salesc:0,tipsc:0,spentc:0,served:0,perfect:0,crimes:0,heartGains:{},walkoffs:0},
+    queue:[], walkN:0, elapsed:0, lastT:0, running:false,
+    order:null, poured:null, orderAt:0, asked:false, busy:false,
+    lastcall:false, bonusUsed:false, marketLined:false, buys:0 };
+}
+function setChip(txt){ $('daychip').textContent = 'Day '+G.day+' · '+txt; }
+function showScreen(id){
+  for(const s of ['scr-title','scr-morning','scr-shop','scr-evening']) $(s).classList.add('hidden');
+  const sc=$(id); sc.classList.remove('hidden');
+  sc.classList.remove('screen'); void sc.offsetWidth; sc.classList.add('screen');
+  $('hud').classList.toggle('hidden', id==='scr-title');
+}
+function sayCust(who, text, tonko){
+  const b=$('bubble');
+  $('bubwho').textContent=who; $('bubtext').textContent=text;
+  b.classList.toggle('tonko', !!tonko);
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+}
+function hideBubble(){ $('bubble').classList.remove('show'); }
+let tonkoTimer=null;
+function tonkoSays(text, ms, keep){
+  const prev = keep ? null : {who:$('bubwho').textContent, text:$('bubtext').textContent,
+    wasTonko:$('bubble').classList.contains('tonko'), shown:$('bubble').classList.contains('show')};
+  sayCust('Tonko', text, true);
+  clearTimeout(tonkoTimer);
+  tonkoTimer=setTimeout(()=>{
+    if(prev && prev.shown && D && D.order && !D.order.cutscene) sayCust(prev.who, prev.text, prev.wasTonko);
+    else if(!keep) hideBubble();
+  }, ms||3200);
+}
+
+/* ---------------- modal helper ---------------- */
+function showModal(html, opts){
+  opts=opts||{};
+  UI.paused=true;
+  const m=$('modal');
+  m.innerHTML=`<div class="mcard ${opts.cls||''}">${html}
+    <div class="mactions"><button class="btn big" id="modal-ok">${opts.ok||'OKAY'}</button></div></div>`;
+  m.classList.remove('hidden');
+  return new Promise(res=>{
+    $('modal-ok').onclick=()=>{ Sound.click(); m.classList.add('hidden'); UI.paused=false; res(); };
+  });
+}
+
+/* =====================================================================
+   MORNING
+   ===================================================================== */
+let market=null;
+async function morning(){
+  G.phase='morning'; D=newDayState();
+  Music.setScene('morning');
+  setChip('Morning'); showScreen('scr-morning');
+  const day=DAYS[G.day];
+  $('morn-title').textContent='Morning Prep — Day '+G.day;
+  $('morn-sub').textContent=day.sub;
+  const floored=Engine.morningFloor(G);
+  popCash();
+  let note=day.note;
+  if(floored) note+='\n\n“…And that’s Dad’s emergency jar. Six dollars in quarters. Do not spend it on flies.”';
+  $('morn-text').textContent=note;
+  Cat.render($('morncat'), {expr:'j', tail:1, cushion:G.upgrades.cushion});
+  market=Engine.priceTable(G);
+  renderMarket();
+  renderFeatured();
+  if(day.postcard){
+    Sound.post();
+    G.postcards.push({day:G.day, title:day.postcard.title, text:day.postcard.text});
+    await showModal(`<div class="stamp">${day.postcard.emoji}</div><h3>${day.postcard.title}</h3>
+      <div class="mtext" style="font-size:14px;color:var(--wooddk);margin-bottom:8px">${TONKO.postcardIntro}</div>
+      <div class="mtext">${day.postcard.text}</div>
+      <div class="mtext" style="font-size:14px;color:var(--wooddk);margin-top:8px">${TONKO.postcardOutro}</div>`,
+      {cls:'postcard', ok:'KEEP IT SAFE'});
+  }
+}
+function renderFeatured(){
+  const box=$('featured-pick'); box.innerHTML='';
+  for(const id of Object.keys(RECIPES)){
+    if(!G.unlocked[id]) continue;
+    const b=document.createElement('button');
+    b.className='featbtn'+(G.featured===id?' sel':'');
+    b.innerHTML=`<span class="sw" style="display:inline-block;width:14px;height:14px;border:2px solid var(--ink);border-radius:4px;background:${RECIPES[id].topColor==='#c7dcd0'?ING.oil.color:RECIPES[id].topColor}"></span>${RECIPES[id].name}`;
+    b.onclick=()=>{ G.featured=id; Sound.click(); renderFeatured(); };
+    box.appendChild(b);
+  }
+}
+function tapIconCanvas(k, topColor){
+  const c=document.createElement('canvas'); c.width=12; c.height=12;
+  const x=c.getContext('2d');
+  x.fillStyle = k==='topping'? (topColor||PAL.chashu) : ING[k].color;
+  x.fillRect(0,0,12,12);
+  x.strokeStyle=PAL.ink; x.lineWidth=2; x.strokeRect(1,1,10,10);
+  x.fillStyle='rgba(255,255,255,.4)';
+  if(k==='noodles'){ x.fillStyle='rgba(46,34,47,.4)'; for(let y=3;y<10;y+=3)x.fillRect(2,y,8,1); }
+  if(k==='tare'){ for(let i=-8;i<12;i+=4){x.save();x.beginPath();x.moveTo(i,11);x.lineTo(i+8,3);x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=1.6;x.stroke();x.restore();} }
+  if(k==='oil'){ x.fillRect(3,3,2,2); x.fillRect(7,6,2,2); }
+  if(k==='topping'){ x.fillStyle='rgba(46,34,47,.35)'; x.fillRect(3,4,3,2); x.fillRect(7,7,3,2); }
+  if(k==='broth'){ x.fillRect(2,3,8,1); }
+  return c;
+}
+function renderMarket(){
+  $('morn-cash').textContent=fmt$(G.cashc);
+  $('morn-spent').textContent=D.stats.spentc?('spent today: '+fmt$(D.stats.spentc)):'prices wobble daily — check the per-unit!';
+  const list=$('stocklist'); list.innerHTML='';
+  if(G.day>1){
+    const u=G.usage, used=INGS.map(k=>u[k]?`${u[k]} ${ING[k].name.toLowerCase()}`:null).filter(Boolean).join(', ');
+    if(used){ const d=document.createElement('div'); d.className='smallnote'; d.style.cssText='color:var(--plum);padding:0 6px 8px';
+      d.textContent='Yesterday you used: '+used+'.'; list.appendChild(d); }
+  }
+  INGS.forEach((k,i)=>{
+    const row=document.createElement('div'); row.className='stockrow';
+    row.style.animationDelay=(i*50)+'ms';
+    const ic=document.createElement('div'); ic.className='icon'; ic.appendChild(tapIconCanvas(k));
+    ic.firstChild.style.cssText='width:44px;height:44px';
+    const body=document.createElement('div'); body.className='body';
+    body.innerHTML=`<div class="nm">${ING[k].name} <span class="have">have: <b id="have-${k}">${G.stock[k]}</b></span></div>`;
+    const dr=document.createElement('div'); dr.className='dealrow';
+    market[k].forEach((deal,di)=>{
+      const b=document.createElement('button'); b.className='deal';
+      b.innerHTML=`<div class="qty">${deal.qty} ${ING[k].unit}${deal.qty>1?'s':''}</div>
+        <div class="price">${fmt$(deal.pricec)}</div>
+        <div class="unit">${Engine.fmtCents(deal.unitc)} / ${ING[k].unit}</div>`;
+      b.onclick=()=>{
+        if(!Engine.buy(G,k,deal)){ Sound.denied(); toast('Not enough in the till.'); return; }
+        D.stats.spentc+=deal.pricec; D.buys++;
+        Sound.buy(); popCash();
+        $('have-'+k).textContent=G.stock[k];
+        $('morn-cash').textContent=fmt$(G.cashc);
+        $('morn-spent').textContent='spent today: '+fmt$(D.stats.spentc);
+        let tag=b.querySelector('.bought');
+        if(!tag){ tag=document.createElement('span'); tag.className='bought'; tag.textContent='0'; b.appendChild(tag); }
+        tag.textContent=(+tag.textContent+1);
+        b.classList.add('bounce'); setTimeout(()=>b.classList.remove('bounce'),300);
+        if(D.buys===6 && !D.marketLined){ D.marketLined=true; toast('🐈 '+pick(TONKO.market), 2600); }
+      };
+      dr.appendChild(b);
+    });
+    body.appendChild(dr);
+    row.append(ic,body); list.appendChild(row);
+  });
+}
+
+/* =====================================================================
+   SHOP DAY
+   ===================================================================== */
+function shopStart(){
+  G.phase='shop'; Music.setScene('day'); setChip('Shop Hours'); showScreen('scr-shop');
+  const day=DAYS[G.day];
+  D.queue = day.customers.map(c=>c.DYNAMIC ? DYNAMIC_ORDERS[c.DYNAMIC](G.unlocked.kickflip) : {...c});
+  D.elapsed=0; D.lastT=performance.now(); D.running=true;
+  D.order=null;
+  const total=INGS.reduce((s,k)=>s+G.stock[k],0);
+  if(total<8) toast('🐈 '+TONKO.lowstock, 2600);
+  Cat.render($('catcanvas'), {expr:'j', cushion:G.upgrades.cushion});
+  Pot.render($('potcanvas'));
+  requestAnimationFrame(shopTick);
+  setTimeout(nextCustomer, 700);
+}
+let lastIdleLine=0, lastBlink=0, lastCat=0, lastSky=0;
+function shopTick(now){
+  if(!D || !D.running) return;
+  const dt=Math.min(100, now-D.lastT); D.lastT=now;
+  if(!UI.paused && !document.hidden) D.elapsed += dt/1000;
+  const day=DAYS[G.day], t=Math.min(1, D.elapsed/day.len);
+  /* sun + sky + idle art on a light cadence */
+  if(now-lastSky>240){
+    lastSky=now;
+    const track=$('sunbar').offsetWidth-46;
+    $('sundot').style.left=(12+t*track)+'px';
+    $('sundot').style.background = t>.75? PAL.gold2 : PAL.gold;
+    Sky.draw(t, G.day, G.upgrades.lanterns);
+    Pot.render($('potcanvas'));
+    $('closelbl').classList.toggle('on', t>.82 && t<1);
+  }
+  if(now-lastCat>420){
+    lastCat=now;
+    UI.catTail=(UI.catTail+1)%3;
+    UI.catBlink = Math.random()<.12;
+    Cat.render($('catcanvas'), {expr:'j', tail:UI.catTail, blink:UI.catBlink, cushion:G.upgrades.cushion});
+  }
+  if(now-lastBlink>2800){
+    lastBlink=now+Math.random()*1500;
+    if(D.order && !D.order.cutscene){
+      Portrait.render($('custcanvas'), D.order.c, 'n', true);
+      setTimeout(()=>{ if(D.order&&!D.busy) Portrait.render($('custcanvas'), D.order.c, 'n', false); }, 140);
+    }
+  }
+  if(now-lastIdleLine>16000 && !D.order && !D.busy){
+    lastIdleLine=now; tonkoSays(pick(TONKO.idle), 3000);
+  }
+  /* day over? */
+  if(t>=1){
+    if(!D.order && !D.busy){ D.running=false; return closingBell(); }
+    if(!D.lastcall){ D.lastcall=true; toast('🔔 LAST CALL — finish this bowl!'); }
+  }
+  requestAnimationFrame(shopTick);
+}
+function queueDots(){
+  const n=Math.min(3, D.queue.length);
+  $('queuedots').innerHTML='<span class="qd"></span>'.repeat(n);
+}
+const WALKIN_SAYS=[
+  'One #R, please! The cat recommended it. The cat. He TALKS.',
+  'A #R — heard this place is coming back.',
+  '#R, please. No rush. (Rush a little, I’m on lunch.)',
+  'One #R. Smells like the old days in here.',
+];
+const WALKIN_MOD_SAYS=[
+  'One #R… with a tweak. It’s on the card, promise!',
+  'A #R, but changed a little — you’ll see. You’re good at this, right?',
+  '#R with my usual adjustment. The card knows.',
+];
+function nextCustomer(){
+  if(!D.running) return;
+  const day=DAYS[G.day], t=D.elapsed/day.len;
+  let order=null;
+  if(D.queue.length) order=D.queue.shift();
+  else if(t>=1) { D.busy=false; return; }
+  else if(day.walkins && t<0.92) order=Engine.makeWalkin(G, D.walkN++);
+  else if(G.upgrades.burner && !D.bonusUsed && t<1){ D.bonusUsed=true; order=Engine.makeWalkin(G, 900+D.walkN++); toast('🔥 Second burner — one more caught the door!'); }
+  else { D.busy=false; return; }
+  D.order=order; D.poured={noodles:0,broth:0,topping:0,tare:0,oil:0};
+  D.orderAt=D.elapsed; D.asked=false; D.noCardOrder=!!order.noCard;
+  UI.lastPoured=null; D.busy=false;
+  queueDots();
+  Portrait.render($('custcanvas'), order.c, order.cutscene?'h':'n', false);
+  const who=CHARS[order.c].name;
+  if(order.cutscene){
+    sayCust(who, order.say);
+    $('ordercard').style.opacity=.4;
+    $('oc-name').textContent='(no order — he’s just sneering)';
+    $('oc-size').textContent='NOODLZONE™'; $('oc-table').innerHTML=''; $('oc-mods').innerHTML='';
+    $('oc-hint').textContent=''; $('askbtn').classList.add('hidden');
+    renderTaps(true);
+    G.buyout=50;
+    D.busy=true;
+    setTimeout(()=>{ tonkoSays(TONKO.hiss, 2600, true); }, 3600);
+    setTimeout(()=>{ custLeaves(); }, 6400);
+    return;
+  }
+  let say=order.say;
+  if(order.walkin){
+    const pool = order.mods&&order.mods.length ? WALKIN_MOD_SAYS : WALKIN_SAYS;
+    say=pick(pool).replace('#R', RECIPES[order.recipe].name);
+  }
+  sayCust(who, say);
+  $('ordercard').style.opacity=1;
+  renderOrderCard();
+  const ghost = order.ghost && !order.noGhost ? Engine.targetFor(order) : null;
+  Bowl.reset(order.size, ghost, RECIPES[order.recipe].topColor);
+  renderTaps();
+  renderGauge();
+  $('fillwarn').classList.remove('on');
+}
+function renderOrderCard(){
+  const o=D.order, rec=RECIPES[o.recipe];
+  $('oc-name').textContent=rec.name;
+  $('oc-size').textContent=SIZENAME[o.size]+' · '+CAP[o.size]+' units';
+  const tbl=$('oc-table'), mods=$('oc-mods');
+  tbl.innerHTML=''; mods.innerHTML=''; $('oc-hint').textContent='';
+  $('askbtn').classList.add('hidden');
+  $('fragments').classList.add('hidden');
+  if(o.noCard && !D.asked){
+    $('oc-hint').innerHTML='<b>From memory!</b> No card for the regulars’ usual. (It’s in the journal… for a price.)';
+    $('askbtn').classList.remove('hidden');
+    return;
+  }
+  const showMul = o.scaleHint ? 1 : (o.size==='L'?2:1);
+  INGS.forEach((k,i)=>{
+    const amt=(rec.r[k]||0)*showMul;
+    const row=document.createElement('div'); row.className='oc-row';
+    row.style.animationDelay=(i*40)+'ms';
+    const nm = k==='topping' && rec.topName!=='—' ? rec.topName : ING[k].name;
+    const col = k==='topping' ? rec.topColor : ING[k].color;
+    row.innerHTML=`<span class="sw" style="background:${col}"></span>
+      <span>${nm}</span><span class="amt">${amt===0?'—':amt}</span>`;
+    tbl.appendChild(row);
+  });
+  if(o.scaleHint){
+    const c=document.createElement('span'); c.className='modchip';
+    c.innerHTML='BIG BOWL — card shows the regular. &times;2 everything.';
+    mods.appendChild(c);
+  }
+  if(o.mods && o.mods.length){
+    o.mods.forEach((id,i)=>{
+      const c=document.createElement('span'); c.className='modchip';
+      c.style.animationDelay=(i*90)+'ms';
+      c.innerHTML=MODS[id].chip; mods.appendChild(c);
+    });
+    const f=document.createElement('span'); f.className='modchip fill';
+    f.style.animationDelay='180ms';
+    f.innerHTML='BROTH &rarr; fill to the line';
+    mods.appendChild(f);
+    $('oc-hint').textContent='Card shows the normal recipe — apply the change, then broth tops it up to '+CAP[o.size]+'.';
+  }
+}
+function renderTaps(disabled){
+  const taps=$('taps'); taps.innerHTML='';
+  const rec=D.order?RECIPES[D.order.recipe]:null;
+  INGS.forEach((k,i)=>{
+    const b=document.createElement('button'); b.className='tap';
+    const remaining=G.stock[k]-(D.poured?D.poured[k]:0);
+    if(remaining<=0) b.classList.add('empty');
+    const nm = k==='topping' && rec && rec.topName!=='—' ? rec.topName : ING[k].name;
+    b.innerHTML=`<span class="key">${i+1}</span>`;
+    const ic=tapIconCanvas(k, rec&&rec.topColor); ic.className='ticon'; ic.style.cssText='width:36px;height:36px';
+    b.appendChild(ic);
+    b.insertAdjacentHTML('beforeend',
+      `<span class="tname">${nm}</span><span class="tcount" id="tc-${k}">${D.poured?D.poured[k]:0}</span>
+       <span class="tstock" id="ts-${k}">${remaining<=0?'OUT':'stock '+remaining}</span>`);
+    if(!disabled){
+      let holdIv=null, held=false;
+      const start=e=>{ e.preventDefault(); if(D.busy)return;
+        held=true; b.classList.add('pressing'); pour(k);
+        holdIv=setInterval(()=>{ if(held) pour(k); }, 300); };
+      const stop=()=>{ held=false; b.classList.remove('pressing'); clearInterval(holdIv); };
+      b.addEventListener('pointerdown', start);
+      b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop);
+      b.addEventListener('pointercancel', stop);
+    } else b.disabled=true;
+    taps.appendChild(b);
+  });
+}
+function pour(k){
+  if(!D.order || D.order.cutscene || D.busy) return;
+  const cap=CAP[D.order.size], fill=Bowl.fill();
+  const testKitchen = G.phase==='recovery';   /* after-hours pours are free */
+  if(!testKitchen){
+    const remaining=G.stock[k]-D.poured[k];
+    if(remaining<=0){
+      Sound.denied(); toast('Out of '+ING[k].name.toLowerCase()+'!');
+      const el=[...document.querySelectorAll('.tap')][INGS.indexOf(k)];
+      el.classList.add('bounce'); setTimeout(()=>el.classList.remove('bounce'),300);
+      return;
+    }
+  }
+  if(fill>=cap) return testKitchen ? overpourGently() : soupCrime(k);
+  D.poured[k]++; UI.lastPoured=k;
+  Bowl.pour(k);
+  if(k==='noodles'||k==='topping') Sound.plop(); else Sound.ladle(fill);
+  $('tc-'+k).textContent=D.poured[k];
+  if(!testKitchen){
+    const rem=G.stock[k]-D.poured[k];
+    $('ts-'+k).textContent= rem<=0?'OUT':'stock '+rem;
+    if(rem<=0) [...document.querySelectorAll('.tap')][INGS.indexOf(k)].classList.add('empty');
+  }
+  $('bowlwrap').classList.remove('wob'); void $('bowlwrap').offsetWidth; $('bowlwrap').classList.add('wob');
+  $('fillwarn').classList.toggle('on', Bowl.fill()===cap-1||Bowl.fill()===cap);
+  $('fillwarn').textContent = Bowl.fill()===cap ? 'FULL — one more sloshes!' : 'NEARLY FULL!';
+  $('servebtn').classList.toggle('ready', Bowl.fill()>0);
+  renderGauge();
+}
+function overpourGently(){
+  Sound.denied();
+  tonkoSays('“Full is full. Even after hours, physics applies.”', 2400);
+}
+function undo(){
+  if(!D.order || D.busy) return;
+  const k=Bowl.unpour();
+  if(!k){ Sound.denied(); return; }
+  D.poured[k]--; Sound.undo();
+  $('tc-'+k).textContent=D.poured[k];
+  if(G.phase!=='recovery'){
+    const rem=G.stock[k]-D.poured[k];
+    $('ts-'+k).textContent= rem<=0?'OUT':'stock '+rem;
+    if(rem>0) [...document.querySelectorAll('.tap')][INGS.indexOf(k)].classList.remove('empty');
+  }
+  const cap=CAP[D.order.size];
+  $('fillwarn').classList.toggle('on', Bowl.fill()===cap-1);
+  $('servebtn').classList.toggle('ready', Bowl.fill()>0);
+  renderGauge();
+}
+/* ---- gauge: fraction / percent / marks (the equivalence lens) ---- */
+function fracHTML(n,d,mini){
+  const g=(a,b)=>b?g(b,a%b):a, cd=g(n,d);
+  let extra='';
+  if(cd>1 && n>0) extra=`<span style="font-size:12px;color:var(--sky)">= ${n/cd}/${d/cd}</span>`;
+  return `<span class="frac${mini?' mini':''}"><span class="nu">${n}</span><span class="vin"></span><span class="de">${d}</span></span>${mini?'':extra}`;
+}
+function pctStr(n,d){ const p=n/d*100; return (Math.round(p*100)/100)+'%'; }
+function renderGauge(){
+  if(!D||!D.order||D.order.cutscene){ $('gaugeval').textContent='—'; $('gaugesub').textContent=''; return; }
+  const cap=CAP[D.order.size], n=Bowl.fill(), m=UI.gaugeMode;
+  const gv=$('gaugeval'), gs=$('gaugesub');
+  if(m===0){ gv.innerHTML=fracHTML(n,cap); }
+  else if(m===1){ gv.textContent=pctStr(n,cap); }
+  else { gv.textContent=n+' / '+cap; }
+  $('gaugemode').innerHTML='&#8635; '+['fraction','percent','marks'][m];
+  if(UI.lastPoured && D.poured[UI.lastPoured]>0){
+    const k=UI.lastPoured, kn=D.poured[k];
+    const nm=(k==='topping'&&RECIPES[D.order.recipe].topName!=='—'?RECIPES[D.order.recipe].topName:ING[k].name).toLowerCase();
+    gs.textContent = nm+' '+(m===0? kn+'/'+cap : m===1? pctStr(kn,cap) : kn);
+  } else gs.textContent='';
+}
+$('gauge').addEventListener('click', ()=>{ UI.gaugeMode=(UI.gaugeMode+1)%3; Sound.click(); renderGauge(); });
+$('gauge').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();UI.gaugeMode=(UI.gaugeMode+1)%3;renderGauge();} });
+
+/* ---- Ask Tonko (hints cost something) ---- */
+$('askbtn').addEventListener('click', ()=>{
+  if(!D.order || D.asked) return;
+  D.asked=true;
+  if(G.cashc>=ASKC){
+    G.cashc-=ASKC; popCash();
+    tonkoSays(pick(TONKO.hint), 3400);
+  } else {
+    tonkoSays('“On the house. This once. I keep the pride.”', 3200);
+  }
+  Sound.coin();
+  D.order.noCard=false;
+  renderOrderCard();
+});
+
+/* ---- the soup crime ---- */
+function soupCrime(k){
+  D.busy=true;
+  Sound.slosh();
+  shakeBody();
+  $('fillwarn').classList.remove('on');
+  if(!RM) FX.slosh($('bowlcanvas').getBoundingClientRect());
+  D.poured[k]++; /* the fatal ladle is spent too */
+  Portrait.render($('custcanvas'), D.order.c, 's', false);
+  twitch($('custcanvas'));
+  const res=Engine.judge(G, D.order, D.poured, {slosh:true});
+  Engine.applyServe(G, D.order, D.poured, res);
+  D.stats.crimes++; D.stats.served++;
+  Bowl.drain(()=>{});
+  showReaction('disaster', res, ()=>{ custLeaves(); });
+}
+function twitch(el){
+  let i=0; const iv=setInterval(()=>{
+    el.style.marginLeft=(i%2? '3px':'-3px'); if(++i>7){clearInterval(iv); el.style.marginLeft='0';}
+  },70);
+}
+/* ---- serve ---- */
+function serve(){
+  if(!D.order || D.order.cutscene || D.busy) return;
+  if(Bowl.fill()===0){ Sound.denied(); toast('An empty bowl? Even NoodlZone fills the cup.'); return; }
+  D.busy=true;
+  Sound.garnish();
+  $('servebtn').classList.remove('ready');
+  const w=$('bowlwrap'); w.classList.remove('shakeit'); void w.offsetWidth; w.classList.add('shakeit');
+  Bowl.puffSteam(4);
+  setTimeout(()=>{
+    const res=Engine.judge(G, D.order, D.poured, {elapsed: D.elapsed-D.orderAt});
+    /* memory bonus: nailed a no-card "usual" without asking Tonko */
+    const memBonus = (res.grade==='perfect' && D.noCardOrder && !D.asked) ? 1 : 0;
+    Engine.applyServe(G, D.order, D.poured, res);
+    if(memBonus && G.hearts[D.order.c]!==undefined){
+      G.hearts[D.order.c]=Math.min(10,G.hearts[D.order.c]+memBonus);
+      toast('From memory! Bonus ♥');
+    }
+    D.stats.served++;
+    D.stats.salesc+=res.salec; D.stats.tipsc+=res.tipc;
+    if(res.grade==='perfect') D.stats.perfect++;
+    const pips=res.heartPips+(memBonus||0);
+    if(pips>0 && !D.order.walkin){
+      D.stats.heartGains[D.order.c]=(D.stats.heartGains[D.order.c]||0)+pips;
+      const c=centerOf($('custcanvas')); FX.hearts(c.x,c.y-40,pips*2); Sound.heart();
+    }
+    if(res.salec+res.tipc>0){
+      popCash();
+      floatText(centerOf($('bowlcanvas')), '+'+fmt$(res.salec+res.tipc), PAL.gold);
+      if(res.tipc>=200) Sound.bigcoin(); else Sound.coin();
+    }
+    const expr=res.grade==='perfect'||res.grade==='close'?'h': res.grade==='off'?'n':'s';
+    Portrait.render($('custcanvas'), D.order.c, expr, false);
+    if(res.grade==='perfect'){
+      Sound.perfect();
+      const c=centerOf($('bowlcanvas'));
+      FX.burst(c.x,c.y-60,[PAL.gold,PAL.pink,PAL.corn,PAL.leaf],18,{up:3});
+      Bowl.puffSteam(6);
+    }
+    else if(res.grade==='close') Sound.close();
+    else if(res.grade==='off') Sound.off();
+    else Sound.yikes();
+    showReaction(res.grade, res, ()=>custLeaves());
+  }, 620);
+}
+const RWORD={perfect:'PERFECT!',close:'CLOSE!',off:'HMM…',yikes:'YIKES.',disaster:'KA-SPLOOSH!!'};
+const RCOL={perfect:'var(--green)',close:'var(--blue)',off:'var(--gold2)',yikes:'var(--dangerdk)',disaster:'var(--danger)'};
+function showReaction(grade, res, done){
+  const r=$('reaction');
+  const tonkoLine = grade==='perfect'?pick(TONKO.perfect): grade==='close'?pick(TONKO.close):
+                    grade==='off'?pick(TONKO.off): grade==='disaster'?pick(TONKO.crime):pick(TONKO.yikes);
+  const tipTxt = grade==='disaster' ? 'no sale — soup crime logged'
+    : grade==='yikes' ? 'no charge for… that'
+    : `+${fmt$(res.salec)} sale &nbsp; +${fmt$(res.tipc)} tip`;
+  r.innerHTML=`<div class="rcard">
+    <div class="rword" style="color:${RCOL[grade]}">${RWORD[grade]}</div>
+    <div class="rhint">${res.hint}</div>
+    <div class="rcat">🐈 ${tonkoLine}</div>
+    <div class="rtip">${tipTxt}</div></div>`;
+  r.classList.add('show');
+  setTimeout(()=>{ r.classList.remove('show'); r.innerHTML=''; done&&done(); }, grade==='perfect'?2100:2500);
+}
+function custLeaves(){
+  hideBubble();
+  D.order=null; D.busy=false;
+  $('servebtn').classList.remove('ready');
+  const day=DAYS[G.day];
+  if(D.elapsed>=day.len && !D.queue.length){ D.running=false; return closingBell(); }
+  if(D.elapsed>=day.len && D.queue.length){ D.stats.walkoffs=D.queue.length; D.queue=[]; }
+  setTimeout(nextCustomer, 750);
+}
+
+/* =====================================================================
+   EVENING
+   ===================================================================== */
+async function closingBell(){
+  Sound.bell();
+  G.phase='evening'; Music.setScene('evening'); setChip('Closing');
+  const st=Engine.closeDay(G, D.stats);
+  showScreen('scr-evening');
+  $('eve-sub').textContent='Day '+G.day+' — '+DAYS[G.day].sub;
+  const sum=$('daysum');
+  sum.innerHTML='<h3>Day Summary</h3>';
+  const lines=[
+    ['Bowls served', st.served, v=>Math.round(v)],
+    ['Sales', st.salesc, v=>fmt$(v), 'money'],
+    ['Tips', st.tipsc, v=>fmt$(v), 'money'],
+    ['Ingredients bought', -st.spentc, v=>fmt$(v), 'money'],
+    ['Spoiled overnight', -st.wastec, v=>fmt$(v), 'money'],
+    ['Net', st.netc, v=>fmt$(v), 'total'],
+  ];
+  lines.forEach((L,i)=>{
+    const d=document.createElement('div');
+    d.className='sumline'+(L[3]==='total'?' total':'');
+    d.innerHTML=`<span>${L[0]}</span><span class="v ${L[3]?'money':''}">0</span>`;
+    sum.appendChild(d);
+    setTimeout(()=>{ d.classList.add('in'); animateNum(d.querySelector('.v'), L[1], 700, L[2]); Sound.click(); }, 300+i*260);
+  });
+  setTimeout(()=>{
+    const badges=document.createElement('div');
+    if(st.crimes>0) badges.innerHTML+=`<span class="badge" style="background:var(--dangerdk)">🌋 Soup Crimes ×${st.crimes} — “the mop remembers”</span>`;
+    if(st.perfect>0) badges.innerHTML+=`<span class="badge" style="background:var(--green);color:var(--ink)">✨ Perfect bowls ×${st.perfect}</span>`;
+    if(st.walkoffs>0) badges.innerHTML+=`<span class="badge">🌙 ${st.walkoffs} turned away at close</span>`;
+    const hearts=Object.entries(st.heartGains||{});
+    if(hearts.length) badges.innerHTML+=`<span class="badge" style="background:var(--rose)">♥ ${hearts.map(([c,p])=>CHARS[c].name.split(' ')[0]+' +'+p).join(' · ')}</span>`;
+    if(G.upgrades.cellar && st.wastec===0) badges.innerHTML+=`<span class="badge" style="background:var(--navy)">🧊 Nothing spoiled (Tonko still ate the good bits)</span>`;
+    sum.appendChild(badges);
+    /* Tonko's one-line review */
+    const ratio=st.served? st.perfect/st.served : 0;
+    const poolName= (st.netc>0&&ratio>=.5)?'dayendGood':(st.netc>0||ratio>=.25)?'dayendMid':'dayendBad';
+    const rev=document.createElement('div'); rev.id='tonko-review';
+    const cc=document.createElement('canvas'); cc.style.cssText='width:56px;height:42px';
+    Cat.render(cc,{expr:poolName==='dayendGood'?'h':poolName==='dayendBad'?'j':'j', tail:1, cushion:G.upgrades.cushion});
+    rev.appendChild(cc);
+    const tx=document.createElement('div'); tx.textContent=pick(TONKO[poolName]);
+    rev.appendChild(tx);
+    sum.appendChild(rev);
+  }, 300+lines.length*260+200);
+  renderUpgrades();
+  $('eve-note').textContent = G.day<5 ? '' : 'Last night of the week…';
+  /* story beats, in order */
+  const day=DAYS[G.day];
+  await new Promise(r=>setTimeout(r, 1400));
+  if(day.eveStory){
+    await showModal(`<div class="stamp">${day.eveStory.emoji}</div><h3>${day.eveStory.title}</h3><div class="mtext">${day.eveStory.text}</div>`);
+  }
+  if(!G.unlocked.kickflip && (G.hearts.dex>=6 || G.day===5)){
+    await showModal(`<h3>Dex bursts back in.</h3><div class="mtext">${
+      G.hearts.dex>=6
+      ? '“DUDE. It just hit me. Dad’s FIRE BOWL — the Kickflip! I can almost taste it. Can we— can you try to rebuild it? Right now?”'
+      : '“Okay so we’re not exactly best friends yet but — Dad’s FIRE BOWL. The Kickflip. Tonko says you’re ready. He didn’t say it NICELY, but he said it.”'
+    }\n\n${TONKO.recoveryIntro}</div>`, {ok:'TO THE STOVE 🔥'});
+    return recoveryScene();
+  }
+}
+function renderUpgrades(){
+  const box=$('upgrades');
+  box.innerHTML='<h3>Shop Upgrades</h3><div class="uphint">Bought with profits. The shop remembers.</div>';
+  for(const [id,u] of Object.entries(UPGRADES)){
+    const owned=G.upgrades[id];
+    const d=document.createElement('div'); d.className='upg'+(owned?' owned':'');
+    d.innerHTML=`<div class="uic">${u.icon}</div>
+      <div><div class="unm">${u.name}</div><div class="udesc">${u.desc}</div></div>`;
+    const b=document.createElement('button');
+    b.className='btn ghostbtn ubuy';
+    if(owned){ b.textContent='OWNED'; b.disabled=true; }
+    else {
+      b.textContent=fmt$(u.costc);
+      b.onclick=()=>{
+        if(G.cashc<u.costc){ Sound.denied(); toast('Not enough in the till.'); return; }
+        G.cashc-=u.costc; G.upgrades[id]=true;
+        Sound.unlock(); popCash(); renderUpgrades();
+        if(id==='cushion'){ Sound.meow(); toast('🐈 '+TONKO.cushion, 3600); }
+        else toast(u.icon+' '+u.name+' installed!');
+      };
+    }
+    d.appendChild(b); box.appendChild(d);
+  }
+}
+$('sleepbtn').addEventListener('click', ()=>{
+  Sound.click();
+  if(G.day>=5) return finale();
+  G.day++;
+  for(const k of INGS) G.usage[k]=0;
+  morning();
+});
+
+/* =====================================================================
+   RECOVERY — Dex's Kickflip, a system of ratio constraints
+   ===================================================================== */
+let RS=null;
+function recoveryScene(){
+  G.phase='recovery'; Music.setScene('night'); setChip('After hours');
+  showScreen('scr-shop');
+  RS={fails:0, hinted:false};
+  D=D||newDayState(); D.running=false; D.order={c:'dex',recipe:'kickflip',size:'R',recovery:true};
+  D.poured={noodles:0,broth:0,topping:0,tare:0,oil:0}; UI.lastPoured=null; D.busy=false;
+  $('sundot').style.left='12px'; $('closelbl').classList.remove('on');
+  Sky.draw(1, G.day, G.upgrades.lanterns);
+  Portrait.render($('custcanvas'), 'dex', 'h', false);
+  Cat.render($('catcanvas'), {expr:'j', tail:2, cushion:G.upgrades.cushion});
+  sayCust('Dex', 'Okay okay okay. Regular bowl. Here’s everything I remember — Tonko, back me up.');
+  $('queuedots').innerHTML='';
+  $('ordercard').style.opacity=1;
+  $('oc-name').textContent='??? — The Kickflip';
+  $('oc-size').textContent='REGULAR · 8 units';
+  $('oc-table').innerHTML=''; $('oc-mods').innerHTML='';
+  $('oc-hint').textContent='Rebuild it from the fragments. No timer. No pressure. (Some pressure — the cat is watching.)';
+  $('askbtn').classList.add('hidden');
+  renderFragments(null);
+  Bowl.reset('R', null, RECIPES.kickflip.topColor);
+  renderTaps(); renderGauge();
+  /* test-kitchen mode: pours are free after hours — no stock, no dead ends */
+  for(const el of document.querySelectorAll('.tap .tstock')) el.textContent='test kitchen';
+}
+function renderFragments(results){
+  const box=$('fragments'); box.classList.remove('hidden'); box.innerHTML='';
+  FRAGMENTS.forEach((f,i)=>{
+    const st=results ? results.find(r=>r.id===f.id) : null;
+    const d=document.createElement('div');
+    d.className='frag'+(st? (st.ok?' ok':' bad'):'');
+    d.style.animationDelay=(i*60)+'ms';
+    d.innerHTML=`<span class="fmark">${st? (st.ok?'✔':'✘') : '🍜'}</span>
+      <span><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--wooddk)">${f.who}</b><br>${f.text}</span>`;
+    box.appendChild(d);
+  });
+  if(RS && RS.hinted){
+    const d=document.createElement('div'); d.className='frag hint';
+    d.innerHTML=`<span class="fmark">🐈</span>
+      <span><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--wooddk)">Tonko</b><br>${TONKO.recoveryHint}</span>`;
+    box.appendChild(d);
+  }
+}
+function recoveryServe(){
+  if(D.busy) return;
+  D.busy=true;
+  Sound.garnish();
+  const w=$('bowlwrap'); w.classList.remove('shakeit'); void w.offsetWidth; w.classList.add('shakeit');
+  setTimeout(()=>{
+    const p={...D.poured};
+    const results=Engine.checkFragments(p);
+    const solved=results.every(r=>r.ok);
+    renderFragments(results);
+    if(solved){
+      G.unlocked.kickflip=true;
+      G.hearts.dex=Math.min(10,G.hearts.dex+2);
+      Sound.unlock(); setTimeout(()=>Sound.meow(), 700);
+      const c=centerOf($('bowlcanvas'));
+      FX.burst(c.x,c.y-60,[PAL.danger,PAL.gold,PAL.tang,PAL.corn],26,{up:3.4});
+      FX.hearts(c.x,c.y-90,5);
+      Bowl.puffSteam(8);
+      sayCust('Dex', 'THAT’S IT. THAT’S THE KICKFLIP. Dude. DUDE.');
+      setTimeout(async ()=>{
+        await showModal(`<div class="stamp">🔥</div><h3>RECIPE RECOVERED — The Kickflip</h3>
+          <div class="mtext">A torn page settles back into the Broth Journal like it never left.\n\nNoodles 1 · Broth 4 · Tare 1 · Chili oil 2 — fire, not pain.\n\n${TONKO.recoverySolve}\n\nThe Kickflip is on the menu. Feature it tomorrow — Dex is telling EVERYONE.</div>`,
+          {ok:'ADD TO THE MENU'});
+        D.order=null;
+        G.phase='evening'; setChip('Closing'); showScreen('scr-evening');
+      }, 1700);
+      return;
+    }
+    RS.fails++;
+    if(p.topping>0) sayCust('Dex', 'TOPPINGS? On a KICKFLIP? Dude. It was naked. Like Tonko’s dignity.');
+    else sayCust('Dex', pick(['Close… but my mouth says no.','Hmm. Not the memory. Try again?','Almost! Something’s off. Check the fragments.']));
+    tonkoSays(pick(TONKO.recoveryFail), 2600);
+    if(RS.fails>=3 && !RS.hinted){
+      RS.hinted=true;
+      setTimeout(()=>{ Sound.page(); renderFragments(results); tonkoSays(TONKO.recoveryHint, 3600); }, 1200);
+    }
+    Sound.off();
+    /* reset the bowl for another try */
+    setTimeout(()=>{
+      D.poured={noodles:0,broth:0,topping:0,tare:0,oil:0}; UI.lastPoured=null;
+      Bowl.reset('R', null, RECIPES.kickflip.topColor);
+      renderTaps(); renderGauge();
+      for(const el of document.querySelectorAll('.tap .tstock')) el.textContent='test kitchen';
+      D.busy=false;
+    }, 1400);
+  }, 620);
+}
+
+/* =====================================================================
+   FINALE (end of the 5-day slice)
+   ===================================================================== */
+async function finale(){
+  const perfects=Object.values(G.perfects).reduce((a,b)=>a+b,0);
+  const recipes=Object.keys(RECIPES).filter(r=>G.unlocked[r]).length;
+  await showModal(`<div class="stamp">🍜</div><h3>The week is yours.</h3>
+    <div class="mtext">Five days ago this shop was dust, a torn journal, and a cat with opinions.
+Tonight the till says <b>${fmt$(G.cashc)}</b>, the journal holds <b>${recipes}/4</b> recipes, and NoodlZone’s manager keeps looking out his window.
+
+Bowls served: <b>${G.servedTotal}</b> · Perfect: <b>${perfects}</b> · Soup crimes: <b>${G.crimes}</b>${G.buyout?`\nBest buyout offer, refused: <b>$${G.buyout}</b>`:''}
+
+${TONKO.finale}
+
+<b>TO BE CONTINUED…</b> — the delivery bike is in the shed. Front basket’s already claimed.</div>
+    <div class="mtext" style="margin-top:10px;font-size:13px;color:var(--wooddk)">Save code (also in the Journal):</div>
+    <div id="savecode-out" style="margin-top:4px">${Engine.saveCode(G)}</div>`,
+    {ok:'BACK TO THE TITLE'});
+  showScreen('scr-title');
+  $('playbtn').textContent='PLAY THE WEEK AGAIN';
+}
+
+/* =====================================================================
+   JOURNAL
+   ===================================================================== */
+let jtab='recipes';
+function openJournal(){
+  /* peeking at a no-card order costs a quarter — same rule as Ask Tonko */
+  if(G && G.phase==='shop' && D && D.order && D.order.noCard && !D.asked){
+    $('askbtn').click();
+    return;
+  }
+  UI.paused=true;
+  $('journal').classList.remove('hidden');
+  Sound.page();
+  renderJournal();
+}
+function closeJournal(){ $('journal').classList.add('hidden'); UI.paused=false; }
+$('jclose').addEventListener('click', closeJournal);
+$('journalbtn').addEventListener('click', openJournal);
+document.querySelectorAll('.jtab').forEach(b=>b.addEventListener('click', ()=>{
+  jtab=b.dataset.jtab;
+  document.querySelectorAll('.jtab').forEach(x=>x.classList.toggle('on', x===b));
+  Sound.page(); renderJournal();
+}));
+function renderJournal(){
+  const body=$('jbody'); body.innerHTML='';
+  if(jtab==='recipes'){
+    for(const [id,rec] of Object.entries(RECIPES)){
+      const d=document.createElement('div');
+      if(!G.unlocked[id]){
+        d.className='jrecipe locked';
+        d.innerHTML=`<div class="jr-top"><h4>???</h4><span class="jr-lock">🔒 torn out</span></div>
+          <div class="jr-note">${id==='kickflip'?'Dex keeps humming about a “fire bowl.” Serve him well.':'Missing page.'}</div>`;
+        body.appendChild(d); continue;
+      }
+      d.className='jrecipe';
+      d.innerHTML=`<div class="jr-top"><h4>${rec.name}</h4><span class="chip">regular · 8 units</span></div>
+        <div class="jr-note">${rec.note}</div>`;
+      const jr=document.createElement('div'); jr.className='jratio';
+      for(const k of INGS){
+        const amt=rec.r[k]||0; if(!amt) continue;
+        const nm=k==='topping'&&rec.topName!=='—'?rec.topName:ING[k].name;
+        const col=k==='topping'?rec.topColor:ING[k].color;
+        jr.innerHTML+=`<span class="jr-cell"><span class="sw" style="width:14px;height:14px;border:2px solid var(--ink);border-radius:4px;background:${col}"></span><span class="n">${amt}</span>${nm}</span>`;
+      }
+      jr.innerHTML+=`<span class="jr-cell" style="border-style:dashed"><span class="n">×2</span>big bowl</span>`;
+      d.appendChild(jr); body.appendChild(d);
+    }
+  }
+  else if(jtab==='friends'){
+    for(const c of REGULARS){
+      const pips=G.hearts[c], full=Math.floor(pips/2), half=pips%2;
+      const row=document.createElement('div'); row.className='jheart-row';
+      const cv=document.createElement('canvas'); cv.style.cssText='width:44px;height:54px';
+      Portrait.render(cv, c, 'n', false);
+      row.appendChild(cv);
+      const mid=document.createElement('div'); mid.className='hmid';
+      mid.innerHTML=`<div class="hnm">${CHARS[c].name}</div><div class="hlike">${CHARS[c].likes}<br><i style="color:var(--wooddk)">${CHARS[c].heartHint}</i></div>`;
+      row.appendChild(mid);
+      const h=document.createElement('div'); h.className='hearts';
+      h.textContent='♥'.repeat(full)+(half?'♡':'')+'·'.repeat(Math.max(0,5-full-half));
+      row.appendChild(h);
+      body.appendChild(row);
+    }
+    if(G.buyout){
+      const d=document.createElement('div'); d.className='jpost'; d.style.marginTop='10px';
+      d.innerHTML=`<span class="pfrom">Incident log</span>\nNoodlZone buyout offer: $${G.buyout}. Refused. Tonko’s hiss: notarized.`;
+      body.appendChild(d);
+    }
+  }
+  else if(jtab==='postcards'){
+    if(!G.postcards.length) body.innerHTML='<div class="smallnote" style="color:var(--plum)">No postcards yet. Dad’s out there somewhere, salting things.</div>';
+    for(const p of G.postcards){
+      const d=document.createElement('div'); d.className='jpost';
+      d.innerHTML=`<span class="pfrom">Day ${p.day} — ${p.title}</span>\n${p.text}`;
+      body.appendChild(d);
+    }
+  }
+  else if(jtab==='save'){
+    body.innerHTML=`<div class="smallnote" style="color:var(--plum)">Copy this code somewhere safe. Paste it on the title screen to pick the week back up. (No accounts, no cookies — school rules.)</div>
+      <div id="savebox"><div id="savecode-out">${Engine.saveCode(G)}</div>
+      <button class="btn ghostbtn" id="copybtn">COPY</button></div>`;
+    $('copybtn').onclick=async ()=>{
+      try{ await navigator.clipboard.writeText(Engine.saveCode(G)); toast('Save code copied!'); }
+      catch(e){ const r=document.createRange(); r.selectNodeContents($('savecode-out'));
+        const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Select + copy the code above.'); }
+    };
+  }
+}
+
+/* =====================================================================
+   INPUT + BOOT
+   ===================================================================== */
+$('servebtn').addEventListener('click', ()=>{ G.phase==='recovery' ? recoveryServe() : serve(); });
+$('undobtn').addEventListener('click', undo);
+$('openshopbtn').addEventListener('click', ()=>{ Sound.click(); shopStart(); });
+$('mutebtn').addEventListener('click', ()=>{ const m=Sound.toggle(); $('mutebtn').innerHTML=m?'&#128263;':'&#128266;'; Music.refresh(); });
+$('musicbtn').addEventListener('click', ()=>{ const on=Music.toggle(); $('musicbtn').style.opacity=on?1:.45; Sound.click(); });
+document.addEventListener('pointerdown', function bootMusic(){
+  document.removeEventListener('pointerdown', bootMusic);
+  if(Sound.ensure() && Music.on) Music.start();
+  $('musicbtn').style.opacity=Music.on?1:.45;
+}, {once:false});
+$('catcanvas').addEventListener('click', ()=>{ tonkoSays(pick(TONKO.idle), 2800); Sound.click(); });
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  const k=e.key.toLowerCase();
+  if(!$('journal').classList.contains('hidden') && k==='escape') return closeJournal();
+  if(!G) return;
+  if(k==='m'){ $('mutebtn').click(); return; }
+  if(k==='j'){ $('journal').classList.contains('hidden')?openJournal():closeJournal(); return; }
+  if(G.phase!=='shop' && G.phase!=='recovery') return;
+  if(!UI.paused){
+    const idx=['1','2','3','4','5'].indexOf(k);
+    if(idx>=0){ pour(INGS[idx]); return; }
+    if(k==='u'||k==='backspace'){ e.preventDefault(); undo(); return; }
+    if(k==='enter'||k==='s'){ e.preventDefault(); $('servebtn').click(); return; }
+    if(k==='g'){ UI.gaugeMode=(UI.gaugeMode+1)%3; renderGauge(); return; }
+  }
+});
+document.addEventListener('visibilitychange', ()=>{ if(D) D.lastT=performance.now(); });
+
+const SEED=new URLSearchParams(location.search).get('seed')||'LUCKY-NOODLE';
+$('seednote').textContent='class seed: '+SEED+' — same seed, same prices and orders for everyone';
+$('playbtn').addEventListener('click', ()=>{
+  Sound.ensure(); Sound.bell();
+  G=Engine.newGame(SEED);
+  morning();
+});
+$('loadbtn').addEventListener('click', ()=>{
+  const g=Engine.loadCode($('savecode-in').value);
+  if(!g){ Sound.denied(); toast('That code isn’t soup. Check it and try again.'); return; }
+  Sound.ensure(); Sound.bell();
+  G=g; toast('Welcome back. Tonko pretended not to miss you.');
+  morning();
+});
+
+/* debug/verification hooks (console): window.RC */
+window.RC={ Engine, Sound, DATA:{RECIPES,CHARS,DAYS,ING,MODS,FRAGMENTS,TONKO,UPGRADES},
+  get G(){return G;}, set G(v){G=v;}, get D(){return D;},
+  ui:{ morning:()=>morning(), shop:()=>shopStart(), evening:()=>closingBell(),
+       recovery:()=>recoveryScene(), pour, undo, serve, Bowl, renderGauge },
+  solve:o=>Engine.solve(o) };
+</script>
+</body>
+</html>

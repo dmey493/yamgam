@@ -1,0 +1,502 @@
+<!doctype html>
+<!--
+  YAMGAM — game hub (student-facing)
+  Landing page for the suite of single-file games. Deliberately NO educational
+  framing anywhere on the page: no standards, no grade bands, no teacher copy —
+  students should just see games. Single file, no dependencies, house
+  conventions (Fredoka/Nunito, indigo house palette, per-game accent vignettes).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="yamgam — daily puzzles, arcade dives, and shop tycoons. Pick a game and play. No accounts, no installs.">
+<title>yamgam — pick a game and play</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F579;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#17162a; --bg2:#100f20;
+    --panel:#232244; --panel2:#2c2b52;
+    --ink:#f4f0e3; --muted:#9694c2;
+    --gold:#ffcb47; --teal:#4ecdc4; --coral:#ff5d6c;
+    --line:#3a3868;
+    --radius:18px;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --shadow-sm:0 4px 12px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:radial-gradient(120% 120% at 50% -10%,#211f45 0%,var(--bg) 55%,var(--bg2) 100%);
+    color:var(--ink);
+    font-family:Nunito,system-ui,sans-serif;
+    letter-spacing:.2px;
+    padding:28px 18px 48px;
+    display:flex;justify-content:center;
+  }
+  .wrap{width:100%;max-width:1060px}
+  a{color:inherit}
+  a:focus-visible,button:focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:8px}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin-bottom:6px}
+  .logo{font-family:Fredoka;font-weight:700;font-size:42px;line-height:1;letter-spacing:.5px}
+  .logo b{color:var(--teal);font-weight:700}
+  .logo i{font-style:normal;color:var(--gold)}
+  .tag{font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:2px}
+
+  .lede{max-width:56ch;color:var(--muted);font-size:16.5px;line-height:1.55;margin:10px 0 30px}
+  .lede strong{color:var(--ink);font-weight:800}
+
+  /* ---------- section labels ---------- */
+  h2{font-family:Fredoka;font-weight:600;font-size:20px;margin:34px 0 14px;display:flex;align-items:center;gap:12px}
+  h2::after{content:'';flex:1;height:1px;background:var(--line)}
+
+  /* ---------- cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}
+  .card{
+    display:flex;flex-direction:column;
+    background:var(--panel);border-radius:var(--radius);overflow:hidden;
+    box-shadow:var(--shadow-sm);text-decoration:none;
+    border:1px solid rgba(255,255,255,.04);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .card:hover .art svg{transform:scale(1.04)}
+  .art{height:132px;display:grid;place-items:center;overflow:hidden;position:relative}
+  .art svg{width:100%;height:100%;display:block;transition:transform .35s ease}
+  .body{padding:15px 17px 17px;display:flex;flex-direction:column;gap:9px;flex:1}
+  .titlerow{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .card h3{font-family:Fredoka;font-weight:600;font-size:21px;margin:0}
+  .mins{font-size:11.5px;font-weight:800;color:var(--muted);white-space:nowrap;letter-spacing:.5px}
+  .desc{margin:0;color:var(--muted);font-size:14px;line-height:1.5;flex:1}
+  .desc b{color:var(--ink);font-weight:800}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+    padding:4px 9px;border-radius:99px;background:var(--panel2);color:var(--muted);
+  }
+  .chip.std{background:transparent;border:1px solid var(--line)}
+  .go{
+    margin-top:4px;align-self:flex-start;
+    font-family:Fredoka;font-weight:600;font-size:14.5px;letter-spacing:.4px;
+    color:var(--bg);background:var(--accent,var(--gold));
+    padding:8px 16px;border-radius:12px;
+  }
+  .card:hover .go{filter:brightness(1.08)}
+  .daily{
+    position:absolute;top:10px;left:10px;
+    font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+    background:rgba(0,0,0,.45);color:var(--gold);padding:4px 9px;border-radius:99px;
+    backdrop-filter:blur(3px);
+  }
+
+  /* ---------- footer ---------- */
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1.6;max-width:70ch}
+  footer p{margin:4px 0}
+
+  @media (prefers-reduced-motion:reduce){
+    .card,.art svg{transition:none}
+    .card:hover{transform:none}
+  }
+  @media (max-width:420px){
+    .logo{font-size:34px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">yam<b>·</b><i>gam</i></div>
+    <div class="tag">Daily puzzles · Arcade · Tycoons</div>
+  </header>
+
+  <p class="lede">
+    Eleven games, one rule: <strong>pick one and play</strong>. Daily puzzles that
+    reset every morning, an ocean to dive into (and a hidden fleet under it),
+    two shops to run into the ground (or into riches), a building site where
+    your instructions travel by pigeon, a map shop full of travelers with
+    tales to pin down, a dusty records office where every family hides a
+    secret, and a marble bank where you hold the stamp. <strong>No accounts, no installs</strong> — everything
+    runs right here in the browser.
+  </p>
+
+  <h2 id="daily-heading">Today's challenges</h2>
+  <div class="grid" role="list" aria-labelledby="daily-heading">
+
+    <!-- BETWEEN -->
+    <a class="card" role="listitem" href="Between/Between.html" style="--accent:#4ecdc4">
+      <div class="art" style="background:linear-gradient(160deg,#211f45,#100f20)">
+        <span class="daily">New puzzle daily</span>
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <line x1="30" y1="78" x2="310" y2="78" stroke="#3a3868" stroke-width="4" stroke-linecap="round"/>
+          <line x1="70" y1="64" x2="70" y2="92" stroke="#ffcb47" stroke-width="5" stroke-linecap="round"/>
+          <line x1="270" y1="64" x2="270" y2="92" stroke="#4ecdc4" stroke-width="5" stroke-linecap="round"/>
+          <rect x="70" y="72" width="200" height="12" rx="6" fill="#4ecdc4" opacity=".18"/>
+          <circle cx="163" cy="78" r="9" fill="#ffcb47"/>
+          <text x="70" y="50" text-anchor="middle" font-family="Fredoka" font-size="17" fill="#ffcb47" font-weight="600">2/5</text>
+          <text x="270" y="50" text-anchor="middle" font-family="Fredoka" font-size="17" fill="#4ecdc4" font-weight="600">3/7</text>
+          <text x="163" y="112" text-anchor="middle" font-family="Fredoka" font-size="13" fill="#9694c2">?</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Between</h3><span class="mins">~5 min</span></div>
+        <p class="desc">Squeeze an answer into the gap — then into the gap <b>you</b> just made, five rounds deep. The line zooms in every round, and somehow there's always room.</p>
+        <div class="chips">
+          <span class="chip">Daily puzzle</span><span class="chip">5 rounds</span><span class="chip">Shareable score</span>
+        </div>
+        <span class="go">Start today's puzzle</span>
+      </div>
+    </a>
+
+    <!-- ESTIMATION GOLF -->
+    <a class="card" role="listitem" href="EstimationGolf/EstimationGolf.html" style="--accent:#f5a623">
+      <div class="art" style="background:linear-gradient(180deg,#8ed4ec 0%,#dff0c8 62%,#4ea15b 62%)">
+        <span class="daily">New course daily</span>
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <ellipse cx="238" cy="106" rx="66" ry="14" fill="#94dd9c"/>
+          <line x1="238" y1="104" x2="238" y2="46" stroke="#243629" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M238 46 L270 55 L238 64 Z" fill="#ff5d5d"/>
+          <circle cx="96" cy="103" r="8" fill="#f5a623" stroke="#243629" stroke-width="2"/>
+          <path d="M104 98 Q170 52 226 96" fill="none" stroke="#243629" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round" opacity=".6"/>
+          <text x="150" y="40" text-anchor="middle" font-family="Fredoka" font-size="15" fill="#243629" font-weight="600">×½ ?  +47 ?  ² ?</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Estimation Golf</h3><span class="mins">~10–15 min</span></div>
+        <p class="desc">Golf, but your clubs are ×9, +47, ×½, and ². Pick a club, take the swing, and watch where the ball actually lands. Lowest score against par wins the round.</p>
+        <div class="chips">
+          <span class="chip">9 holes</span><span class="chip">Daily course</span><span class="chip">Beat par</span>
+        </div>
+        <span class="go">Play a round</span>
+      </div>
+    </a>
+  </div>
+
+  <h2 id="party-heading">Party</h2>
+  <div class="grid" role="list" aria-labelledby="party-heading">
+
+    <!-- BLIND BUILDER -->
+    <a class="card" role="listitem" href="BlindBuilder/BlindBuilder.html" style="--accent:#ffb03b">
+      <div class="art" style="background:linear-gradient(160deg,#173f75,#0f2c55)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <g stroke="#7fb4ff" stroke-width="1.5" opacity=".5">
+            <line x1="30" y1="30" x2="30" y2="112"/><line x1="62" y1="30" x2="62" y2="112"/>
+            <line x1="94" y1="30" x2="94" y2="112"/><line x1="126" y1="30" x2="126" y2="112"/>
+            <line x1="30" y1="44" x2="126" y2="44"/><line x1="30" y1="78" x2="126" y2="78"/>
+            <line x1="30" y1="112" x2="126" y2="112"/>
+          </g>
+          <rect x="63" y="45" width="30" height="32" fill="none" stroke="#7fb4ff" stroke-width="2.5"/>
+          <rect x="95" y="79" width="30" height="32" fill="none" stroke="#7fb4ff" stroke-width="2.5"/>
+          <rect x="164" y="26" width="12" height="80" rx="6" fill="#5b4832"/>
+          <g transform="translate(214 44)">
+            <rect x="0" y="36" width="30" height="30" rx="6" fill="#e85d4a"/>
+            <rect x="34" y="36" width="30" height="30" rx="6" fill="#f4c542"/>
+            <rect x="17" y="2" width="30" height="30" rx="6" fill="#5aa2e8"/>
+          </g>
+          <g transform="translate(286 24)">
+            <ellipse cx="12" cy="20" rx="11" ry="9" fill="#8f95a8"/>
+            <circle cx="20" cy="10" r="6" fill="#a7adc0"/>
+            <circle cx="22" cy="9" r="1.3" fill="#191209"/>
+            <path d="M25 10 l5 1.7 -5 1.7 Z" fill="#f4a83b"/>
+          </g>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Blind Builder</h3><span class="mins">~3 min / contract</span></div>
+        <p class="desc">One of you sees the blueprint, one holds the blocks, and everything in between goes by carrier pigeon. Describe it right or watch the client faint at the reveal. <b>The pigeon judges you.</b></p>
+        <div class="chips">
+          <span class="chip">2-player pass &amp; play</span><span class="chip">Solo vs. bot</span><span class="chip">12 contracts</span>
+        </div>
+        <span class="go">Take a contract</span>
+      </div>
+    </a>
+  </div>
+
+  <h2 id="ladder-heading">Arcade &amp; tycoons</h2>
+  <div class="grid" role="list" aria-labelledby="ladder-heading">
+
+    <!-- ZOOM -->
+    <a class="card" role="listitem" href="Zoom/Zoom.html" style="--accent:#ffc857">
+      <div class="art" style="background:linear-gradient(180deg,#0d2c47,#04101d)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <line x1="24" y1="70" x2="316" y2="70" stroke="#9be3ff" stroke-width="3" stroke-linecap="round"/>
+          <g stroke="#2e5d80" stroke-width="2.5" stroke-linecap="round">
+            <line x1="60" y1="60" x2="60" y2="80"/><line x1="115" y1="60" x2="115" y2="80"/>
+            <line x1="170" y1="56" x2="170" y2="84"/><line x1="225" y1="60" x2="225" y2="80"/>
+            <line x1="280" y1="60" x2="280" y2="80"/>
+          </g>
+          <circle cx="197" cy="58" r="10" fill="#ffc857"/>
+          <line x1="197" y1="68" x2="197" y2="82" stroke="#ffc857" stroke-width="3"/>
+          <text x="170" y="108" text-anchor="middle" font-family="Fredoka" font-size="14" fill="#7fa6c4">find 3.47 — dive ×10</text>
+          <circle cx="52" cy="30" r="2.5" fill="#9be3ff" opacity=".5"/><circle cx="290" cy="24" r="2" fill="#9be3ff" opacity=".4"/>
+          <circle cx="255" cy="40" r="1.6" fill="#9be3ff" opacity=".35"/>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Zoom</h3><span class="mins">~2–3 min / level</span></div>
+        <p class="desc">Dive ×10 into an endless ocean to hunt hidden targets. One wrong dive and you're locked out — keep your bearings in your head. Boss levels lurk at the bottom.</p>
+        <div class="chips">
+          <span class="chip">Arcade</span><span class="chip">Level ladder</span><span class="chip">Boss fights</span>
+        </div>
+        <span class="go">Dive in</span>
+      </div>
+    </a>
+
+    <!-- SONAR -->
+    <a class="card" role="listitem" href="Sonar/Sonar.html" style="--accent:#ffc857">
+      <div class="art" style="background:radial-gradient(130% 100% at 50% -12%,#082a47 0%,#04101d 70%)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <g stroke="#1d4a6e" stroke-width="1.5">
+            <line x1="40" y1="24" x2="40" y2="112"/><line x1="105" y1="24" x2="105" y2="112"/>
+            <line x1="170" y1="18" x2="170" y2="118"/><line x1="235" y1="24" x2="235" y2="112"/>
+            <line x1="300" y1="24" x2="300" y2="112"/>
+            <line x1="24" y1="35" x2="316" y2="35"/><line x1="24" y1="68" x2="316" y2="68"/>
+            <line x1="24" y1="101" x2="316" y2="101"/>
+          </g>
+          <circle cx="128" cy="60" r="34" fill="none" stroke="#9be3ff" stroke-width="2.5" opacity=".85"/>
+          <circle cx="216" cy="84" r="46" fill="none" stroke="#9be3ff" stroke-width="2" opacity=".5"/>
+          <circle cx="128" cy="60" r="4" fill="#9be3ff"/>
+          <g stroke="#ffc857" stroke-width="3" stroke-linecap="round">
+            <line x1="162" y1="52" x2="176" y2="66"/><line x1="176" y1="52" x2="162" y2="66"/>
+          </g>
+          <text x="262" y="40" text-anchor="middle" font-family="Fredoka" font-size="13" fill="#7fa6c4">ping… ping…</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Sonar</h3><span class="mins">~3 min / patrol</span></div>
+        <p class="desc">A hidden fleet lurks in the dark. Ping the water and a ring spreads to the ship's exact distance — cross your rings, call the shot, and fire. Miss, and it's a splash.</p>
+        <div class="chips">
+          <span class="chip">Arcade</span><span class="chip">Deduction</span><span class="chip">Ghost fleet boss</span>
+        </div>
+        <span class="go">Start the hunt</span>
+      </div>
+    </a>
+
+    <!-- CARTOGRAPHER'S APPRENTICE -->
+    <a class="card" role="listitem" href="CartographersApprentice/CartographersApprentice.html" style="--accent:#e0a92f">
+      <div class="art" style="background:linear-gradient(160deg,#2b1e16,#140d08)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <rect x="120" y="14" width="196" height="104" rx="8" fill="#ecd9ae" stroke="#c9ab72" stroke-width="2.5"/>
+          <g stroke="#c9ab72" stroke-width="1" opacity=".7">
+            <line x1="152" y1="18" x2="152" y2="114"/><line x1="184" y1="18" x2="184" y2="114"/>
+            <line x1="216" y1="18" x2="216" y2="114"/><line x1="248" y1="18" x2="248" y2="114"/><line x1="280" y1="18" x2="280" y2="114"/>
+            <line x1="124" y1="46" x2="312" y2="46"/><line x1="124" y1="78" x2="312" y2="78"/>
+          </g>
+          <rect x="120" y="14" width="26" height="104" fill="#5e9ea6" opacity=".45"/>
+          <path d="M131 24 q7 4 0 8 q-7 4 0 8 q7 4 0 8 q-7 4 0 8 q7 4 0 8 q-7 4 0 8 q7 4 0 8 q-7 4 0 8" fill="none" stroke="#4d8891" stroke-width="1.6" opacity=".8"/>
+          <path d="M232 74 l4-16 h5l-4 16z" fill="#8d7355" stroke="#3d2c24" stroke-width="1.6"/>
+          <path d="M241 58 l8 3-8 3z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.2"/>
+          <circle cx="234" cy="66" r="16" fill="none" stroke="#e0a92f" stroke-width="3"/>
+          <circle cx="298" cy="30" r="12" fill="#ecd9ae" stroke="#3d2c24" stroke-width="1.6"/>
+          <path d="M298 20 l3 5 h-6z" fill="#b1523f"/><path d="M292 24 l12 0" stroke="#3d2c24" stroke-width="1.2"/>
+          <g transform="translate(52 40)">
+            <circle cx="0" cy="0" r="22" fill="#d9a066" stroke="#3d2c24" stroke-width="2.5"/>
+            <path d="M-22 -4 a22 22 0 0 1 44 0 l-3 5 q-19-11 -38 0z" fill="#3fb8ad" stroke="#3d2c24" stroke-width="2.5"/>
+            <circle cx="-8" cy="0" r="2.4" fill="#3d2c24"/><circle cx="8" cy="0" r="2.4" fill="#3d2c24"/>
+            <path d="M-8 10 q8 6 16 0" fill="none" stroke="#3d2c24" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <path d="M30 74 h44 l6 8 -6 8 h-44z" fill="#f7ecd2" stroke="#c9ab72" stroke-width="1.6"/>
+          <text x="52" y="88" text-anchor="middle" font-family="Nunito" font-weight="800" font-size="10.5" fill="#3d2c24">on my left…</text>
+          <text x="52" y="108" text-anchor="middle" font-family="Nunito" font-weight="800" font-size="9.5" fill="#93785f" opacity=".5">…faced the river</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>The Cartographer's Apprentice</h3><span class="mins">~4 min / day</span></div>
+        <p class="desc">Travelers lean over your counter and tell you what they saw — <b>the tower on their left as they faced the river</b> — then the words fade. Stand in their boots, ink the map, and don't flip their left for yours.</p>
+        <div class="chips">
+          <span class="chip">Voices</span><span class="chip">Deduction</span><span class="chip">Saves progress</span>
+        </div>
+        <span class="go">Open the map shop</span>
+      </div>
+    </a>
+
+    <!-- REWIND -->
+    <a class="card" role="listitem" href="Rewind/Rewind.html" style="--accent:#e8a33d">
+      <div class="art" style="background:radial-gradient(120% 120% at 50% -10%,#3a3027,#241d18)">
+        <svg viewBox="0 0 340 132" aria-hidden="true" font-family="Fredoka">
+          <rect x="22" y="86" width="296" height="10" rx="5" fill="#5f4a34"/>
+          <g>
+            <rect x="34" y="52" width="52" height="34" rx="5" fill="#f3e9d7" stroke="#d5c5a8" transform="rotate(-4 60 69)"/>
+            <rect x="100" y="52" width="52" height="34" rx="5" fill="#f3e9d7" stroke="#d5c5a8"/>
+            <rect x="166" y="52" width="52" height="34" rx="5" fill="#f3e9d7" stroke="#d5c5a8" transform="rotate(3 192 69)"/>
+            <rect x="232" y="52" width="52" height="34" rx="5" fill="#f3e9d7" stroke="#d5c5a8" transform="rotate(-2 258 69)"/>
+          </g>
+          <g font-size="19" text-anchor="middle">
+            <text x="60" y="76">🪟</text><text x="126" y="76">📄</text><text x="192" y="76">🐈</text><text x="258" y="76">🕯️</text>
+          </g>
+          <path d="M40 104 L300 104" stroke="#c9821f" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
+          <text x="40" y="120" font-size="11" fill="#8a7a64">first</text>
+          <text x="300" y="120" font-size="11" fill="#8a7a64" text-anchor="end">last</text>
+          <g transform="translate(282 24)"><circle r="15" fill="none" stroke="#e8a33d" stroke-width="4"/><line x1="11" y1="11" x2="22" y2="22" stroke="#e8a33d" stroke-width="4" stroke-linecap="round"/></g>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Rewind</h3><span class="mins">~4 min / case</span></div>
+        <p class="desc">You always arrive <b>after</b> it happened. Poke the scene for clues, drag the story back into order — then watch the whole ridiculous disaster replay, exactly as you called it.</p>
+        <div class="chips">
+          <span class="chip">Mystery</span><span class="chip">Case campaign</span><span class="chip">Slapstick replay</span>
+        </div>
+        <span class="go">Open a case</span>
+      </div>
+    </a>
+
+    <!-- FAMILY TREE DETECTIVE -->
+    <a class="card" role="listitem" href="FamilyTreeDetective/FamilyTreeDetective.html" style="--accent:#c9973b">
+      <div class="art" style="background:linear-gradient(165deg,#3a2b1c,#1a120b)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <g stroke="#c9b591" stroke-width="3" fill="none" stroke-linecap="round" opacity=".85">
+            <path d="M118 42 H210"/><path d="M164 42 V60"/>
+            <path d="M164 60 Q118 60 118 80 M164 60 Q210 60 210 80"/>
+          </g>
+          <g>
+            <ellipse cx="118" cy="38" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="2.5"/>
+            <ellipse cx="210" cy="38" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="2.5"/>
+            <ellipse cx="118" cy="90" rx="15" ry="17" fill="#e9d8b6" stroke="#3b2f22" stroke-width="2.5"/>
+            <ellipse cx="210" cy="90" rx="15" ry="17" fill="none" stroke="#c9973b" stroke-width="2.5" stroke-dasharray="3 4"/>
+            <text x="210" y="96" text-anchor="middle" font-family="Caveat,cursive" font-size="22" font-weight="700" fill="#c9b591">?</text>
+          </g>
+          <g transform="translate(250 58)">
+            <circle cx="12" cy="12" r="20" fill="rgba(233,216,182,.12)" stroke="#c9973b" stroke-width="5"/>
+            <rect x="26" y="26" width="26" height="9" rx="4.5" transform="rotate(45 26 26)" fill="#6d5433" stroke="#3b2f22" stroke-width="2"/>
+          </g>
+          <text x="58" y="24" font-family="Caveat,cursive" font-size="17" fill="#e8bd6d" font-weight="700" transform="rotate(-3 58 24)">who's who?</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Family Tree Detective</h3><span class="mins">~5–10 min / case</span></div>
+        <p class="desc">You've inherited Great-Aunt Greta's dusty records office. Piece each family together from letters, photos and gossip — drag the faces onto the tree, then <b>stamp it</b> when you're sure. One stranger keeps turning up at the edge of every photo…</p>
+        <div class="chips">
+          <span class="chip">Story</span><span class="chip">Deduction</span><span class="chip">Cozy mystery</span>
+        </div>
+        <span class="go">Open the office</span>
+      </div>
+    </a>
+
+    <!-- CHOCOLATE SHOP -->
+    <a class="card" role="listitem" href="UnbreakableChocolateBar/UnbreakableChocolateBar.html" style="--accent:#ffb246">
+      <div class="art" style="background:linear-gradient(160deg,#3a2415,#1d1009)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <g transform="rotate(-5 150 66)">
+            <rect x="90" y="30" width="120" height="76" rx="8" fill="#54301b"/>
+            <g fill="#7b4a2d">
+              <rect x="97" y="37" width="32" height="29" rx="4"/><rect x="133" y="37" width="32" height="29" rx="4"/><rect x="169" y="37" width="32" height="29" rx="4"/>
+              <rect x="97" y="70" width="32" height="29" rx="4"/><rect x="133" y="70" width="32" height="29" rx="4"/><rect x="169" y="70" width="32" height="29" rx="4"/>
+            </g>
+            <line x1="151" y1="26" x2="151" y2="110" stroke="#ffb246" stroke-width="3" stroke-dasharray="5 6" stroke-linecap="round"/>
+          </g>
+          <text x="262" y="58" text-anchor="middle" font-family="Fredoka" font-size="18" fill="#ffb246" font-weight="600">⅓?</text>
+          <text x="262" y="82" text-anchor="middle" font-family="Fredoka" font-size="13" fill="#c49a7a">slice it by eye</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>The Chocolate Shop</h3><span class="mins">~3 min / shop day</span></div>
+        <p class="desc">You inherited Grandma Pearl's chocolate counter. Customers call out their orders, you slice slabs and wheels <b>by eye</b> — sharp cuts earn the tips that build your empire.</p>
+        <div class="chips">
+          <span class="chip">Tycoon</span><span class="chip">Shop upgrades</span><span class="chip">Saves progress</span>
+        </div>
+        <span class="go">Open the shop</span>
+      </div>
+    </a>
+
+    <!-- RAMEN CAT -->
+    <a class="card" role="listitem" href="RamenCat/RamenCat.html" style="--accent:#f9c22b">
+      <div class="art" style="background:linear-gradient(160deg,#3e3546,#2e222f)">
+        <svg viewBox="0 0 340 132" aria-hidden="true" shape-rendering="crispEdges">
+          <g transform="translate(136 30)">
+            <rect x="0" y="30" width="68" height="34" fill="#9e4539"/>
+            <rect x="4" y="26" width="60" height="10" fill="#fdcbb0"/>
+            <rect x="10" y="20" width="12" height="8" fill="#fbff86"/><rect x="28" y="18" width="14" height="10" fill="#fbff86"/><rect x="48" y="20" width="10" height="8" fill="#fbff86"/>
+            <rect x="20" y="12" width="8" height="10" fill="#ed8099"/><rect x="42" y="12" width="8" height="10" fill="#ffffff"/>
+            <rect x="14" y="0" width="4" height="16" fill="#c7dcd0" opacity=".6"/><rect x="34" y="-4" width="4" height="18" fill="#c7dcd0" opacity=".5"/>
+          </g>
+          <g transform="translate(232 44)" fill="#f79617">
+            <rect x="0" y="16" width="40" height="28"/>
+            <rect x="2" y="6" width="10" height="12"/><rect x="28" y="6" width="10" height="12"/>
+            <rect x="44" y="22" width="8" height="18"/>
+            <g fill="#2e222f"><rect x="10" y="24" width="4" height="4"/><rect x="26" y="24" width="4" height="4"/></g>
+          </g>
+          <text x="72" y="56" text-anchor="middle" font-family="Fredoka" font-size="14" fill="#f9c22b" font-weight="600">the usual,</text>
+          <text x="72" y="76" text-anchor="middle" font-family="Fredoka" font-size="12" fill="#c7dcd0" opacity=".8">extra noodles</text>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>The Ramen Cat</h3><span class="mins">~3 min / shop day</span></div>
+        <p class="desc">Dad vanished on a "broth pilgrimage," leaving you the Lucky Noodle — and Tonko, a round, imperious cat. Ladle each bowl the regulars' way; overfill and it's a <b>soup crime</b>.</p>
+        <div class="chips">
+          <span class="chip">Tycoon</span><span class="chip">Story</span><span class="chip">Talking cat</span>
+        </div>
+        <span class="go">Open the counter</span>
+      </div>
+    </a>
+
+    <!-- THE GILDER TRUST -->
+    <a class="card" role="listitem" href="TheGilderTrust/TheGilderTrust.html" style="--accent:#b3242a">
+      <div class="art" style="background:linear-gradient(160deg,#e8ddc2,#cfc09a)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <rect x="46" y="26" width="180" height="86" rx="4" fill="#f3e9d2" stroke="#3a3226" stroke-width="2.5" transform="rotate(-2 136 69)"/>
+          <g transform="rotate(-2 136 69)" font-family="Fredoka" fill="#3a3226">
+            <text x="60" y="48" font-size="13" font-weight="600">WITHDRAWAL SLIP</text>
+            <line x1="60" y1="56" x2="212" y2="56" stroke="#3a3226" stroke-width="1.4"/>
+            <text x="60" y="76" font-size="12">Name ..............</text>
+            <text x="60" y="94" font-size="12">Amount ....... 45g</text>
+          </g>
+          <g transform="translate(232 34) rotate(9)">
+            <rect x="0" y="0" width="84" height="34" rx="4" fill="none" stroke="#b3242a" stroke-width="4"/>
+            <text x="42" y="24" text-anchor="middle" font-family="Fredoka" font-size="17" font-weight="700" fill="#b3242a">DECLINED</text>
+          </g>
+          <circle cx="72" cy="112" r="13" fill="#c9b26a" stroke="#8a7440" stroke-width="2.5"/>
+          <circle cx="98" cy="116" r="13" fill="#c9b26a" stroke="#8a7440" stroke-width="2.5"/>
+          <circle cx="86" cy="104" r="13" fill="#d8c893" stroke="#8a7440" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>The Gilder Trust</h3><span class="mins">~10 min / shift</span></div>
+        <p class="desc">You're the new teller at Marrowgate's marble bank. Check the face, check the registry, count the coins — one of them is <b>wax</b> — and bring the stamp down. The till had better balance at five o'clock.</p>
+        <div class="chips">
+          <span class="chip">Story</span><span class="chip">Spot the fraud</span><span class="chip">Saves progress</span>
+        </div>
+        <span class="go">Clock in</span>
+      </div>
+    </a>
+
+    <!-- ORCHARD COTTAGE -->
+    <a class="card" role="listitem" href="OrchardCottage/OrchardCottage.html" style="--accent:#ff7f66">
+      <div class="art" style="background:linear-gradient(160deg,#ffd9a0,#e8944a)">
+        <svg viewBox="0 0 340 132" aria-hidden="true">
+          <ellipse cx="170" cy="104" rx="120" ry="10" fill="#8c5a3c"/>
+          <g>
+            <path d="M96 78 Q96 40 144 40 L196 40 Q244 40 244 78 Q244 96 196 96 L144 96 Q96 96 96 78Z" fill="#3f7d3a"/>
+            <path d="M120 42 Q132 68 120 94 M160 40 Q172 68 160 96 M204 40 Q216 68 204 94" stroke="#2f6330" stroke-width="9" fill="none"/>
+          </g>
+          <line x1="170" y1="18" x2="170" y2="112" stroke="#ff7f66" stroke-width="4" stroke-linecap="round"/>
+          <line x1="170" y1="18" x2="170" y2="112" stroke="#fff" stroke-width="1.4" opacity=".8"/>
+          <circle cx="278" cy="46" r="18" fill="#f3c9a5"/>
+          <circle cx="272" cy="42" r="2.4" fill="#4a3226"/><circle cx="284" cy="42" r="2.4" fill="#4a3226"/>
+          <path d="M271 51 Q278 57 285 51" stroke="#4a3226" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <circle cx="62" cy="46" r="18" fill="#e8b48e"/>
+          <circle cx="56" cy="42" r="2.4" fill="#4a3226"/><circle cx="68" cy="42" r="2.4" fill="#4a3226"/>
+          <path d="M55 53 Q62 49 69 53" stroke="#4a3226" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="body">
+        <div class="titlerow"><h3>Orchard Cottage</h3><span class="mins">~30 sec / customer</span></div>
+        <p class="desc">Gran's fruit window, one golden afternoon, and you on the knife. Slice every fruit into <b>fair shares by eye</b> — the smallest plate always tells on you, and the banana lies about its size.</p>
+        <div class="chips">
+          <span class="chip">Arcade</span><span class="chip">Streak</span><span class="chip">Judgy villagers</span>
+        </div>
+        <span class="go">Pick up the knife</span>
+      </div>
+    </a>
+  </div>
+
+  <footer>
+    <p>Daily puzzles reset at midnight. Shop games save your progress right in this browser — same device, same shop.</p>
+    <p>yamgam · no ads, no accounts, just games</p>
+  </footer>
+</div>
+</body>
+</html>

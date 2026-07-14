@@ -1,0 +1,16 @@
+# Editor / tooling config — not part of the published site
+.claude/
+game-design.skill
+
+# Design documents (GDDs, pedagogy notes) — kept local, never published
+Boba Break/
+Blind Builder/
+Family Tree Detective/
+Orchard Cottage/
+One Way Town/
+The Lighthouse Keeper/
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store

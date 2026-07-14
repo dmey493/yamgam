@@ -1,0 +1,1998 @@
+<!doctype html>
+<!--
+  THE CARTOGRAPHER'S APPRENTICE — yamgam suite
+  ═══════════════════════════════════════════════════════════════════
+  DESIGN NOTE (not student-facing)
+
+  Cognitive target (Feuerstein, Orientation in Space):
+    Translating EGOCENTRIC descriptions ("the tower was on my left as I
+    faced the river") into an ALLOCENTRIC top-down map. Input-phase
+    spatial orientation + impulse control at input (testimony fades;
+    listening fully beats grabbing tokens early) + precise data
+    gathering (decoy tokens & flavor lines that mention landmarks
+    nobody asked for).
+
+  Loose standards link: CCSS 6.NS.C.8 (coordinate plane navigation),
+    SMP1 (make sense / persevere), SMP6 (attend to precision).
+
+  Super-idea: LEFT AND RIGHT BELONG TO A BODY, NOT TO THE MAP.
+    To use someone's directions you must stand in their boots first.
+
+  Misconceptions ambushed:
+    1. "Left always means west (screen-left)." — south/east-facing
+       narrators mirror the answer; engine precomputes the mirror cell
+       and classifies the error.
+    2. "Behind me = below on the map." — only when facing north.
+    3. Ignoring the facing clause entirely (impulsive placement) —
+       testimony fades, but re-asking is always possible (1 free,
+       then 1 coin; never blocked).
+    4. Turning left/right during a walked path flips with heading.
+
+  Mechanics per cognitive-functions layer:
+    - Scarcity (re-ask cost, one ink per day) is the tension; NO timers.
+    - "Little Scout" figurine = optional free scaffold: place it where
+      the traveler stood, rotate it, and its labelled L/R arms model
+      perspective-taking.
+    - Error classification: input (inked before the tale finished),
+      elaboration (mirror / far miss), output (adjacent near-miss).
+      Surfaced as in-world "guild marks" (Listening / Reckoning /
+      Steady Hand) on the day-end screen. Never mid-play judgment.
+    - Mediation hook: every 3rd day Maera asks ONE tap-to-answer
+      reflection ("What did you picture first?"). Skippable.
+
+  TEACHER TALK CARDS (ask after play):
+    1. "Wren said the tower was on her LEFT. Why did Marco ink it on
+       the RIGHT side of the map — and why was he correct?"
+    2. "What do you do differently when a traveler faces SOUTH?"
+    3. "Which do you find first: where they stood, or which way they
+       faced? Why does the order matter?"
+    4. "When the words started fading, what did you choose to hold in
+       your head — the whole story or something shorter?"
+    5. "Where else in life do you get directions from someone facing a
+       different way than you?"
+
+  House conventions: single file, no deps. IIFE modules: Engine (pure,
+  window.CA debug), Sound (WebAudio), Speech (speechSynthesis), UI.
+  Fredoka/Nunito. gold = player/score, coral = danger, teal = water.
+  localStorage keys carto.* behind try/catch (falls back to memory).
+  Retry regenerates the day layout (seed includes attempt) — answers
+  can't be memorized. Balance: fading text is the challenge, but
+  re-asks are never blocked and adjacent placements still pay 1 coin.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Cartographer's Apprentice</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F9ED;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --wood:#2b1e16; --wood2:#1d130c;
+  --parch:#ecd9ae; --parch2:#e2cc97; --parchline:#c9ab72;
+  --ink:#3d2c24; --ink2:#65503f; --faded:#93785f;
+  --gold:#ffcb47; --gold2:#e0a92f;
+  --teal:#3fb8ad; --river:#5e9ea6;
+  --coral:#ff5d6c;
+  --cream:#f7ecd2; --mut:#b9a58a;
+  --radius:16px;
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --shadow-sm:0 4px 12px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(120% 90% at 50% -10%, #3a2a1d 0%, var(--wood) 50%, var(--wood2) 100%);
+  color:var(--cream);
+  font-family:Nunito,system-ui,sans-serif;
+  overflow-x:hidden;
+  user-select:none; -webkit-user-select:none;
+}
+button{font-family:inherit;cursor:pointer;border:none}
+button:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--teal);outline-offset:2px;border-radius:10px}
+
+/* ───────── header ───────── */
+#hud{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 16px 4px;max-width:1100px;margin:0 auto;
+}
+#hud .word{font-family:Fredoka;font-weight:600;font-size:19px;letter-spacing:.4px;line-height:1.05}
+#hud .word small{display:block;font-size:10.5px;font-weight:700;letter-spacing:2.2px;text-transform:uppercase;color:var(--mut)}
+#hud .spacer{flex:1}
+.pill{
+  display:flex;align-items:center;gap:7px;
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);
+  border-radius:99px;padding:6px 13px;font-weight:800;font-size:15px;
+}
+.pill svg{width:17px;height:17px;flex:none}
+#coinPill{color:var(--gold)}
+#dayPill{color:var(--cream)}
+#streakPill{color:var(--coral);display:none}
+.iconbtn{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);color:var(--cream);
+  transition:transform .12s ease, background .12s ease;
+}
+.iconbtn:active{transform:scale(.92)}
+.iconbtn.off{opacity:.45}
+.iconbtn svg{width:20px;height:20px}
+
+/* ───────── layout ───────── */
+#game{
+  max-width:1100px;margin:0 auto;padding:6px 14px 26px;
+  display:grid;grid-template-columns:minmax(280px,340px) 1fr;
+  gap:16px;align-items:start;
+}
+@media (max-width:860px){
+  #game{grid-template-columns:1fr}
+}
+
+/* ───────── traveler stage ───────── */
+#stage{
+  position:relative;min-height:340px;display:flex;flex-direction:column;justify-content:flex-end;
+}
+@media (max-width:860px){ #stage{min-height:290px} }
+#bubble{
+  position:relative;
+  background:var(--cream);color:var(--ink);
+  border-radius:18px;padding:14px 16px 12px;
+  box-shadow:var(--shadow-sm);
+  font-size:16.5px;line-height:1.5;font-weight:600;
+  min-height:112px;
+  opacity:0;transform:translateY(8px) scale(.97);
+  transition:opacity .28s ease, transform .28s cubic-bezier(.34,1.56,.64,1);
+  margin-bottom:14px;
+}
+#bubble.show{opacity:1;transform:none}
+#bubble::after{
+  content:'';position:absolute;bottom:-10px;left:64px;
+  width:22px;height:22px;background:var(--cream);
+  transform:rotate(45deg);border-radius:4px;
+}
+#bubble .who{
+  font-family:Fredoka;font-weight:600;font-size:13px;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--ink2);margin-bottom:6px;
+}
+.line{display:block;margin:2px 0;transition:opacity 1.6s ease, filter 1.6s ease}
+.line.faded{opacity:0;filter:blur(6px);pointer-events:none}
+.line .w{opacity:0;display:inline}
+.line .w.on{opacity:1;transition:opacity .18s ease}
+.line b{color:#7c2d12;font-weight:800}
+#bubbleTools{display:flex;gap:8px;margin-top:9px}
+.chipbtn{
+  font-family:Fredoka;font-weight:600;font-size:13px;letter-spacing:.3px;
+  background:var(--parch2);color:var(--ink);border-radius:99px;padding:6px 13px;
+  box-shadow:0 2px 0 var(--parchline);
+  transition:transform .1s ease, filter .1s ease;
+}
+.chipbtn:active{transform:translateY(1px)}
+.chipbtn[disabled]{opacity:.4;cursor:default}
+.chipbtn .cost{color:#8a5a12;font-weight:800}
+
+#porch{position:relative;height:230px}
+@media (max-width:860px){ #porch{height:196px} }
+.traveler{
+  position:absolute;bottom:0;left:8px;width:200px;
+  transform:translateY(115%);
+  transition:transform .52s cubic-bezier(.30,1.75,.45,1);
+  filter:drop-shadow(0 10px 18px rgba(0,0,0,.5));
+}
+@media (max-width:860px){ .traveler{width:168px} }
+.traveler.in{transform:translateY(6%)}
+.traveler.bye{transition:transform .45s cubic-bezier(.5,-.3,.7,.5);transform:translateY(118%)}
+.traveler svg{width:100%;height:auto;display:block}
+.traveler .bob{animation:bob 3.2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.traveler .mouth-talk{display:none;transform-box:fill-box;transform-origin:center}
+.traveler.talking .mouth-talk{display:block;animation:flap .26s ease-in-out infinite}
+.traveler.talking .mouth-idle{display:none}
+@keyframes flap{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1.05)}}
+.traveler .hand{transform-box:fill-box;transform-origin:center}
+.traveler.talking .hand{animation:gesture 1.9s ease-in-out infinite}
+@keyframes gesture{0%,100%{transform:rotate(0deg) translateY(0)}30%{transform:rotate(-10deg) translateY(-3px)}60%{transform:rotate(6deg) translateY(1px)}}
+.traveler .lid{opacity:0}
+.traveler.blink .lid{opacity:1}
+#namePlate{
+  position:absolute;left:150px;bottom:26px;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:7px 13px;line-height:1.15;
+  opacity:0;transform:translateX(-8px);transition:all .3s ease .25s;
+  pointer-events:none;white-space:nowrap;
+}
+@media (max-width:860px){ #namePlate{left:128px} }
+#namePlate.show{opacity:1;transform:none}
+#namePlate.boss{border-color:var(--gold);box-shadow:0 0 16px rgba(255,203,71,.4)}
+#namePlate.boss .tt::before{content:'⚓ '}
+#namePlate .nm{font-family:Fredoka;font-weight:600;font-size:16px;color:var(--gold)}
+#namePlate .tt{font-size:11.5px;color:var(--mut);font-weight:700}
+
+/* ───────── map ───────── */
+#mapWrap{position:relative}
+#mapCard{
+  background:var(--parch);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow), inset 0 0 60px rgba(150,110,50,.25);
+  padding:10px;position:relative;overflow:hidden;
+  transition:box-shadow .3s ease;
+}
+#mapCard.lit{ box-shadow:var(--shadow), inset 0 0 70px rgba(255,203,71,.55), 0 0 30px rgba(255,203,71,.3); }
+#mapSvg{display:block;width:100%;height:auto;touch-action:none}
+.cellhit{fill:transparent;cursor:pointer}
+.cellhit.hl{fill:rgba(255,203,71,.28)}
+.cellhit.bad{fill:rgba(255,93,108,.22)}
+.token-ghost{opacity:.5;pointer-events:none}
+.stamp .under{transform-origin:center;transform-box:fill-box}
+.sketch{opacity:.82;cursor:grab}
+.sketch .under{animation:wiggle 2.2s ease-in-out infinite}
+@keyframes wiggle{0%,100%{transform:rotate(-2.4deg)}50%{transform:rotate(2.4deg)}}
+.inked{cursor:default}
+.scout-tok{cursor:pointer}
+@keyframes popstamp{0%{transform:scale(.4)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.stamp.justput .under{animation:popstamp .32s cubic-bezier(.34,1.56,.64,1)}
+@keyframes shakeC{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,2px)}40%{transform:translate(5px,-2px)}60%{transform:translate(-4px,1px)}80%{transform:translate(3px,-1px)}}
+#mapCard.shake{animation:shakeC .3s ease}
+@keyframes glowP{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+#edgeGlow{position:absolute;inset:0;border-radius:var(--radius);pointer-events:none;opacity:0;
+  box-shadow:inset 0 0 46px 10px rgba(255,203,71,.55)}
+#edgeGlow.go{animation:glowP 1s ease}
+
+/* ───────── tray ───────── */
+#tray{
+  margin-top:12px;background:rgba(0,0,0,.3);
+  border:1px solid rgba(255,255,255,.07);border-radius:var(--radius);
+  padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+#tray .lbl{font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--mut);width:100%;margin-bottom:-2px}
+.tok{
+  touch-action:none;
+  width:62px;height:62px;border-radius:14px;
+  background:var(--parch);box-shadow:0 3px 0 var(--parchline), var(--shadow-sm);
+  display:grid;place-items:center;position:relative;
+  cursor:grab;transition:transform .14s ease, box-shadow .14s ease, opacity .2s ease;
+  border:none;padding:4px;
+}
+.tok svg{width:44px;height:44px;pointer-events:none}
+.tok .tokname{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);
+  font-size:10px;font-weight:800;letter-spacing:.4px;color:var(--mut);white-space:nowrap}
+.tok:hover{transform:translateY(-3px)}
+.tok.sel{outline:3px solid var(--gold);outline-offset:2px;transform:translateY(-3px) scale(1.05)}
+.tok.used{opacity:.28;pointer-events:none}
+.tok.scout{background:linear-gradient(160deg,#d9e8e2,#b7d4cb)}
+#trayRow{display:flex;gap:14px;flex-wrap:wrap;padding-bottom:16px}
+#inkBtn{
+  margin-left:auto;align-self:center;
+  font-family:Fredoka;font-weight:600;font-size:19px;letter-spacing:.4px;
+  background:linear-gradient(180deg,var(--gold),var(--gold2));color:#3a2606;
+  border-radius:16px;padding:13px 26px;
+  box-shadow:0 5px 0 #a97c18, var(--shadow-sm);
+  transition:transform .12s ease, box-shadow .12s ease, opacity .2s ease, filter .2s ease;
+}
+#inkBtn:active{transform:translateY(3px);box-shadow:0 2px 0 #a97c18}
+#inkBtn[disabled]{opacity:.35;filter:saturate(.4);cursor:default;box-shadow:0 5px 0 #a97c18}
+#inkBtn.ready{animation:pulseInk 1.4s ease-in-out infinite}
+@keyframes pulseInk{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+
+/* floating drag clone */
+#dragGhost{position:fixed;pointer-events:none;z-index:60;width:56px;height:56px;
+  transform:translate(-50%,-60%) rotate(-4deg);display:none;filter:drop-shadow(0 8px 10px rgba(0,0,0,.45))}
+#dragGhost svg{width:100%;height:100%}
+
+/* floaters & particles */
+.floater{
+  position:fixed;z-index:70;pointer-events:none;
+  font-family:Fredoka;font-weight:600;font-size:22px;color:var(--gold);
+  text-shadow:0 2px 6px rgba(0,0,0,.5);
+  animation:floatUp 1s ease-out forwards;
+}
+@keyframes floatUp{0%{opacity:0;transform:translateY(6px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.1)}100%{opacity:0;transform:translateY(-46px) scale(1)}}
+.pt{position:fixed;z-index:65;pointer-events:none;border-radius:50%}
+
+/* ───────── overlays ───────── */
+.overlay{
+  position:fixed;inset:0;z-index:80;display:grid;place-items:center;
+  background:rgba(15,9,5,.72);backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .3s ease;padding:16px;
+}
+.overlay.show{opacity:1;pointer-events:auto}
+.sheet{
+  width:min(560px,94vw);max-height:92vh;overflow-y:auto;
+  background:var(--parch);color:var(--ink);
+  border-radius:22px;box-shadow:var(--shadow), inset 0 0 70px rgba(150,110,50,.22);
+  padding:26px 26px 22px;text-align:center;
+  transform:translateY(14px) scale(.97);transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.overlay.show .sheet{transform:none}
+.sheet h1{font-family:Fredoka;font-weight:600;font-size:33px;margin:2px 0 4px;line-height:1.1}
+.sheet h2{font-family:Fredoka;font-weight:600;font-size:24px;margin:0 0 6px}
+.sheet .sub{color:var(--ink2);font-weight:700;font-size:15px;margin:0 0 14px}
+.bigbtn{
+  display:inline-block;font-family:Fredoka;font-weight:600;font-size:20px;
+  background:linear-gradient(180deg,var(--gold),var(--gold2));color:#3a2606;
+  border-radius:16px;padding:14px 34px;margin-top:14px;
+  box-shadow:0 5px 0 #a97c18;transition:transform .12s ease;
+}
+.bigbtn:active{transform:translateY(3px)}
+.ghostbtn{
+  display:inline-block;font-family:Fredoka;font-weight:500;font-size:15px;
+  background:transparent;color:var(--ink2);padding:10px 16px;margin-top:8px;
+  text-decoration:underline;text-underline-offset:3px;
+}
+.statline{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:9px 4px;border-bottom:1px dashed var(--parchline);
+  font-weight:700;font-size:16px;opacity:0;transform:translateY(6px);
+}
+.statline.show{opacity:1;transform:none;transition:all .35s ease}
+.statline .v{font-family:Fredoka;font-weight:600;font-size:20px}
+.stars{font-size:34px;letter-spacing:6px;margin:6px 0 2px;min-height:44px}
+.stars span{display:inline-block;opacity:0;transform:scale(.3)}
+.stars span.on{opacity:1;transform:scale(1);transition:all .3s cubic-bezier(.34,1.7,.64,1)}
+.stars span.dim{opacity:.25;transform:scale(1);transition:opacity .3s}
+.marks{margin:12px 0 2px;text-align:left}
+.mark{display:flex;align-items:center;gap:10px;margin:7px 0}
+.mark .mlbl{width:110px;font-weight:800;font-size:13.5px;color:var(--ink2)}
+.mark .bar{flex:1;height:12px;border-radius:99px;background:rgba(61,44,36,.15);overflow:hidden}
+.mark .fill{height:100%;border-radius:99px;background:var(--ink2);width:0;transition:width .8s cubic-bezier(.25,1,.4,1)}
+.mark.good .fill{background:#4e8f5b}
+.reflect{margin:14px 0 4px;background:rgba(61,44,36,.07);border-radius:14px;padding:13px}
+.reflect p{margin:0 0 10px;font-weight:700}
+.reflect .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.howto{display:flex;gap:12px;justify-content:center;margin:16px 0 4px;flex-wrap:wrap}
+.howto .step{width:128px;font-size:12.5px;font-weight:700;color:var(--ink2);line-height:1.35}
+.howto .step svg{width:100%;height:74px;display:block;margin-bottom:5px}
+.howto .step b{color:var(--ink)}
+#titleCompass{width:120px;height:120px;margin:0 auto 6px;animation:spinSlow 26s linear infinite}
+@media (prefers-reduced-motion:reduce){
+  #titleCompass{animation:none}
+  .traveler .bob,.sketch .under,#inkBtn.ready,.traveler.talking .mouth-talk,.traveler.talking .hand{animation:none}
+  .traveler.talking .mouth-talk{transform:scaleY(.8)}
+  *{transition-duration:.01ms !important}
+}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+.settingsRow{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+.setchip{
+  font-size:13px;font-weight:800;color:var(--ink2);
+  background:rgba(61,44,36,.08);border-radius:99px;padding:8px 14px;
+  display:flex;align-items:center;gap:7px;border:2px solid transparent;
+}
+.setchip.on{border-color:var(--ink2);color:var(--ink)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="s-tower" viewBox="0 0 48 48">
+  <path d="M15 44 L15 14 h4v-4h3v4h4v-4h3v4h4v30z" fill="#8d7355" stroke="#3d2c24" stroke-width="2.4" stroke-linejoin="round"/>
+  <rect x="21" y="30" width="6" height="14" rx="3" fill="#3d2c24"/>
+  <rect x="20" y="19" width="8" height="6" rx="2" fill="#ecd9ae" stroke="#3d2c24" stroke-width="1.8"/>
+  <path d="M33 12 l8 3-8 3z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.6" stroke-linejoin="round"/>
+  <line x1="33" y1="10" x2="33" y2="19" stroke="#3d2c24" stroke-width="2.4" stroke-linecap="round"/>
+</symbol>
+<symbol id="s-mill" viewBox="0 0 48 48">
+  <path d="M19 44 L21 20 h6 l2 24z" fill="#8d7355" stroke="#3d2c24" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M24 20 L13 9 M24 20 L35 9 M24 20 L13 31 M24 20 L35 31" stroke="#3d2c24" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M13 9 l6 -1 -4 5z M35 9 l1 6 -5 -4z M13 31 l-1 -6 5 4z M35 31 l-6 1 4 -5z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="24" cy="20" r="2.6" fill="#ffcb47" stroke="#3d2c24" stroke-width="1.6"/>
+</symbol>
+<symbol id="s-oak" viewBox="0 0 48 48">
+  <path d="M21 44 c1-6 1-12 0-17 h6 c-1 5-1 11 0 17z" fill="#8d7355" stroke="#3d2c24" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="24" cy="17" r="12" fill="#7d9457" stroke="#3d2c24" stroke-width="2.4"/>
+  <circle cx="14" cy="22" r="7" fill="#7d9457" stroke="#3d2c24" stroke-width="2.2"/>
+  <circle cx="34" cy="22" r="7" fill="#7d9457" stroke="#3d2c24" stroke-width="2.2"/>
+  <circle cx="20" cy="14" r="2" fill="#ecd9ae" opacity=".55"/>
+</symbol>
+<symbol id="s-shrine" viewBox="0 0 48 48">
+  <path d="M12 44 v-16 a12 12 0 0 1 24 0 v16z" fill="#c8b183" stroke="#3d2c24" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M19 44 v-12 a5 5 0 0 1 10 0 v12z" fill="#3d2c24"/>
+  <path d="M9 30 h30" stroke="#3d2c24" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="24" cy="10" r="3.4" fill="#ffcb47" stroke="#3d2c24" stroke-width="1.8"/>
+</symbol>
+<symbol id="s-forge" viewBox="0 0 48 48">
+  <path d="M10 22 h28 v6 c-6 0-7 5-5 8 h-8 c2-6-4-8-8-8 h-7z" fill="#5a5f66" stroke="#3d2c24" stroke-width="2.4" stroke-linejoin="round"/>
+  <rect x="19" y="36" width="12" height="6" rx="2" fill="#8d7355" stroke="#3d2c24" stroke-width="2"/>
+  <path d="M30 10 l6 6 -4 4 -6-6z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M14 15 q2-4 0-7 M20 15 q2-4 0-7" stroke="#b1523f" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+</symbol>
+<symbol id="s-dove" viewBox="0 0 48 48">
+  <rect x="22" y="24" width="4" height="20" fill="#8d7355" stroke="#3d2c24" stroke-width="2"/>
+  <path d="M13 24 v-12 l11-7 11 7 v12z" fill="#ecd9ae" stroke="#3d2c24" stroke-width="2.4" stroke-linejoin="round"/>
+  <circle cx="19" cy="16" r="2.2" fill="#3d2c24"/><circle cx="29" cy="16" r="2.2" fill="#3d2c24"/>
+  <path d="M35 7 q4-3 6 0 q-1 3-6 2z" fill="#fff" stroke="#3d2c24" stroke-width="1.4"/>
+</symbol>
+<symbol id="s-well" viewBox="0 0 48 48">
+  <path d="M13 34 a11 5 0 0 1 22 0 v6 a11 5 0 0 1 -22 0z" fill="#8d7355" stroke="#3d2c24" stroke-width="2.2"/>
+  <ellipse cx="24" cy="34" rx="11" ry="5" fill="#5e9ea6" stroke="#3d2c24" stroke-width="2.2"/>
+  <path d="M12 20 l12-9 12 9" fill="none" stroke="#3d2c24" stroke-width="2.6" stroke-linecap="round"/>
+  <line x1="14" y1="19" x2="14" y2="33" stroke="#3d2c24" stroke-width="2.2"/>
+  <line x1="34" y1="19" x2="34" y2="33" stroke="#3d2c24" stroke-width="2.2"/>
+  <circle cx="24" cy="26" r="2.6" fill="#ffcb47" stroke="#3d2c24" stroke-width="1.4"/>
+</symbol>
+<symbol id="s-gate" viewBox="0 0 48 48">
+  <rect x="9" y="14" width="7" height="30" rx="2" fill="#8d7355" stroke="#3d2c24" stroke-width="2.2"/>
+  <rect x="32" y="14" width="7" height="30" rx="2" fill="#8d7355" stroke="#3d2c24" stroke-width="2.2"/>
+  <path d="M7 14 h34" stroke="#3d2c24" stroke-width="3" stroke-linecap="round"/>
+  <path d="M17 14 h14 l-2 8 h-10z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.8" stroke-linejoin="round"/>
+</symbol>
+<symbol id="s-market" viewBox="0 0 48 48">
+  <path d="M8 20 l4-9 h24 l4 9z" fill="#ecd9ae" stroke="#3d2c24" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M8 20 l4-9 h6 l-3 9z M21 20 l2-9 h6 l1 9z M34 20 l-2-9 h4 l4 9z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.2"/>
+  <path d="M11 20 v22 M37 20 v22" stroke="#3d2c24" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="15" y="30" width="18" height="12" rx="2" fill="#8d7355" stroke="#3d2c24" stroke-width="2"/>
+</symbol>
+<symbol id="s-scout" viewBox="0 0 48 48">
+  <circle cx="24" cy="15" r="8" fill="#d9a066" stroke="#3d2c24" stroke-width="2.2"/>
+  <path d="M13 42 c0-11 5-16 11-16 s11 5 11 16z" fill="#3fb8ad" stroke="#3d2c24" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M16 12 q8-9 16 0 l-2 3 q-6-6-12 0z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.8" stroke-linejoin="round"/>
+  <circle cx="21" cy="15" r="1.4" fill="#3d2c24"/><circle cx="27" cy="15" r="1.4" fill="#3d2c24"/>
+</symbol>
+<symbol id="s-tree" viewBox="0 0 24 24">
+  <path d="M12 2 L18 12 H6 Z M12 8 L20 20 H4 Z" fill="#7d9457" stroke="#3d2c24" stroke-width="1.4" stroke-linejoin="round"/>
+  <rect x="10.5" y="18" width="3" height="5" fill="#6b4a2d"/>
+</symbol>
+<radialGradient id="vign" cx="50%" cy="50%" r="64%">
+  <stop offset="58%" stop-color="#2b1e16" stop-opacity="0"/>
+  <stop offset="100%" stop-color="#2b1e16" stop-opacity="0.34"/>
+</radialGradient>
+</defs>
+</svg>
+
+<div id="hud">
+  <div class="word">The Cartographer's<br>Apprentice <small>guild of wandering tales</small></div>
+  <div class="spacer"></div>
+  <div class="pill" id="dayPill">Day <b id="dayNum">1</b></div>
+  <div class="pill" id="coinPill">
+    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.6" fill="#ffcb47" stroke="#a97c18" stroke-width="2"/><path d="M10 5.5 l1.3 3 3.2.3-2.4 2.1.7 3.1-2.8-1.6-2.8 1.6.7-3.1L5.5 8.8l3.2-.3z" fill="#a97c18"/></svg>
+    <b id="coinNum">0</b>
+  </div>
+  <div class="pill" id="streakPill">🔥 <b id="streakNum">0</b></div>
+  <button class="iconbtn" id="voiceBtn" aria-label="toggle voices" title="Voices">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 a3 3 0 0 1 3 3 v5 a3 3 0 0 1 -6 0 V6 a3 3 0 0 1 3-3z"/><path d="M5.5 11 a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="17.5" x2="12" y2="21"/></svg>
+  </button>
+  <button class="iconbtn" id="muteBtn" aria-label="toggle sound effects" title="Sound effects">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 h4 l5-4 v14 l-5-4 H4z" fill="currentColor" stroke="none"/><path class="wave" d="M16.5 8.5 a5 5 0 0 1 0 7 M19 6 a8.5 8.5 0 0 1 0 12"/></svg>
+  </button>
+  <button class="iconbtn" id="musicBtn" aria-label="toggle music" title="Music">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18 V5 l11-2 v13"/><circle cx="6" cy="18" r="3" fill="currentColor" stroke="none"/><circle cx="17" cy="16" r="3" fill="currentColor" stroke="none"/></svg>
+  </button>
+</div>
+
+<div id="game">
+  <div id="stage">
+    <div id="bubble" role="log" aria-live="polite">
+      <div class="who" id="bubbleWho"></div>
+      <div id="lines"></div>
+      <div id="bubbleTools">
+        <button class="chipbtn" id="againBtn">🗣 Tell me again</button>
+      </div>
+    </div>
+    <div id="porch">
+      <div id="travelerSlot"></div>
+      <div id="namePlate"><div class="nm" id="npName"></div><div class="tt" id="npTitle"></div></div>
+    </div>
+  </div>
+
+  <div id="mapWrap">
+    <div id="mapCard">
+      <svg id="mapSvg" role="application" aria-label="town map"></svg>
+      <div id="edgeGlow"></div>
+    </div>
+    <div id="tray">
+      <div class="lbl">Stamp drawer — drag onto the map <span id="trayHint"></span></div>
+      <div id="trayRow"></div>
+      <button id="inkBtn" disabled>🖋 Ink it</button>
+    </div>
+  </div>
+</div>
+
+<div id="dragGhost"></div>
+
+<!-- title screen -->
+<div class="overlay show" id="titleOv">
+  <div class="sheet">
+    <svg id="titleCompass" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#3d2c24" stroke-width="3"/>
+      <circle cx="50" cy="50" r="34" fill="none" stroke="#c9ab72" stroke-width="1.6"/>
+      <path d="M50 10 L57 50 L50 90 L43 50 Z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.6"/>
+      <path d="M10 50 L50 43 L90 50 L50 57 Z" fill="#ecd9ae" stroke="#3d2c24" stroke-width="1.6"/>
+      <circle cx="50" cy="50" r="5" fill="#ffcb47" stroke="#3d2c24" stroke-width="2"/>
+      <text x="50" y="8" text-anchor="middle" font-family="Fredoka" font-size="11" fill="#3d2c24" font-weight="600">N</text>
+    </svg>
+    <h1>The Cartographer's Apprentice</h1>
+    <p class="sub">Travelers tell you where things stood.<br>Their words fade. Your ink is forever.</p>
+    <div class="howto">
+      <div class="step">
+        <svg viewBox="0 0 120 70"><rect x="6" y="8" width="108" height="54" rx="10" fill="#f7ecd2" stroke="#c9ab72" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-family="Nunito" font-weight="800" font-size="11" fill="#3d2c24">“…two paces to</text><text x="60" y="45" text-anchor="middle" font-family="Nunito" font-weight="800" font-size="11" fill="#93785f" opacity=".55">my left…”</text></svg>
+        <b>Listen close</b> — the tale fades away
+      </div>
+      <div class="step">
+        <svg viewBox="0 0 120 70"><path d="M42 52 q18-16 36 0" fill="none" stroke="#93785f" stroke-width="4" stroke-linecap="round"/><circle cx="60" cy="30" r="15" fill="#d9a066" stroke="#3d2c24" stroke-width="2.4"/><path d="M45 26 q15-13 30 0 l-2 4 q-13-8 -26 0z" fill="#b1523f" stroke="#3d2c24" stroke-width="1.6"/><circle cx="54" cy="31" r="1.8" fill="#3d2c24"/><circle cx="66" cy="31" r="1.8" fill="#3d2c24"/><text x="26" y="36" text-anchor="middle" font-family="Fredoka" font-size="15" fill="#3fb8ad" font-weight="600">R</text><text x="94" y="36" text-anchor="middle" font-family="Fredoka" font-size="15" fill="#b1523f" font-weight="600">L</text></svg>
+        <b>Stand in their boots</b> — their left is your right
+      </div>
+      <div class="step">
+        <svg viewBox="0 0 120 70"><rect x="10" y="10" width="100" height="50" rx="8" fill="#ecd9ae" stroke="#c9ab72" stroke-width="2"/><path d="M30 20 v30 M50 20 v30 M70 20 v30 M90 20 v30 M10 35 h100" stroke="#c9ab72" stroke-width="1.2"/><use href="#s-tower" x="58" y="24" width="24" height="24"/><circle cx="70" cy="36" r="14" fill="none" stroke="#ffcb47" stroke-width="3"/></svg>
+        <b>Ink the map</b> — earn your coin
+      </div>
+    </div>
+    <div><button class="bigbtn" id="startBtn">Open the shop</button></div>
+    <button class="ghostbtn" id="resetBtn" style="display:none">Start over as a new apprentice</button>
+  </div>
+</div>
+
+<!-- day intro -->
+<div class="overlay" id="dayOv">
+  <div class="sheet">
+    <h2 id="dayOvTitle">Day 1</h2>
+    <p class="sub" id="dayOvSub">A traveler is waiting at the counter.</p>
+    <button class="bigbtn" id="dayGoBtn">Ring the bell</button>
+  </div>
+</div>
+
+<!-- day end -->
+<div class="overlay" id="endOv">
+  <div class="sheet">
+    <h2 id="endTitle">The map is inked</h2>
+    <div class="stars" id="endStars"></div>
+    <div id="endStats"></div>
+    <div class="marks" id="endMarks"></div>
+    <div class="reflect" id="reflectBox" style="display:none">
+      <p id="reflectQ"></p>
+      <div class="opts" id="reflectOpts"></div>
+    </div>
+    <div><button class="bigbtn" id="nextDayBtn">Next day</button></div>
+    <button class="ghostbtn" id="retryBtn">Redraw this day (new tales)</button>
+  </div>
+</div>
+<script>
+/* ═════════ ENGINE — pure logic, no DOM ═════════ */
+const Engine = (() => {
+  const W = 9, H = 7;
+  const DIRS = { N:{x:0,y:-1}, E:{x:1,y:0}, S:{x:0,y:1}, W:{x:-1,y:0} };
+  const LEFT  = { N:'W', W:'S', S:'E', E:'N' };
+  const RIGHT = { N:'E', E:'S', S:'W', W:'N' };
+  const BACK  = { N:'S', S:'N', E:'W', W:'E' };
+  const DIRWORD = { N:'north', E:'east', S:'south', W:'west' };
+  const DISTWORD = ['','one pace','two paces','three paces'];
+
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  function hash(...ns){let h=2166136261;for(const n of ns){h^=n;h=Math.imul(h,16777619)}return h>>>0}
+  const key = c => c.x + ',' + c.y;
+  const add = (c,d,k=1) => ({x:c.x+DIRS[d].x*k, y:c.y+DIRS[d].y*k});
+  const inB = c => c.x>=0 && c.x<W && c.y>=0 && c.y<H;
+  const cheb = (a,b) => Math.max(Math.abs(a.x-b.x), Math.abs(a.y-b.y));
+  const pick = (r,arr) => arr[Math.floor(r()*arr.length)];
+  const ri = (r,a,b) => a + Math.floor(r()*(b-a+1));
+
+  const LANDMARKS = [
+    {id:'tower', name:'old tower',      art:'s-tower'},
+    {id:'mill',  name:'windmill',       art:'s-mill'},
+    {id:'oak',   name:'great oak',      art:'s-oak'},
+    {id:'shrine',name:'roadside shrine',art:'s-shrine'},
+    {id:'forge', name:'forge',          art:'s-forge'},
+    {id:'dove',  name:'dovecote',       art:'s-dove'},
+  ];
+
+  const CHARS = [
+    {id:'wren', name:'Wren',      title:'fisherwoman', rate:1.04, pitch:1.35,
+      greet:["Morning, apprentice. Got a fresh one for your map.","Salt on my boots and a tale for your book."],
+      close:["Mark it true, will you?","The fish won't wait — ink it well."],
+      flavor:["Gulls everywhere that morning.","My nets were heavy, mind you."]},
+    {id:'bram', name:'Bram',      title:'old soldier', rate:0.86, pitch:0.68,
+      greet:["Hmph. Pay attention, I'll say this once.","An old soldier remembers where things stand."],
+      close:["Get it right. Maps win wars.","That's all. Steady hand, now."],
+      flavor:["My knee ached something fierce.","Quiet roads. Too quiet."]},
+    {id:'tilly',name:'Tilly',     title:'shepherd kid', rate:1.15, pitch:1.6,
+      greet:["Hi hi! I saw something for your map!","The sheep found it first, honest!"],
+      close:["Did you get it? Draw it nice!","Okay bye, the flock's escaping!"],
+      flavor:["A lamb chewed my sleeve the whole time.","I was counting clouds, mostly."]},
+    {id:'odo',  name:'Odo',       title:'traveling merchant', rate:0.95, pitch:0.85,
+      greet:["Ah, the apprentice! A detail for your ledger.","Fine maps raise fine prices. Listen well."],
+      close:["Precision, dear apprentice. Precision.","I'd pay double for an honest map."],
+      flavor:["The tolls this season — criminal.","My cart squeaked the whole road."]},
+    {id:'ines', name:'Sage Ines', title:'herbalist', rate:0.8, pitch:1.1,
+      greet:["Ah, little mapmaker. I walked far today.","The herbs told me where to look."],
+      close:["The land remembers. Now your map will too.","Slow ink dries truest, child."],
+      flavor:["I stopped to gather yarrow on the way.","Bees followed me half the morning."]},
+    {id:'finn', name:'Piper Finn',title:'minstrel', rate:1.08, pitch:1.0,
+      greet:["A verse for you: I wandered and I saw—","Every song starts with a place, apprentice."],
+      close:["Put THAT in your map, maestro.","I'll sing of your map in the tavern!"],
+      flavor:["I was humming a new tune at the time.","A crowd gathered. Naturally."]},
+  ];
+
+  // Boss visitor — appears on guild-trial days with a longer, chained tale
+  const CAPTAIN = {id:'capt', name:'Capt. Mireille', title:'harbourmaster', rate:0.9, pitch:0.72,
+    greet:["Stow the chatter — the harbourmaster speaks.","A captain's map must be flawless. Attend."],
+    close:["Chart it true, or we run aground.","That's an order, apprentice. Ink it."],
+    flavor:["The tide was turning as I walked.","Three ships waiting on this map, mind."]};
+
+  const ANCHOR_NAMES = { well:'well', gate:'town gate', market:'market' };
+
+  /* ── day layout: river + anchors ── */
+  function genLayout(r){
+    const side = pick(r, ['N','E','S','W']);
+    const river = { side, cells:[] };
+    if (side==='N') for(let x=0;x<W;x++) river.cells.push({x,y:0});
+    if (side==='S') for(let x=0;x<W;x++) river.cells.push({x,y:H-1});
+    if (side==='W') for(let y=0;y<H;y++) river.cells.push({x:0,y});
+    if (side==='E') for(let y=0;y<H;y++) river.cells.push({x:W-1,y});
+    const riverSet = new Set(river.cells.map(key));
+    const blocked = new Set(riverSet);
+    const anchors = {};
+    const place = (id, cands) => {
+      let ok = cands.filter(c => inB(c) && !blocked.has(key(c)));
+      if (!ok.length) ok = gridCells(1,W-2,1,H-2).filter(c => !blocked.has(key(c)));
+      const c = pick(r, ok);
+      anchors[id] = c; blocked.add(key(c)); return c;
+    };
+    // well: central
+    place('well', gridCells(2,W-3, 2,H-3));
+    // gate: on an edge that is NOT the river edge, one cell in from border elsewhere
+    const edges = [];
+    if (side!=='N') for(let x=1;x<W-1;x++) edges.push({x,y:0});
+    if (side!=='S') for(let x=1;x<W-1;x++) edges.push({x,y:H-1});
+    if (side!=='W') for(let y=1;y<H-1;y++) edges.push({x:0,y});
+    if (side!=='E') for(let y=1;y<H-1;y++) edges.push({x:W-1,y});
+    place('gate', edges.filter(c => cheb(c, anchors.well) >= 2));
+    place('market', gridCells(1,W-2, 1,H-2).filter(c => cheb(c,anchors.well)>=2 && cheb(c,anchors.gate)>=2));
+    return { river, riverSet, anchors, blocked };
+  }
+  function gridCells(x0,x1,y0,y1){const out=[];for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)out.push({x,y});return out}
+
+  /* ── difficulty knobs ── */
+  function params(day){
+    return {
+      nTales: day<=1 ? 1 : day<=6 ? 2 : 3,
+      faceKinds: day<=2 ? ['explicit'] :
+                 day<=3 ? ['explicit','toward','river'] :
+                          ['explicit','toward','river','back','walk'],
+      turnP: day>=5 ? Math.min(.2 + (day-5)*.06, .5) : 0,
+      offsetP: day>=8 ? .35 : 0,
+      walkMid: day>=6,
+      rels: day>=6 ? ['ahead','left','right','behind'] : ['ahead','left','right'],
+      maxDist: day<=1 ? 2 : 3,
+      northBias: day<=1 ? .6 : 0,
+      decoyToken: day>=7,
+      anchorFlavor: day>=8,
+      flavorP: day>=3 ? .55 : .25,
+    };
+  }
+
+  /* ── build one tale (traveler testimony + truth) ── */
+  function genTale(r, P, layout, usedCells, landmark, char){
+    for(let tries=0; tries<300; tries++){
+      const t = tryTale(r, P, layout, usedCells, landmark, char);
+      if (t) return t;
+    }
+    // guaranteed fallback: at well, facing north-ish, ahead
+    for (const d of ['N','E','S','W']) for (let k=1;k<=2;k++){
+      const truth = add(layout.anchors.well, d, k);
+      if (inB(truth) && !layout.blocked.has(key(truth)) && !usedCells.has(key(truth)))
+        return finishTale(r, char, landmark, {pos:layout.anchors.well, posSpec:{kind:'at',anchor:'well'},
+          face:d, faceSpec:{kind:'explicit'}, turn:null, rel:{dir:'ahead',dist:k}, truth, mirror:null});
+    }
+    return null;
+  }
+
+  function tryTale(r, P, layout, usedCells, landmark, char){
+    const {anchors, riverSet, blocked, river} = layout;
+    const anchorIds = Object.keys(anchors);
+    // 1. position
+    let pos, posSpec;
+    const useWalk = P.faceKinds.includes('walk') && r() < .3;
+    let face=null, faceSpec=null;
+    if (useWalk){
+      const a = pick(r, anchorIds), b = pick(r, anchorIds.filter(x=>x!==a));
+      const A = anchors[a], B = anchors[b];
+      let d=null;
+      if (A.x===B.x) d = B.y>A.y?'S':'N';
+      else if (A.y===B.y) d = B.x>A.x?'E':'W';
+      if (!d) return null;
+      const span = cheb(A,B);
+      const mid = P.walkMid && span%2===0 && r()<.4;
+      pos = mid ? add(A, d, span/2) : B;
+      // path cells clear (between endpoints)
+      for(let k=1;k<span;k++){ const c=add(A,d,k); if(riverSet.has(key(c))) return null; }
+      posSpec = {kind:'walk', from:a, to:b, at: mid?'mid':'end'};
+      face = d; faceSpec = {kind:'walk'};
+    } else if (r() < P.offsetP){
+      const a = pick(r, anchorIds);
+      const d = pick(r, ['N','E','S','W']), k = ri(r,1,2);
+      pos = add(anchors[a], d, k);
+      if (!inB(pos) || blocked.has(key(pos))) return null;
+      posSpec = {kind:'offset', anchor:a, dir:d, dist:k};
+    } else {
+      const a = pick(r, anchorIds);
+      pos = anchors[a];
+      posSpec = {kind:'at', anchor:a};
+    }
+    // 2. facing (if not from walking)
+    if (!face){
+      const kind = pick(r, P.faceKinds.filter(k=>k!=='walk'));
+      if (kind==='explicit'){
+        face = (r() < P.northBias) ? 'N' : pick(r, ['N','E','S','W']);
+        faceSpec = {kind:'explicit'};
+      } else if (kind==='river'){
+        // perpendicular toward river edge
+        face = river.side;
+        if (riverSet.has(key(pos))) return null;
+        faceSpec = {kind:'river'};
+      } else { // toward / back an anchor
+        const others = anchorIds.filter(a => !(posSpec.kind==='at' && posSpec.anchor===a));
+        const a = pick(r, others);
+        const A = anchors[a];
+        let d = null;
+        if (A.x===pos.x && A.y!==pos.y) d = A.y>pos.y?'S':'N';
+        else if (A.y===pos.y && A.x!==pos.x) d = A.x>pos.x?'E':'W';
+        if (!d) return null;
+        if (kind==='back'){ face = BACK[d]; faceSpec = {kind:'back', anchor:a}; }
+        else { face = d; faceSpec = {kind:'toward', anchor:a}; }
+      }
+    }
+    // 3. optional turn
+    let turn = null, p2 = pos, f2 = face;
+    if (r() < P.turnP){
+      const pre = ri(r,1,2), tdir = pick(r,['left','right']);
+      p2 = add(pos, face, pre);
+      if (!inB(p2) || riverSet.has(key(p2))) return null;
+      for(let k=1;k<=pre;k++){ const c=add(pos,face,k); if(!inB(c)||riverSet.has(key(c))) return null; }
+      f2 = tdir==='left' ? LEFT[face] : RIGHT[face];
+      turn = {pre, dir:tdir};
+    }
+    // 4. relation → truth
+    const rel = { dir: pick(r, P.rels), dist: ri(r,1,P.maxDist) };
+    const relFace = {ahead:f2, behind:BACK[f2], left:LEFT[f2], right:RIGHT[f2]}[rel.dir];
+    const truth = add(p2, relFace, rel.dist);
+    if (!inB(truth) || blocked.has(key(truth)) || usedCells.has(key(truth))) return null;
+    if (truth.x===pos.x && truth.y===pos.y) return null;
+    // 5. mirror cell (left/right flipped everywhere) for error classification
+    let mirror = null;
+    const mf2 = turn ? (turn.dir==='left' ? RIGHT[face] : LEFT[face]) : face;
+    const mp2 = turn ? p2 : pos;
+    const mrelDir = rel.dir==='left' ? 'right' : rel.dir==='right' ? 'left' : rel.dir;
+    const mFace = {ahead:mf2, behind:BACK[mf2], left:LEFT[mf2], right:RIGHT[mf2]}[mrelDir];
+    const m = add(mp2, mFace, rel.dist);
+    if (inB(m) && (m.x!==truth.x || m.y!==truth.y)) mirror = m;
+    return finishTale(r, char, landmark, {pos, posSpec, face, faceSpec, turn, rel, truth, mirror});
+  }
+
+  /* ── testimony text ── */
+  function finishTale(r, char, landmark, spec){
+    const L = [];
+    L.push(pick(r, char.greet));
+    // position + facing sentence
+    let s = '';
+    const an = id => 'the ' + ANCHOR_NAMES[id];
+    if (spec.posSpec.kind==='walk'){
+      s = `I was walking from ${an(spec.posSpec.from)} to ${an(spec.posSpec.to)}.`;
+      L.push(s);
+      L.push(spec.posSpec.at==='mid' ? `*Halfway along*, I stopped.` : `Just as I *reached ${an(spec.posSpec.to)}*, I stopped.`);
+    } else {
+      if (spec.posSpec.kind==='offset')
+        s = `I stood *${DISTWORD[spec.posSpec.dist]} ${DIRWORD[spec.posSpec.dir]}* of ${an(spec.posSpec.anchor)},`;
+      else
+        s = `I stood at *${an(spec.posSpec.anchor)}*,`;
+      const f = spec.faceSpec;
+      if (f.kind==='explicit') s += ` facing *${DIRWORD[spec.face]}*.`;
+      else if (f.kind==='river') s += ` facing *the river*.`;
+      else if (f.kind==='toward') s += ` facing *${an(f.anchor)}*.`;
+      else if (f.kind==='back') s += ` with *${an(f.anchor)} at my back*.`;
+      L.push(s);
+    }
+    if (spec.turn)
+      L.push(`I walked *${DISTWORD[spec.turn.pre]}* on, then *turned ${spec.turn.dir}*.`);
+    const rel = spec.rel;
+    const relTxt = rel.dir==='ahead' ? `*${DISTWORD[rel.dist]} straight ahead* of me`
+      : rel.dir==='behind' ? `*${DISTWORD[rel.dist]} behind* me`
+      : `*${DISTWORD[rel.dist]} to my ${rel.dir}*`;
+    L.push(`The *${landmark.name}* stood ${relTxt}.`);
+    L.push(pick(r, char.close));
+    return { char, landmark, spec, lines: L };
+  }
+
+  /* ── whole day ── */
+  function genDay(runSeed, day, attempt){
+    const r = mulberry32(hash(runSeed, day*7919, attempt*104729));
+    const P = params(day);
+    const layout = genLayout(r);
+    const nL = Math.min(P.nTales + (P.decoyToken?1:0), LANDMARKS.length);
+    const lms = shuffle(r, LANDMARKS.slice()).slice(0, nL);
+    const chars = shuffle(r, CHARS.slice()).slice(0, P.nTales);
+    const boss = day>=5 && day%5===0;                 // guild-trial day every 5th
+    if (boss) chars[P.nTales-1] = CAPTAIN;             // the harbourmaster is the last visitor
+    // upside-down map days: north renders downward (a pure render/placement flip;
+    // truth stays canonical so the engine is unaffected). Ramps in from day 8.
+    const rot = (day>=8 && Math.floor(r()*100) < Math.min(20 + (day-8)*7, 55)) ? 180 : 0;
+    const usedCells = new Set();
+    const tales = [];
+    for (let i=0;i<P.nTales;i++){
+      const isBoss = boss && i===P.nTales-1;
+      const Pi = isBoss ? Object.assign({}, P, {
+        faceKinds: Array.from(new Set(P.faceKinds.concat(['walk','back']))),
+        turnP: Math.max(P.turnP, 0.85), walkMid: true, maxDist: 3,
+        rels: ['ahead','left','right','behind'],
+      }) : P;
+      const t = genTale(r, Pi, layout, usedCells, lms[i], chars[i]);
+      if (!t) continue;
+      t.boss = isBoss;
+      usedCells.add(key(t.spec.truth));
+      // flavor lines (true but irrelevant), inserted after greeting
+      if (r() < P.flavorP){
+        const fl = P.anchorFlavor && r()<.4
+          ? pick(r, [`The ${ANCHOR_NAMES.market} was busy, mind.`,`Fine morning by the ${ANCHOR_NAMES.well}.`,`The ${ANCHOR_NAMES.gate} creaked all day.`])
+          : pick(r, t.char.flavor);
+        t.lines.splice(1, 0, fl);
+      }
+      tales.push(t);
+    }
+    const decoy = P.decoyToken ? lms[P.nTales] : null;
+    return { day, rot, boss, layout, tales, decoy,
+      tray: shuffle(r, tales.map(t=>t.landmark).concat(decoy?[decoy]:[])) };
+  }
+  function shuffle(r, a){for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+  /* ── scoring / classification ── */
+  function score(placed, truth){
+    const d = cheb(placed, truth);
+    return d===0 ? {coins:3, tier:'perfect', d} : d===1 ? {coins:1, tier:'near', d} : {coins:0, tier:'miss', d};
+  }
+  function classify(tale, placed, impulsive){
+    const d = cheb(placed, tale.spec.truth);
+    if (d===0) return null;
+    if (impulsive) return 'input';
+    if (tale.spec.mirror && placed.x===tale.spec.mirror.x && placed.y===tale.spec.mirror.y) return 'mirror';
+    if (d===1) return 'output';
+    return 'elab';
+  }
+
+  /* ── self-test for the console ── */
+  function test(n=200){
+    const fails = [];
+    for(let i=0;i<n;i++){
+      const day = 1 + (i % 14), att = Math.floor(i/14);
+      const d = genDay(12345, day, att);
+      if (d.tales.length !== params(day).nTales) fails.push({day, att, why:'tale count'});
+      for(const t of d.tales){
+        const c = t.spec.truth;
+        if (!inB(c)) fails.push({day, att, why:'truth OOB', t});
+        if (d.layout.riverSet.has(key(c))) fails.push({day, att, why:'truth on river', t});
+        for (const a of Object.values(d.layout.anchors))
+          if (a.x===c.x&&a.y===c.y) fails.push({day, att, why:'truth on anchor', t});
+        if (!t.lines.length || t.lines.some(l=>typeof l!=='string')) fails.push({day, att, why:'bad lines'});
+      }
+      const ks = d.tales.map(t=>key(t.spec.truth));
+      if (new Set(ks).size !== ks.length) fails.push({day, att, why:'truth collision'});
+    }
+    return {ran:n, fails};
+  }
+
+  return { W, H, DIRS, LANDMARKS, CHARS, CAPTAIN, ANCHOR_NAMES, genDay, params, score, classify, cheb, test, key };
+})();
+
+/* ═════════ SOUND — WebAudio blips, house-style ═════════ */
+const Sound = (() => {
+  let ctx=null, master=null, muted=false;
+  function ensure(){ if(!ctx){ try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); master=ctx.createGain(); master.gain.value=.5; master.connect(ctx.destination);}catch(e){} } if(ctx&&ctx.state==='suspended')ctx.resume(); }
+  function env(g,t0,a,d,peak=1){ g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(peak,t0+a); g.gain.exponentialRampToValueAtTime(.001,t0+a+d); }
+  function tone(f0,f1,dur,type='sine',vol=.5,when=0){
+    if(muted)return; ensure(); if(!ctx)return;
+    const t0=ctx.currentTime+when, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f0,t0);
+    if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(f1,1),t0+dur);
+    env(g,t0,.012,dur,vol); o.connect(g); g.connect(master); o.start(t0); o.stop(t0+dur+.1);
+  }
+  function noise(dur,freq,q,vol=.4,when=0,f1){
+    if(muted)return; ensure(); if(!ctx)return;
+    const t0=ctx.currentTime+when, n=ctx.createBufferSource(),
+      buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    n.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(freq,t0);
+    if(f1) f.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+    f.Q.value=q;
+    const g=ctx.createGain(); env(g,t0,.01,dur,vol);
+    n.connect(f); f.connect(g); g.connect(master); n.start(t0);
+  }
+  return {
+    ensure, tone, noise,
+    get muted(){return muted}, set muted(v){muted=v},
+    pick(){ tone(520,760,.08,'triangle',.35) },
+    place(){ tone(300,220,.1,'triangle',.4); noise(.05,900,1,.15) },
+    rotate(){ tone(880,880,.04,'square',.18) },
+    ink(){ noise(.28,1800,2,.5,0,600); tone(180,140,.16,'triangle',.2) },
+    good(){ tone(523,659,.12,'sine',.45); tone(784,988,.16,'sine',.4,.1) },
+    perfect(){ [523,659,784,1047].forEach((f,i)=>tone(f,f,.14,'sine',.42,i*.09)) },
+    near(){ tone(440,494,.14,'sine',.35) },
+    fail(){ tone(300,150,.3,'sawtooth',.28); noise(.18,300,1,.2,.05) },
+    popIn(){ tone(240,480,.18,'sine',.4); tone(480,600,.1,'sine',.25,.14) },
+    bye(){ tone(480,300,.16,'sine',.3) },
+    coin(){ tone(1200,1600,.09,'sine',.35) },
+    page(){ noise(.3,700,.8,.35,0,2200) },
+    star(){ tone(900,1350,.12,'sine',.4) },
+    bell(){ tone(1318,1318,.5,'sine',.35); tone(1975,1975,.4,'sine',.15,.02) },
+    door(){ tone(1568,1568,.5,'sine',.28); tone(2093,2093,.6,'sine',.18,.09); tone(1046,1046,.3,'sine',.12,.02) }, // shop doorbell jingle
+    combo(n){ const base=520*Math.pow(1.09, Math.min(n,8)); tone(base,base*1.5,.14,'triangle',.4); tone(base*1.5,base*2,.12,'sine',.3,.08) },
+    tip(){ [1200,1500,1800,1500,1900].forEach((f,i)=>tone(f,f*1.1,.07,'sine',.22,i*.05)) }, // coins spilling
+    chirp(){ const b=2000+Math.random()*600; tone(b,b*1.3,.05,'sine',.12); tone(b*1.3,b,.05,'sine',.1,.06) }, // distant bird
+  };
+})();
+
+/* ═════════ SPEECH — synthesized traveler voices ═════════ */
+const Speech = (() => {
+  const ok = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  let enabled = ok, voice = null, current = null;
+  if (ok){
+    const grab = () => {
+      const vs = speechSynthesis.getVoices().filter(v=>v.lang && v.lang.startsWith('en'));
+      voice = vs.find(v=>/natural|neural/i.test(v.name))
+           || vs.find(v=>/google/i.test(v.name))
+           || vs.find(v=>v.default) || vs[0] || null;
+    };
+    grab(); speechSynthesis.addEventListener('voiceschanged', grab);
+  }
+  function speak(text, cv, onend){
+    if (!ok || !enabled){ onend && onend(); return null; }
+    try{
+      const u = new SpeechSynthesisUtterance(text.replace(/\*/g,''));
+      if (voice) u.voice = voice;
+      u.rate = cv.rate; u.pitch = cv.pitch; u.volume = 1;
+      let done = false;
+      const fin = () => { if(!done){ done=true; onend && onend(); } };
+      u.onend = fin; u.onerror = fin;
+      // watchdog: some engines never fire onend
+      setTimeout(fin, 1200 + text.length * 90);
+      current = u;
+      speechSynthesis.speak(u);
+      return u;
+    }catch(e){ onend && onend(); return null; }
+  }
+  function cancel(){ if(ok){ try{ speechSynthesis.cancel(); }catch(e){} } }
+  return { get available(){return ok}, get enabled(){return enabled}, set enabled(v){enabled = v && ok; if(!v) cancel();}, speak, cancel };
+})();
+
+/* ═════════ MUSIC — synthesized folk map-shop loop (no files) ═════════ */
+/* Signature: a warm plucked dulcimer arpeggio over a D pedal drone, gentle
+   6-bar folk cycle in D Dorian. Ducks under travelers' voices so it never
+   muddies speech. Distinct from Sonar's ping / Zoom's drone. */
+const Music = (() => {
+  let ctx=null, bus=null, drone=null, on=true, playing=false, hidden=false, duckAmt=1, timer=null, step=0;
+  const BASE = 0.11;
+  // D Dorian pedal on D; chord tones per bar chosen to stay consonant with the drone
+  const BARS = [
+    [293.66,349.23,440.00],  // Dm  : D4 F4 A4
+    [261.63,329.63,392.00],  // C   : C4 E4 G4
+    [196.00,246.94,293.66],  // G   : G3 B3 D4
+    [220.00,261.63,329.63],  // Am  : A3 C4 E4
+    [174.61,220.00,261.63],  // F   : F3 A3 C4
+    [293.66,349.23,440.00],  // Dm  : back home
+  ];
+  // one bar = 8 eighth-notes; index into the 3-tone triad, -1 = rest, +12/-... via octave shift table
+  const ARP = [0,2,1,2, 0,1,2,-1];      // triad-tone indices
+  const OCT = [1,1,1,2, 1,1,2,1];       // octave multiplier for sparkle
+  function ensure(){
+    if(!ctx){ try{
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      bus=ctx.createGain(); bus.gain.value=0;
+      const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600;
+      bus.connect(lp); lp.connect(ctx.destination);
+      // pedal drone: two soft detuned sines a fifth apart (D2 + A2)
+      drone=ctx.createGain(); drone.gain.value=0.05; drone.connect(bus);
+      [73.42, 110.0].forEach((f,i)=>{ const o=ctx.createOscillator(); o.type='sine';
+        o.frequency.value=f; const g=ctx.createGain(); g.gain.value=i?0.5:1;
+        o.connect(g); g.connect(drone); o.start(); });
+    }catch(e){ ctx=null; } }
+    if(ctx&&ctx.state==='suspended') ctx.resume();
+  }
+  function pluck(freq, t, vel){
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vel,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0006,t+0.62);
+    o.connect(g); g.connect(bus); o.start(t); o.stop(t+0.7);
+  }
+  function tick(){
+    if(!ctx) return;
+    const bar = BARS[Math.floor(step/8) % BARS.length];
+    const s = step % 8;
+    const idx = ARP[s];
+    if (idx>=0){
+      const t = ctx.currentTime + 0.02;
+      pluck(bar[idx]*OCT[s], t, s===0?0.5:0.34);
+      if (s===0) pluck(bar[0]/2, t, 0.28);           // bass root on the downbeat
+      if (s===3) pluck(bar[2]*2, t, 0.16);           // high sparkle
+    }
+    step = (step+1) % (8*BARS.length);
+  }
+  function apply(){ if(bus&&ctx){ const tgt=(on&&playing&&!hidden)?BASE*duckAmt:0;
+    bus.gain.setTargetAtTime(tgt, ctx.currentTime, 0.35); } }
+  return {
+    start(){ ensure(); if(!ctx) return; playing=true; if(!timer) timer=setInterval(tick,227); apply(); }, // 227ms eighth ≈ 66bpm
+    setOn(v){ on=v; if(v&&!timer&&ctx){ timer=setInterval(tick,227); } apply(); },
+    get on(){ return on; },
+    duck(v){ duckAmt=v; apply(); },
+    setHidden(v){ hidden=v; apply(); },
+  };
+})();
+</script>
+<script>
+/* ═════════ UI ═════════ */
+(() => {
+const $ = id => document.getElementById(id);
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+/* ── storage (try/catch → memory fallback) ── */
+const Store = (() => {
+  let mem = {};
+  return {
+    get(k,f){ try{ const v=localStorage.getItem('carto.'+k); return v===null? f : JSON.parse(v);}catch(e){ return k in mem? mem[k]:f } },
+    set(k,v){ try{ localStorage.setItem('carto.'+k, JSON.stringify(v)); }catch(e){ mem[k]=v } },
+    del(k){ try{ localStorage.removeItem('carto.'+k); }catch(e){ delete mem[k] } },
+  };
+})();
+const save = Object.assign({ day:1, attempt:0, coins:0, streak:0, best:0, sound:true, voice:true, music:true, slowFade:false, reflectIdx:0 }, Store.get('save', {}));
+const persist = () => Store.set('save', save);
+Sound.muted = !save.sound;
+Speech.enabled = save.voice;
+Music.setOn(save.music);
+
+/* ── portraits ── */
+function portrait(id){
+  const head = (skin, extra='') => `<circle cx="100" cy="92" r="46" fill="${skin}" stroke="#3d2c24" stroke-width="4"/>${extra}`;
+  const eyes = (dx=17,dy=0) => `
+    <circle cx="${100-dx}" cy="${88+dy}" r="5.2" fill="#3d2c24"/><circle cx="${100+dx}" cy="${88+dy}" r="5.2" fill="#3d2c24"/>
+    <circle cx="${102-dx}" cy="${86+dy}" r="1.6" fill="#fff"/><circle cx="${102+dx}" cy="${86+dy}" r="1.6" fill="#fff"/>
+    <rect class="lid" x="${100-dx-7}" y="${82+dy}" width="14" height="7" rx="3.5" fill="inherit"/>
+    <rect class="lid" x="${100+dx-7}" y="${82+dy}" width="14" height="7" rx="3.5" fill="inherit"/>`;
+  const mouth = (my=112) => `
+    <path class="mouth-idle" d="M88 ${my} q12 9 24 0" fill="none" stroke="#3d2c24" stroke-width="4" stroke-linecap="round"/>
+    <ellipse class="mouth-talk" cx="100" cy="${my+3}" rx="9" ry="7" fill="#3d2c24"/>`;
+  const P = {
+    wren: `<g class="bob">
+      <path d="M30 230 q6-58 40-70 q30 18 60 0 q34 12 40 70z" fill="#3fb8ad" stroke="#3d2c24" stroke-width="4"/>
+      ${head('#d9a066')}
+      <path d="M52 84 a48 48 0 0 1 96 0 l-8 6 q-40-26 -80 0z" fill="#3fb8ad" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M146 88 q16 4 14 20 q-12-4-16-12z" fill="#3fb8ad" stroke="#3d2c24" stroke-width="3.5"/>
+      <g fill="#b1523f" opacity=".65"><circle cx="76" cy="103" r="2.4"/><circle cx="84" cy="107" r="2.2"/><circle cx="120" cy="105" r="2.4"/></g>
+      ${eyes()}${mouth()}</g>`,
+    bram: `<g class="bob">
+      <path d="M28 230 q8-60 44-72 q28 16 56 0 q36 12 44 72z" fill="#65503f" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M62 148 q38 24 76 0 l-6 30 q-32 16-64 0z" fill="#9aa3a8" stroke="#3d2c24" stroke-width="4"/>
+      ${head('#c68b54')}
+      <path d="M56 78 a46 46 0 0 1 88 0 l4 12 h-96z" fill="#9aa3a8" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M64 116 q36 34 72 0 q4 26-36 28 q-40-2-36-28z" fill="#e8e3d6" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M118 96 l14 14" stroke="#b1523f" stroke-width="3.5" stroke-linecap="round"/>
+      ${eyes(17,-2)}<ellipse class="mouth-talk" cx="100" cy="124" rx="8" ry="6" fill="#3d2c24"/>
+      <path class="mouth-idle" d="M90 122 h20" stroke="#3d2c24" stroke-width="4" stroke-linecap="round"/></g>`,
+    tilly: `<g class="bob">
+      <path d="M36 230 q6-52 38-62 q26 14 52 0 q32 10 38 62z" fill="#7d9457" stroke="#3d2c24" stroke-width="4"/>
+      ${head('#e5b887')}
+      <ellipse cx="100" cy="62" rx="66" ry="18" fill="#ecd9ae" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M66 60 a36 30 0 0 1 68 0 z" fill="#e0c05a" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M58 108 q-10 22 4 34 M142 108 q10 22-4 34" fill="none" stroke="#a9713e" stroke-width="9" stroke-linecap="round"/>
+      ${eyes(15,2)}${mouth(114)}</g>`,
+    odo: `<g class="bob">
+      <path d="M26 230 q8-56 46-68 q28 14 56 0 q38 12 46 68z" fill="#b1523f" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M58 172 q42 18 84 0" fill="none" stroke="#ffcb47" stroke-width="6" stroke-linecap="round"/>
+      ${head('#c68b54')}
+      <path d="M50 74 q50-38 100 0 l6 14 h-112z" fill="#65503f" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M148 70 q14-18 26-14 q-2 14-20 20z" fill="#ffcb47" stroke="#3d2c24" stroke-width="3.5"/>
+      <path d="M80 110 q20 14 40 0 q-6 12-20 12 q-14 0-20-12z" fill="#3d2c24"/>
+      <circle cx="146" cy="112" r="5" fill="#ffcb47" stroke="#3d2c24" stroke-width="2.5"/>
+      ${eyes(17,-2)}</g>`,
+    ines: `<g class="bob">
+      <path d="M30 230 q4-64 38-78 q32 20 64 0 q34 14 38 78z" fill="#7d9457" stroke="#3d2c24" stroke-width="4"/>
+      ${head('#d9a066')}
+      <path d="M46 96 a54 54 0 0 1 108 0 q0-64-54-64 q-54 0-54 64z" fill="#7d9457" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M60 92 q-4 18 6 26 M140 92 q4 18-6 26" fill="none" stroke="#e8e3d6" stroke-width="7" stroke-linecap="round"/>
+      <path d="M138 150 q14-10 20-2 q-6 10-18 8z" fill="#7d9457" stroke="#3d2c24" stroke-width="3"/>
+      ${eyes(16,2)}${mouth(116)}</g>`,
+    finn: `<g class="bob">
+      <path d="M150 160 l28-44" stroke="#a9713e" stroke-width="10" stroke-linecap="round"/>
+      <path d="M170 122 l14-22 M164 116 l14-22 M158 111 l14-22" stroke="#3d2c24" stroke-width="3" stroke-linecap="round"/>
+      <path d="M32 230 q8-54 44-66 q26 14 52 0 q36 12 44 66z" fill="#5e9ea6" stroke="#3d2c24" stroke-width="4"/>
+      ${head('#e5b887')}
+      <path d="M54 80 a46 40 0 0 1 92 0 l-4 8 q-42-22-84 0z" fill="#b1523f" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M138 64 q22-26 30-16 q0 16-24 26z" fill="#ffcb47" stroke="#3d2c24" stroke-width="3.5"/>
+      ${eyes()}${mouth()}</g>`,
+    maera: `<g class="bob">
+      <path d="M30 230 q6-58 42-70 q28 16 56 0 q36 12 42 70z" fill="#3d2c24" stroke="#2a1d16" stroke-width="4"/>
+      <path d="M62 160 q38 20 76 0" fill="none" stroke="#ffcb47" stroke-width="5" stroke-linecap="round"/>
+      ${head('#c68b54')}
+      <circle cx="100" cy="40" r="20" fill="#9aa3a8" stroke="#3d2c24" stroke-width="4"/>
+      <path d="M112 28 l26-16" stroke="#3d2c24" stroke-width="5" stroke-linecap="round"/>
+      <path d="M132 14 l10-6 2 8-8 4z" fill="#ecd9ae" stroke="#3d2c24" stroke-width="2.5"/>
+      <circle cx="83" cy="88" r="13" fill="none" stroke="#3d2c24" stroke-width="3.5"/>
+      <circle cx="117" cy="88" r="13" fill="none" stroke="#3d2c24" stroke-width="3.5"/>
+      <path d="M96 88 h8" stroke="#3d2c24" stroke-width="3.5"/>
+      <circle cx="83" cy="88" r="4.6" fill="#3d2c24"/><circle cx="117" cy="88" r="4.6" fill="#3d2c24"/>
+      <path d="M128 118 q6 4 12 2" stroke="#65503f" stroke-width="4" stroke-linecap="round" fill="none"/>
+      ${mouth(112)}</g>`,
+    capt: `<g class="bob">
+      <path d="M24 230 q6-58 44-66 q32 16 64 0 q38 10 44 66z" fill="#28405f" stroke="#16283f" stroke-width="4"/>
+      <path d="M52 176 q48 20 96 0 l-2 16 q-46 18-92 0z" fill="#1b304a" stroke="#16283f" stroke-width="3"/>
+      <g fill="#ffcb47"><circle cx="74" cy="188" r="3.4"/><circle cx="100" cy="192" r="3.4"/><circle cx="126" cy="188" r="3.4"/></g>
+      ${head('#c98f5c')}
+      <path d="M60 148 q40 22 80 0 l-4 20 q-36 16-72 0z" fill="#c98f5c"/>
+      <path d="M56 78 q44-10 88 0 q-6-30-44-30 q-38 0-44 30z" fill="#3d2c24" stroke="#16283f" stroke-width="3"/>
+      <path d="M40 78 q60 26 120 0 q-4 14-24 18 q-36 8-72 0 q-20-4-24-18z" fill="#1b304a" stroke="#16283f" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M84 74 l14 0 -2 6 h-10z" fill="#ffcb47" stroke="#16283f" stroke-width="1.6"/>
+      ${eyes(17,-1)}
+      <path d="M120 82 l16 -3" stroke="#3d2c24" stroke-width="3" stroke-linecap="round"/>
+      <path d="M78 128 q22 12 44 0 q-6 14-22 14 q-16 0-22-14z" fill="#8a6b4a"/>
+      ${mouth(120)}</g>`,
+  };
+  return `<svg viewBox="0 0 200 232">${P[id] || P.wren}</svg>`;
+}
+
+/* ── map geometry ── */
+const CELL = 64, M = 44;
+const VW = Engine.W*CELL + M*2, VH = Engine.H*CELL + M*2;
+// scr(): canonical cell → screen cell. On upside-down days the map is flipped
+// 180°, so screen==canonical mirrored (scr is its own inverse). Everything in
+// the UI works in CANONICAL cells; only the pixel boundary uses scr().
+const scr = c => (st.D && st.D.rot===180) ? {x:Engine.W-1-c.x, y:Engine.H-1-c.y} : c;
+const cx = c => { const s=scr(c); return M + s.x*CELL + CELL/2; };
+const cy = c => { const s=scr(c); return M + s.y*CELL + CELL/2; };
+const mapSvg = $('mapSvg');
+mapSvg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+
+const st = { D:null, placed:{}, scout:null, taleIdx:0, dayCoins:0, dayLog:[], reasks:0,
+  taleDelivered:false, busy:false, onboarded:false };
+let selectedTok = null, kbCursor = null, suppressClick = false;
+let runSeed = Store.get('seed', 0) || (Math.floor(Math.random()*0x7fffffff) || 1);
+Store.set('seed', runSeed);
+const addCell = (c,d,k=1) => ({x:c.x+Engine.DIRS[d].x*k, y:c.y+Engine.DIRS[d].y*k});
+const api = window.__cartoUI = { save, persist, st, runSeed, addCell, onPlaced:null };
+
+function el(tag, attrs, parent){
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+function rng(seed){ let a=seed>>>0; return ()=>{ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; }; }
+function decorate(g, D){
+  const r = rng(1000 + D.day*131 + (D.attempt||0)*17);
+  const dg = el('g', {}, g);
+  const GW = Engine.W*CELL, GH = Engine.H*CELL;
+  // parchment mottling / age stains
+  for(let i=0;i<9;i++)
+    el('ellipse', {cx:M+r()*GW, cy:M+r()*GH, rx:16+r()*46, ry:12+r()*40,
+      fill:'#a97e46', opacity:(0.03+r()*0.03).toFixed(3)}, dg);
+  // burnt-looking smudges in the corners
+  for(const [px,py] of [[20,20],[VW-20,20],[20,VH-20],[VW-20,VH-20]])
+    el('ellipse', {cx:px,cy:py,rx:34,ry:26,fill:'#3a2a1d',opacity:0.14}, dg);
+  // dusty trails between the landmarks (tan bed + dashed centerline)
+  const A = D.layout.anchors;
+  for(const [a,b] of [['well','gate'],['well','market'],['gate','market']]){
+    if(!A[a]||!A[b]) continue;
+    const mx=(cx(A[a])+cx(A[b]))/2 + (r()-0.5)*66, my=(cy(A[a])+cy(A[b]))/2 + (r()-0.5)*66;
+    const d=`M ${cx(A[a])} ${cy(A[a])} Q ${mx} ${my} ${cx(A[b])} ${cy(A[b])}`;
+    el('path', {d, fill:'none', stroke:'#d9c191', 'stroke-width':8, 'stroke-linecap':'round', opacity:.5}, dg);
+    el('path', {d, fill:'none', stroke:'#a9805a', 'stroke-width':2, 'stroke-dasharray':'1 9', 'stroke-linecap':'round', opacity:.55}, dg);
+  }
+  // little forest tucked in the top-left margin
+  for(let i=0;i<4;i++)
+    el('use', {href:'#s-tree', x:34+i*20+(r()-.5)*6, y:14+(i%2)*8, width:18, height:18, opacity:.85}, dg);
+  // rolling hills along the bottom margin
+  const hy = M+GH+30;
+  for(let i=0;i<4;i++){ const hx=M+60+i*150+(r()-.5)*40, w=44+r()*26;
+    el('path', {d:`M ${hx-w} ${hy} q ${w} ${-18-r()*10} ${w*2} 0`, fill:'#cbb587', stroke:'#a98d5f', 'stroke-width':1.4, opacity:.55}, dg); }
+  // aged vignette (darkens the parchment edges, sits under the grid so play stays bright)
+  el('rect', {x:8,y:8,width:VW-16,height:VH-16,rx:14, fill:'url(#vign)'}, dg);
+}
+function renderMap(){
+  const D = st.D;
+  mapSvg.innerHTML = '';
+  const g = el('g', {}, mapSvg);
+  // aged parchment texture, roads, hills & forest (below the grid)
+  decorate(g, D);
+  // parchment frame
+  el('rect', {x:8,y:8,width:VW-16,height:VH-16,rx:14,fill:'none',stroke:'#c9ab72','stroke-width':3}, g);
+  el('rect', {x:14,y:14,width:VW-28,height:VH-28,rx:10,fill:'none',stroke:'#c9ab72','stroke-width':1.2,opacity:.7}, g);
+  // cardinal letters — placed at the SCREEN edge each canonical direction points to
+  const card = (x,y,t)=> el('text', {x,y,'text-anchor':'middle','font-family':'Fredoka','font-size':15,fill:'#93785f','font-weight':600}, g).textContent = t;
+  const OPP = {N:'S',S:'N',E:'W',W:'E'};
+  const CPOS = {N:[VW/2,30], S:[VW/2,VH-18], W:[24,VH/2+5], E:[VW-24,VH/2+5]};
+  const slot = L => (D.rot===180 ? OPP[L] : L);
+  ['N','S','E','W'].forEach(L=>{ const p=CPOS[slot(L)]; card(p[0],p[1],L); });
+  // river (rside = the SCREEN edge the canonical river side maps to under rotation)
+  const R = D.layout.river;
+  const rside = D.rot===180 ? OPP[R.side] : R.side;
+  const rg = el('g', {}, g);
+  const horiz = (rside==='N'||rside==='S');
+  const ry = horiz ? (rside==='N'? M : M+(Engine.H-1)*CELL) : M;
+  el('rect', {x: horiz? M : (rside==='W'? M : M+(Engine.W-1)*CELL), y: horiz? ry : M,
+    width: horiz? Engine.W*CELL : CELL, height: horiz? CELL : Engine.H*CELL,
+    fill:'#5e9ea6', opacity:.5, rx:6}, rg);
+  // sandy shore on the land side of the river (a little coastline)
+  (()=>{
+    const T=9; let sx,sy,sw,sh;
+    if (horiz){ sw=Engine.W*CELL; sh=T; sx=M; sy = rside==='N' ? ry+CELL-1 : ry-T+1; }
+    else { sw=T; sh=Engine.H*CELL; sy=M; sx = rside==='W' ? M+CELL-1 : M+(Engine.W-1)*CELL-T+1; }
+    el('rect', {x:sx,y:sy,width:sw,height:sh, fill:'#e6d09a', opacity:.6}, rg);
+    el('rect', {x:sx,y:sy,width:sw,height:sh, fill:'none', stroke:'#c9ab72','stroke-width':1,'stroke-dasharray':'2 4', opacity:.6}, rg);
+  })();
+  // wavy lines along the river
+  for (let i=0;i<3;i++){
+    const off = 14 + i*18;
+    let dPath = '';
+    if (horiz){
+      const yy = ry + off;
+      dPath = `M ${M+8} ${yy}` + Array.from({length:Engine.W*2},(_,k)=>` q 16 ${k%2?7:-7} 32 0`).join('');
+    } else {
+      const xx = (rside==='W'? M : M+(Engine.W-1)*CELL) + off;
+      dPath = `M ${xx} ${M+8}` + Array.from({length:Engine.H*2},(_,k)=>` q ${k%2?7:-7} 16 0 32`).join('');
+    }
+    el('path', {d:dPath, fill:'none', stroke:'#4d8891', 'stroke-width':2.4, opacity:.75, 'stroke-linecap':'round'}, rg);
+  }
+  const rl = el('text', {x: horiz? M+Engine.W*CELL-52 : (rside==='W'? M+CELL/2 : M+(Engine.W-1)*CELL+CELL/2),
+    y: horiz? ry+CELL/2+5 : M+56, 'text-anchor':'middle','font-family':'Fredoka','font-size':15,
+    fill:'#2e6169','font-weight':600, opacity:.9}, rg);
+  rl.textContent = 'river';
+  if (!horiz) rl.setAttribute('transform', `rotate(90 ${rl.getAttribute('x')} ${rl.getAttribute('y')})`);
+  // grid
+  const gr = el('g', {stroke:'#c9ab72','stroke-width':1.1, opacity:.55}, g);
+  for(let x=0;x<=Engine.W;x++) el('line',{x1:M+x*CELL,y1:M,x2:M+x*CELL,y2:M+Engine.H*CELL},gr);
+  for(let y=0;y<=Engine.H;y++) el('line',{x1:M,y1:M+y*CELL,x2:M+Engine.W*CELL,y2:M+y*CELL},gr);
+  // compass rose (top-right margin corner) — needle points to true north (rotates on flipped days)
+  const rr = D.rot||0;
+  const comp = el('g', {transform:`translate(${VW-46} 40) scale(.62)`, opacity:.95}, g);
+  el('circle',{cx:0,cy:0,r:26,fill:'#ecd9ae',stroke:'#3d2c24','stroke-width':2.4},comp);
+  const needle = el('g',{transform:`rotate(${rr})`},comp);
+  el('path',{d:'M0 -22 L5 0 L0 22 L-5 0 Z',fill:'#b1523f',stroke:'#3d2c24','stroke-width':1.6},needle);
+  el('path',{d:'M-22 0 L0 -5 L22 0 L0 5 Z',fill:'#f7ecd2',stroke:'#3d2c24','stroke-width':1.6},needle);
+  el('circle',{cx:0,cy:0,r:3.4,fill:'#ffcb47',stroke:'#3d2c24','stroke-width':1.6},comp);
+  const ntY = rr===180 ? 40 : -30;
+  const nt = el('text',{x:0,y:ntY,'text-anchor':'middle','font-family':'Fredoka','font-size':15,fill:'#b1523f','font-weight':600},comp);
+  nt.textContent='N';
+  // anchors
+  for (const [id, c] of Object.entries(D.layout.anchors)){
+    const ag = el('g', {}, g);
+    el('use', {href:'#s-'+(id==='gate'?'gate':id==='market'?'market':'well'), x:cx(c)-23, y:cy(c)-26, width:46, height:46}, ag);
+    const t = el('text', {x:cx(c), y:cy(c)+30, 'text-anchor':'middle','font-family':'Fredoka','font-size':13.5,fill:'#65503f','font-weight':600}, ag);
+    t.textContent = Engine.ANCHOR_NAMES[id];
+  }
+  // layers for dynamic content
+  el('g', {id:'fxLayer'}, g);
+  el('g', {id:'stampLayer'}, g);
+  el('g', {id:'ghostLayer'}, g);
+  // hit cells (topmost)
+  const hits = el('g', {id:'hitLayer'}, g);
+  for(let x=0;x<Engine.W;x++)for(let y=0;y<Engine.H;y++){
+    el('rect', {x:M+x*CELL, y:M+y*CELL, width:CELL, height:CELL, class:'cellhit', 'data-x':x, 'data-y':y}, hits);
+  }
+}
+
+const isAnchor = c => Object.values(st.D.layout.anchors).some(a=>a.x===c.x&&a.y===c.y);
+const isRiver = c => st.D.layout.riverSet.has(Engine.key(c));
+const cellOccupied = c => Object.values(st.placed).some(p=>p.cell.x===c.x&&p.cell.y===c.y);
+const validDrop = (c, isScout) => isScout ? !isRiver(c) : !isRiver(c) && !isAnchor(c) && !cellOccupied(c);
+
+/* ── stamps ── */
+function drawStamp(lm, c, sketch){
+  const layer = mapSvg.querySelector('#stampLayer');
+  // translate lives on the OUTER group (an un-animated attribute) so the wiggle/
+  // popstamp CSS animations on .under don't clobber the position (SVG: an animated
+  // CSS transform overrides the transform attribute on the same element).
+  const g = el('g', {class:'stamp '+(sketch?'sketch':'inked')+' justput', transform:`translate(${cx(c)} ${cy(c)})`}, layer);
+  const u = el('g', {class:'under'}, g);
+  if (sketch) el('circle', {cx:0,cy:0,r:26,fill:'none',stroke:'#93785f','stroke-width':2,'stroke-dasharray':'5 5'}, u);
+  else el('ellipse', {cx:0,cy:16,rx:18,ry:5,fill:'rgba(61,44,36,.18)'}, u);
+  el('use', {href:'#'+lm.art, x:-23, y:-25, width:46, height:46}, u);
+  setTimeout(()=>g.classList.remove('justput'), 400);
+  return g;
+}
+function drawScout(){
+  const scout = st.scout;
+  if (scout && scout.el) scout.el.remove();
+  if (!scout || !scout.cell) return;
+  const layer = mapSvg.querySelector('#stampLayer');
+  const g = el('g', {class:'stamp scout-tok', transform:`translate(${cx(scout.cell)} ${cy(scout.cell)})`}, layer);
+  const u = el('g', {class:'under'}, g);
+  const rot = {N:0,E:90,S:180,W:270}[scout.facing];
+  const rg = el('g', {transform:`rotate(${rot})`}, u);
+  el('path', {d:'M0 -30 l8 12 h-16z', fill:'#ffcb47', stroke:'#3d2c24','stroke-width':2}, rg);
+  const lt = el('text',{x:-24,y:5,'text-anchor':'middle','font-family':'Fredoka','font-size':13,'font-weight':600,fill:'#b1523f'},rg); lt.textContent='L';
+  const rt = el('text',{x:24,y:5,'text-anchor':'middle','font-family':'Fredoka','font-size':13,'font-weight':600,fill:'#2e6169'},rg); rt.textContent='R';
+  el('use', {href:'#s-scout', x:-19, y:-19, width:38, height:38}, u);
+  scout.el = g;
+  g.addEventListener('pointerdown', e => startDrag(e, {scout:true}));
+}
+
+/* ── tray ── */
+function renderTray(){
+  const D = st.D;
+  const row = $('trayRow');
+  row.innerHTML = '';
+  for (const lm of D.tray){
+    const b = document.createElement('button');
+    b.className = 'tok'; b.dataset.lm = lm.id;
+    b.title = lm.name;
+    b.innerHTML = `<svg viewBox="0 0 48 48"><use href="#${lm.art}"/></svg><span class="tokname">${lm.name}</span>`;
+    b.addEventListener('pointerdown', e => startDrag(e, {lm}));
+    b.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectTok({lm}); } });
+    row.appendChild(b);
+  }
+  if (save.day >= 2){
+    const s = document.createElement('button');
+    s.className = 'tok scout'; s.dataset.scout = '1';
+    s.title = 'the little scout — place her where the traveler stood, tap to turn her';
+    s.innerHTML = `<svg viewBox="0 0 48 48"><use href="#s-scout"/></svg><span class="tokname">little scout</span>`;
+    s.addEventListener('pointerdown', e => startDrag(e, {scout:true}));
+    s.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectTok({scout:true}); } });
+    row.appendChild(s);
+  }
+}
+function trayTokEl(lmId){ return $('trayRow').querySelector(`[data-lm="${lmId}"]`); }
+
+/* ── drag & drop + tap-tap + keyboard ── */
+let drag = null;
+const ghost = $('dragGhost');
+function startDrag(e, what){
+  if (st.busy) return;
+  if (what.lm && st.placed[what.lm.id] && st.placed[what.lm.id].inked) return;
+  e.preventDefault();
+  Sound.pick();
+  drag = { what, moved:false, sx:e.clientX, sy:e.clientY };
+  const art = what.scout ? 's-scout' : what.lm.art;
+  ghost.innerHTML = `<svg viewBox="0 0 48 48"><use href="#${art}"/></svg>`;
+  ghost.style.display = 'block';
+  moveGhost(e.clientX, e.clientY);
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragUp, {once:true});
+}
+function moveGhost(x,y){ ghost.style.left = x+'px'; ghost.style.top = y+'px'; }
+function cellAt(clientX, clientY){
+  const r = mapSvg.getBoundingClientRect();
+  const px = (clientX - r.left) / r.width * VW, py = (clientY - r.top) / r.height * VH;
+  const x = Math.floor((px - M)/CELL), y = Math.floor((py - M)/CELL);
+  if (!(x>=0 && x<Engine.W && y>=0 && y<Engine.H)) return null;
+  return scr({x,y}); // screen cell → canonical (scr is its own inverse)
+}
+function clearHL(){ mapSvg.querySelectorAll('.cellhit.hl,.cellhit.bad').forEach(n=>n.classList.remove('hl','bad')); mapSvg.querySelector('#ghostLayer').innerHTML=''; }
+function showHL(c, what){
+  clearHL();
+  if (!c) return;
+  const s = scr(c);
+  const hit = mapSvg.querySelector(`.cellhit[data-x="${s.x}"][data-y="${s.y}"]`);
+  const ok = validDrop(c, !!what.scout);
+  if (hit) hit.classList.add(ok ? 'hl' : 'bad');
+  if (ok){
+    const gl = mapSvg.querySelector('#ghostLayer');
+    el('use', {href:'#'+(what.scout?'s-scout':what.lm.art), x:cx(c)-23, y:cy(c)-25, width:46, height:46, class:'token-ghost'}, gl);
+  }
+}
+function onDragMove(e){
+  if (!drag) return;
+  if (Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy) > 7) drag.moved = true;
+  moveGhost(e.clientX, e.clientY);
+  showHL(cellAt(e.clientX, e.clientY), drag.what);
+}
+function onDragUp(e){
+  window.removeEventListener('pointermove', onDragMove);
+  ghost.style.display = 'none';
+  const d = drag; drag = null;
+  clearHL();
+  if (!d) return;
+  if (!d.moved){ // tap: select mode (or rotate scout on map)
+    if (d.what.scout && st.scout && st.scout.cell && e.target.closest && e.target.closest('.scout-tok')){
+      rotateScout(); suppressClick = true; return;
+    }
+    selectTok(d.what); return;
+  }
+  const c = cellAt(e.clientX, e.clientY);
+  if (c && validDrop(c, !!d.what.scout)) placeAt(d.what, c);
+}
+function rotateScout(){
+  st.scout.facing = {N:'E',E:'S',S:'W',W:'N'}[st.scout.facing];
+  Sound.rotate(); drawScout();
+}
+function deselect(){
+  document.querySelectorAll('.tok.sel').forEach(t=>t.classList.remove('sel'));
+  selectedTok = null; clearHL();
+}
+function selectTok(what){
+  const same = selectedTok && (!!selectedTok.what.scout === !!what.scout) &&
+    (what.scout || (selectedTok.what.lm && selectedTok.what.lm.id === what.lm.id));
+  deselect();
+  if (same) return;
+  selectedTok = { what };
+  const elBtn = what.scout ? $('trayRow').querySelector('[data-scout]') : trayTokEl(what.lm.id);
+  if (elBtn) elBtn.classList.add('sel');
+  kbCursor = {x: Math.floor(Engine.W/2), y: Math.floor(Engine.H/2)};
+  showHL(kbCursor, what);
+}
+mapSvg.addEventListener('click', e => {
+  if (suppressClick){ suppressClick = false; return; }
+  if (!selectedTok) return;
+  const c = cellAt(e.clientX, e.clientY);
+  if (c && validDrop(c, !!selectedTok.what.scout)){
+    placeAt(selectedTok.what, c);
+    deselect();
+  }
+});
+window.addEventListener('keydown', e => {
+  if (selectedTok && kbCursor){
+    const mv = {ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+    if (mv){ e.preventDefault();
+      kbCursor = {x: Math.min(Engine.W-1, Math.max(0, kbCursor.x+mv[0])), y: Math.min(Engine.H-1, Math.max(0, kbCursor.y+mv[1]))};
+      showHL(kbCursor, selectedTok.what); return; }
+    if (e.key==='Enter'){ e.preventDefault();
+      if (validDrop(kbCursor, !!selectedTok.what.scout)){ placeAt(selectedTok.what, kbCursor); deselect(); } return; }
+    if (e.key==='Escape'){ deselect(); return; }
+  }
+  if (e.key==='r' || e.key==='R'){ if (st.scout && st.scout.cell) rotateScout(); }
+});
+function placeAt(what, c){
+  Sound.place();
+  if (what.scout){
+    if (!st.scout) st.scout = {facing:'N'};
+    st.scout.cell = c;
+    drawScout();
+    return;
+  }
+  const lm = what.lm;
+  if (st.placed[lm.id]){ if (st.placed[lm.id].inked) return; st.placed[lm.id].el.remove(); }
+  st.placed[lm.id] = { cell:c, inked:false, el: drawStamp(lm, c, true), sketchAt: Date.now() };
+  st.placed[lm.id].el.addEventListener('pointerdown', e => { if(!st.placed[lm.id].inked) startDrag(e, {lm}); });
+  const tokBtn = trayTokEl(lm.id);
+  if (tokBtn) tokBtn.classList.add('used');
+  api.onPlaced && api.onPlaced();
+}
+
+Object.assign(api, { portrait, renderMap, renderTray, drawStamp, el, placeAt, cx, cy, VW, VH });
+})();
+</script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const UI = window.__cartoUI;
+
+/* ── HUD ── */
+function hudCoins(){ return Math.max(0, UI.save.coins + UI.st.dayCoins); }
+let shownCoins = null;
+function updateHUD(){
+  $('dayNum').textContent = UI.save.day;
+  const target = hudCoins();
+  if (shownCoins === null){ shownCoins = target; $('coinNum').textContent = target; }
+  else if (shownCoins !== target){
+    const from = shownCoins, to = target, t0 = performance.now();
+    shownCoins = target;
+    const step = t => { const k = Math.min(1,(t-t0)/500);
+      $('coinNum').textContent = Math.round(from + (to-from)*k);
+      if (k<1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    $('coinNum').textContent = to; // safety if rAF frozen (hidden tab)
+  }
+  $('streakPill').style.display = UI.save.streak >= 1 ? 'flex' : 'none';
+  $('streakNum').textContent = UI.save.streak;
+}
+
+/* ── particles & floaters ── */
+function cellScreen(c){
+  const r = $('mapSvg').getBoundingClientRect();
+  return { x: r.left + (UI.cx(c)/UI.VW)*r.width, y: r.top + (UI.cy(c)/UI.VH)*r.height };
+}
+function burst(px, py, colors, n=14){
+  for (let i=0;i<n;i++){
+    const p = document.createElement('div');
+    p.className = 'pt';
+    const sz = 5 + Math.random()*7;
+    p.style.cssText = `left:${px}px;top:${py}px;width:${sz}px;height:${sz}px;background:${colors[i%colors.length]};transition:transform .8s cubic-bezier(.2,.7,.4,1),opacity .8s ease;`;
+    document.body.appendChild(p);
+    const a = Math.random()*Math.PI*2, d = 34 + Math.random()*54;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      p.style.transform = `translate(${Math.cos(a)*d}px,${Math.sin(a)*d - 20}px) scale(.2)`;
+      p.style.opacity = '0';
+    }));
+    setTimeout(()=>p.remove(), 900);
+  }
+}
+function floater(px, py, text, color='#ffcb47'){
+  const f = document.createElement('div');
+  f.className = 'floater';
+  f.style.cssText = `left:${px-30}px;top:${py-28}px;color:${color}`;
+  f.textContent = text;
+  document.body.appendChild(f);
+  setTimeout(()=>f.remove(), 1050);
+}
+
+/* ── traveler on the porch ── */
+let travEl = null, blinkTimer = null;
+function popTraveler(char){
+  byeTraveler(true);
+  travEl = document.createElement('div');
+  travEl.className = 'traveler';
+  travEl.innerHTML = UI.portrait(char.id);
+  $('travelerSlot').appendChild(travEl);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>travEl.classList.add('in')));
+  travEl.getBoundingClientRect(); travEl.classList.add('in'); // rAF-freeze safety
+  Sound.door(); setTimeout(()=>Sound.popIn(), 140);
+  $('npName').textContent = char.name;
+  $('npTitle').textContent = char.title;
+  setTimeout(()=>$('namePlate').classList.add('show'), 220);
+  blinkTimer = setInterval(()=>{ if(!travEl) return;
+    travEl.classList.add('blink'); setTimeout(()=>travEl && travEl.classList.remove('blink'), 160);
+  }, 2600 + Math.random()*2200);
+}
+function byeTraveler(instant){
+  if (blinkTimer){ clearInterval(blinkTimer); blinkTimer = null; }
+  $('namePlate').classList.remove('show');
+  Music.duck(1);
+  if (!travEl) return;
+  const t = travEl; travEl = null;
+  if (instant){ t.remove(); return; }
+  Sound.bye();
+  t.classList.add('bye');
+  setTimeout(()=>t.remove(), 500);
+}
+function cheer(){ if(travEl) try{ travEl.animate([{transform:'translateY(6%)'},{transform:'translateY(-2%)'},{transform:'translateY(6%)'}],{duration:420,iterations:2,easing:'ease-in-out'}); }catch(e){} }
+function wince(){ if(travEl) try{ travEl.animate([{transform:'translateY(6%) rotate(0deg)'},{transform:'translateY(6%) rotate(-4deg)'},{transform:'translateY(6%) rotate(3deg)'},{transform:'translateY(6%) rotate(0deg)'}],{duration:380}); }catch(e){} }
+
+/* ── VoiceBabble: characterful pitched-blip voices (no TTS = never robotic) ──
+   Each traveler "reads" the words in their own gibberish timbre, synced to the
+   word-by-word reveal. Distinct per character; questions bend up at the end. */
+const VoiceBabble = (() => {
+  let enabled = UI.save.voice;
+  const VOX = {
+    wren:  {f:300, type:'triangle', w:0.11},   // fisherwoman — bright, lilting
+    bram:  {f:116, type:'sawtooth', w:0.05},   // old soldier — low gravel
+    tilly: {f:540, type:'square',   w:0.18},   // shepherd kid — high, squeaky
+    odo:   {f:196, type:'sawtooth', w:0.08},   // merchant — smooth mid-low
+    ines:  {f:274, type:'sine',     w:0.09},   // herbalist — soft, round
+    finn:  {f:352, type:'triangle', w:0.15},   // minstrel — sing-song
+    maera: {f:300, type:'sine',     w:0.08},   // tutor — warm
+    capt:  {f:150, type:'sawtooth', w:0.07},   // sea captain (boss) — booming
+  };
+  function say(id, word){
+    if (!enabled) return;
+    const v = VOX[id] || VOX.maera;
+    const clean = (word||'').replace(/[^a-zA-Z]/g,'');
+    if (!clean) return;
+    const syl = Math.max(1, Math.min(3, Math.round(clean.length/2.7)));
+    const q = /[?]$/.test(word), bang = /[!]$/.test(word);
+    for (let i=0;i<syl;i++){
+      const wob = 1 + (Math.random()-0.5)*v.w*2;
+      const f = v.f*wob;
+      const to = (q && i===syl-1) ? f*1.24 : (bang ? f*0.82 : f*(0.9+Math.random()*0.08));
+      Sound.tone(f, to, 0.072, v.type, bang?0.16:0.13, i*0.06);
+    }
+  }
+  return { say, get enabled(){return enabled}, set enabled(v){enabled=v;} };
+})();
+function emphasize(){ if(travEl) try{ travEl.animate(
+  [{transform:'translateY(6%)'},{transform:'translateY(1.5%) scale(1.02)'},{transform:'translateY(6%)'}],
+  {duration:280,easing:'ease-out'}); }catch(e){} }
+
+/* ── speech bubble with fading lines ── */
+let epoch = 0;
+function mdSpans(line){
+  const frag = document.createDocumentFragment();
+  let bold = false;
+  for (const word of line.split(' ')){
+    if (!word) continue;
+    const starts = word.startsWith('*');
+    const stars = (word.match(/\*/g)||[]).length;
+    const closes = /\*[.,;:!?…'"]*$/.test(word) && !(starts && stars === 1);
+    if (starts) bold = true;
+    const isBold = bold;
+    if (closes) bold = false;
+    const w = word.replace(/\*/g,'');
+    const span = document.createElement('span');
+    span.className = 'w';
+    if (isBold){ const b = document.createElement('b'); b.textContent = w; span.appendChild(b); }
+    else span.textContent = w;
+    frag.appendChild(span);
+    frag.appendChild(document.createTextNode(' '));
+  }
+  return frag;
+}
+function lineLife(text){
+  return (UI.save.slowFade?1.7:1) * (4300 + 46*text.length + (UI.save.day<=2?1400:0));
+}
+function speakLines(char, lines, onAllDelivered){
+  const my = ++epoch;
+  $('bubbleWho').textContent = char.name + ' · ' + char.title;
+  $('lines').innerHTML = '';
+  $('bubble').classList.add('show');
+  if (travEl) travEl.classList.add('talking');
+  Music.duck(0.42);
+  let i = 0;
+  const nextLine = () => {
+    if (my !== epoch) return;
+    if (i >= lines.length){
+      if (travEl) travEl.classList.remove('talking');
+      Music.duck(1);
+      onAllDelivered && onAllDelivered();
+      return;
+    }
+    const text = lines[i]; i++;
+    const lineEl = document.createElement('span');
+    lineEl.className = 'line';
+    lineEl.appendChild(mdSpans(text));
+    $('lines').appendChild(lineEl);
+    const words = lineEl.querySelectorAll('.w');
+    const wordGap = 168;
+    words.forEach((w,k)=> setTimeout(()=>{
+      if (my !== epoch) return;
+      w.classList.add('on');
+      VoiceBabble.say(char.id, w.textContent.trim());
+      if (w.querySelector('b')) emphasize();
+    }, 60 + k*wordGap));
+    const wordsDone = 60 + words.length*wordGap + 240;
+    setTimeout(()=>{
+      if (my !== epoch) return;
+      setTimeout(()=>{ if(my===epoch) lineEl.classList.add('faded'); }, lineLife(text));
+      setTimeout(nextLine, 300);
+    }, wordsDone);
+  };
+  nextLine();
+}
+function showNote(char, text, life=3400){
+  const my = ++epoch;
+  $('bubbleWho').textContent = char.name + ' · ' + char.title;
+  $('lines').innerHTML = '';
+  const lineEl = document.createElement('span');
+  lineEl.className = 'line';
+  lineEl.appendChild(mdSpans(text));
+  $('lines').appendChild(lineEl);
+  $('againBtn').style.display = 'none';
+  Music.duck(0.45);
+  if (travEl) travEl.classList.add('talking');
+  const words = lineEl.querySelectorAll('.w');
+  words.forEach((w,k)=> setTimeout(()=>{
+    if (my !== epoch) return;
+    w.classList.add('on');
+    VoiceBabble.say(char.id, w.textContent.trim());
+  }, 40 + k*135));
+  const done = 40 + words.length*135 + 260;
+  setTimeout(()=>{ if(my===epoch && travEl) travEl.classList.remove('talking'); }, done);
+  setTimeout(()=>{ if(my===epoch) lineEl.classList.add('faded'); }, Math.max(life, done+400));
+}
+
+/* ── tale flow ── */
+const MAERA = {id:'maera', name:'Maera', title:'master cartographer', rate:0.97, pitch:1.05,
+  greet:[], close:[], flavor:[]};
+
+function currentTale(){ return UI.st.D.tales[UI.st.taleIdx] || null; }
+
+function beginTale(){
+  const tale = currentTale();
+  if (!tale){ endDay(); return; }
+  UI.st.reasks = 0;
+  UI.st.taleDelivered = false;
+  popTraveler(tale.char);
+  if (tale.boss){ setTimeout(()=>Sound.bell(), 260); $('namePlate').classList.add('boss'); }
+  else $('namePlate').classList.remove('boss');
+  $('againBtn').style.display = '';
+  updateAgainBtn();
+  setTimeout(()=> speakLines(tale.char, tale.lines, ()=>{ UI.st.taleDelivered = true; updateInkBtn(); }), 620);
+  updateInkBtn();
+}
+function updateAgainBtn(){
+  const free = UI.st.reasks === 0;
+  $('againBtn').innerHTML = '🗣 Tell me again ' + (free ? '' : '<span class="cost">–1 coin</span>');
+}
+$('againBtn').addEventListener('click', () => {
+  const tale = currentTale();
+  if (!tale || UI.st.busy) return;
+  if (UI.st.reasks > 0 && hudCoins() > 0){ UI.st.dayCoins--; updateHUD(); }
+  UI.st.reasks++;
+  updateAgainBtn();
+  Sound.page();
+  speakLines(tale.char, tale.lines, ()=>{ UI.st.taleDelivered = true; updateInkBtn(); });
+});
+
+function updateInkBtn(){
+  const tale = currentTale();
+  const p = tale && UI.st.placed[tale.landmark.id];
+  const ok = !!(tale && p && !p.inked && !UI.st.busy);
+  $('inkBtn').disabled = !ok;
+  $('inkBtn').classList.toggle('ready', ok && UI.st.taleDelivered);
+  $('trayHint').textContent = (UI.save.day===1 && tale && !p) ? '— drag their landmark onto the map' : '';
+}
+UI.onPlaced = updateInkBtn;
+
+/* ── ghost-walk failure explainer ── */
+function ghostWalk(tale){
+  const fx = $('mapSvg').querySelector('#fxLayer');
+  fx.innerHTML = '';
+  const s = tale.spec;
+  const g = UI.el('g', {opacity:0}, fx);
+  const p2 = s.turn ? UI.addCell(s.pos, s.face, s.turn.pre) : s.pos;
+  if (s.turn)
+    UI.el('line', {x1:UI.cx(s.pos), y1:UI.cy(s.pos), x2:UI.cx(p2), y2:UI.cy(p2),
+      stroke:'#65503f','stroke-width':3,'stroke-dasharray':'2 8','stroke-linecap':'round'}, g);
+  UI.el('line', {x1:UI.cx(p2), y1:UI.cy(p2), x2:UI.cx(s.truth), y2:UI.cy(s.truth),
+    stroke:'#ff5d6c','stroke-width':3.5,'stroke-dasharray':'2 8','stroke-linecap':'round'}, g);
+  // ghost figure at standing spot, facing arrow
+  const f2 = s.turn ? (s.turn.dir==='left' ? {N:'W',W:'S',S:'E',E:'N'} : {N:'E',E:'S',S:'W',W:'N'})[s.face] : s.face;
+  const gg = UI.el('g', {transform:`translate(${UI.cx(p2)} ${UI.cy(p2)})`, opacity:.85}, g);
+  const rot = {N:0,E:90,S:180,W:270}[f2];
+  UI.el('path', {d:'M0 -28 l8 12 h-16z', fill:'#ffcb47', stroke:'#3d2c24','stroke-width':2, transform:`rotate(${rot})`}, gg);
+  UI.el('use', {href:'#s-scout', x:-17, y:-17, width:34, height:34}, gg);
+  // true cell: ring + ghost of the landmark
+  UI.el('use', {href:'#'+tale.landmark.art, x:UI.cx(s.truth)-21, y:UI.cy(s.truth)-23, width:42, height:42, opacity:.55}, g);
+  const ring = UI.el('circle', {cx:UI.cx(s.truth), cy:UI.cy(s.truth), r:30, fill:'none', stroke:'#ff5d6c','stroke-width':4}, g);
+  try{
+    g.animate([{opacity:0},{opacity:1}],{duration:300,fill:'forwards'});
+    ring.animate([{r:38, opacity:0},{r:28, opacity:1}],{duration:500,easing:'ease-out'});
+  }catch(e){ g.setAttribute('opacity',1); }
+  setTimeout(()=>{ try{ g.animate([{opacity:1},{opacity:0}],{duration:600,fill:'forwards'}); }catch(e){}
+    setTimeout(()=>fx.innerHTML='', 650); }, 3200);
+}
+
+/* ── inking ── */
+$('inkBtn').addEventListener('click', () => {
+  const tale = currentTale();
+  const p = tale && UI.st.placed[tale.landmark.id];
+  if (!tale || !p || p.inked || UI.st.busy) return;
+  UI.st.busy = true;
+  updateInkBtn();
+  const impulsive = !UI.st.taleDelivered;
+  epoch++; Speech.cancel();
+  if (travEl) travEl.classList.remove('talking');
+  Sound.ink();
+  p.inked = true;
+  p.el.remove();
+  p.el = UI.drawStamp(tale.landmark, p.cell, false);
+  const res = Engine.score(p.cell, tale.spec.truth);
+  const cls = Engine.classify(tale, p.cell, impulsive);
+  const sharpEar = res.tier==='perfect' && UI.st.reasks===0;
+  // combo: consecutive perfect placements within a day
+  UI.st.combo = res.tier==='perfect' ? (UI.st.combo||0)+1 : 0;
+  const combo = UI.st.combo;
+  const comboBonus = (res.tier==='perfect' && combo>=2) ? 1 : 0;
+  const coins = res.coins + (sharpEar ? 1 : 0) + comboBonus;
+  UI.st.dayLog.push({tier:res.tier, cls, coins, combo});
+  const pos = cellScreen(p.cell);
+  setTimeout(()=>{
+    if (res.tier === 'perfect'){
+      Sound.perfect(); cheer();
+      setTimeout(()=>Sound.tip(), 200); // coins spill
+      burst(pos.x, pos.y, ['#ffcb47','#e0a92f','#f7ecd2'], Math.min(18 + combo*5, 40));
+      floater(pos.x, pos.y, '+' + res.coins);
+      if (sharpEar) setTimeout(()=>{ Sound.coin(); floater(pos.x, pos.y-30, 'sharp ear +1', '#3fb8ad'); }, 420);
+      if (combo>=2){ Sound.combo(combo);
+        setTimeout(()=>floater(pos.x, pos.y-52, 'on a roll! ×'+combo, '#ff8a3d'), 260);
+        $('mapCard').classList.add('lit'); setTimeout(()=>$('mapCard').classList.remove('lit'), 900); }
+      showNote(tale.char, combo>=3 ? pick(ROLL_LINES) : pick(PERFECT_LINES));
+      $('edgeGlow').classList.add('go'); setTimeout(()=>$('edgeGlow').classList.remove('go'), 1000);
+    } else if (res.tier === 'near'){
+      Sound.near(); wince();
+      burst(pos.x, pos.y, ['#c9ab72','#93785f'], 8);
+      floater(pos.x, pos.y, '+1', '#c9ab72');
+      const fx = $('mapSvg').querySelector('#fxLayer');
+      const ring = UI.el('circle', {cx:UI.cx(tale.spec.truth), cy:UI.cy(tale.spec.truth), r:29, fill:'none', stroke:'#3fb8ad','stroke-width':3.5, opacity:.9}, fx);
+      setTimeout(()=>ring.remove(), 2600);
+      showNote(tale.char, pick(NEAR_LINES));
+    } else {
+      Sound.fail(); wince();
+      $('mapCard').classList.add('shake'); setTimeout(()=>$('mapCard').classList.remove('shake'), 350);
+      // p.el is translated to the cell centre, so draw the X in LOCAL coords around (0,0)
+      const sc = UI.el('g', {}, p.el);
+      UI.el('path', {d:`M-16 -16 l32 32 m0 -32 l-32 32`, stroke:'#ff5d6c','stroke-width':4,'stroke-linecap':'round', opacity:.85}, sc);
+      ghostWalk(tale);
+      showNote(tale.char, MISS_LINES[cls] ? pick(MISS_LINES[cls]) : pick(MISS_LINES.elab), 4200);
+    }
+    UI.st.dayCoins += coins;
+    updateHUD();
+    const wait = res.tier==='miss' ? 4300 : 2600;
+    setTimeout(()=>{
+      byeTraveler();
+      $('bubble').classList.remove('show');
+      UI.st.busy = false;
+      UI.st.taleIdx++;
+      setTimeout(()=> beginTale(), 650);
+    }, wait);
+  }, 380);
+});
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const PERFECT_LINES = ["Aye — that's the very spot!","Perfect ink! Just as I saw it.","Ha! You were standing in my boots.","That's it exactly. Fine work."];
+const ROLL_LINES = ["You're on fire today!","The guild's finest hand, no question!","Not one pace wasted — remarkable!"];
+const NEAR_LINES = ["Close — 'twas a pace off, see?","Nearly. The true spot was just there.","A whisker off. Travelers will manage."];
+const MISS_LINES = {
+  input: ["Patience! I hadn't finished my tale.","You inked before I was done talking!"],
+  mirror: ["MY left, apprentice — my left, not yours!","You flipped my hands! Stand where I stood.","Other side! I was facing the other way."],
+  output: ["So close — one pace astray.","A pace off, alas."],
+  elab: ["No, no — see where I stood? Watch.","That's not it. Look — I'll show you."],
+};
+
+/* ── day lifecycle ── */
+function startDay(){
+  UI.st.D = Engine.genDay(UI.runSeed, UI.save.day, UI.save.attempt);
+  UI.st.placed = {}; UI.st.scout = null;
+  UI.st.taleIdx = 0; UI.st.dayCoins = 0; UI.st.dayLog = []; UI.st.combo = 0;
+  UI.st.busy = false; UI.st.taleDelivered = false;
+  UI.renderMap(UI.st.D);
+  UI.renderTray(UI.st.D);
+  $('bubble').classList.remove('show');
+  updateHUD();
+  const n = UI.st.D.tales.length;
+  $('dayOvTitle').textContent = 'Day ' + UI.save.day;
+  const first = UI.st.D.tales[0];
+  $('dayOvSub').innerHTML = (n===1
+    ? `${first.char.name} the ${first.char.title} is waiting at the counter.`
+    : n===2 ? 'Two travelers are waiting at the counter.' : 'Three travelers are waiting — busy morning.')
+    + (UI.save.day===2 ? '<br><br>🧭 Maera left her <b>little scout</b> in the drawer — set the doll where a traveler stood, tap her to turn her. Her L and R are theirs.' : '')
+    + (UI.st.D.rot ? '<br><br>🔄 A page from the far side — <b>north isn\'t up today</b>. Trust the compass, not your habits.' : '')
+    + (UI.st.D.boss ? '<br><br>⚓ Word is the <b>harbourmaster herself</b> is coming in — her charts must be flawless.' : '');
+  $('dayOvTitle').textContent = UI.st.D.boss ? 'Day ' + UI.save.day + ' — Guild Trial' : 'Day ' + UI.save.day;
+  $('dayOv').classList.add('show');
+}
+$('dayGoBtn').addEventListener('click', () => {
+  Sound.ensure(); Sound.bell();
+  $('dayOv').classList.remove('show');
+  if (UI.save.day === 1 && !UI.st.onboarded){
+    UI.st.onboarded = true;
+    popTraveler(MAERA);
+    setTimeout(()=> speakLines(MAERA, [
+      "Welcome to the shop, apprentice.",
+      "Travelers tell us what they saw — *their words fade fast*.",
+      "Hold the tale in your head, then *ink it on the map*.",
+      "Here comes your first one. Listen close.",
+    ], ()=> setTimeout(()=>{ byeTraveler(); setTimeout(beginTale, 600); }, 900)), 620);
+  } else {
+    setTimeout(beginTale, 300);
+  }
+});
+
+/* ── day end ── */
+function endDay(){
+  byeTraveler();
+  $('bubble').classList.remove('show');
+  const log = UI.st.dayLog, n = Math.max(1, log.length);
+  const perfect = log.filter(l=>l.tier==='perfect').length;
+  const misses = log.filter(l=>l.tier==='miss').length;
+  const stars = misses===0 ? (perfect===log.length ? 3 : 2) : 1;
+  const decoySketched = UI.st.D.decoy && UI.st.placed[UI.st.D.decoy.id];
+  let bonus = 0;
+  if (UI.st.D.decoy && !decoySketched) bonus = 2;
+  UI.st.dayCoins += bonus;
+  // guild marks (errors by phase)
+  const cnt = k => log.filter(l=>l.cls===k).length;
+  const listen = 1 - Math.min(1,(cnt('input') + (decoySketched?1:0)) / n);
+  const reckon = 1 - Math.min(1,(cnt('mirror')+cnt('elab')) / n);
+  const steady = 1 - Math.min(1, cnt('output') / n);
+  // persist
+  UI.save.streak = stars===3 ? UI.save.streak+1 : 0;
+  UI.save.best = Math.max(UI.save.best, UI.save.streak);
+  UI.save.coins = Math.max(0, UI.save.coins + UI.st.dayCoins);
+  UI.persist();
+  updateHUD();
+  // build sheet
+  $('endTitle').textContent = stars===3 ? 'A flawless map!' : stars===2 ? 'The map is inked' : 'The map is… inked';
+  const st = $('endStars'); st.innerHTML = '';
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent='⭐'; if(i>=stars)s.classList.add('dim'); st.appendChild(s); }
+  const stats = $('endStats'); stats.innerHTML = '';
+  const rows = [
+    ['Landmarks inked', `${log.length}`],
+    ['Perfect placements', `${perfect} / ${log.length}`],
+    ['Coins earned', `+${Math.max(0,UI.st.dayCoins)}`],
+  ];
+  if (UI.st.D.decoy) rows.push([ decoySketched ? `A ${UI.st.D.decoy.name} crept onto your draft — nobody spoke of one` : `You left the ${UI.st.D.decoy.name} in the drawer — right call`, decoySketched ? '·' : '+2']);
+  if (UI.save.streak >= 2) rows.push(['Flawless streak', '🔥 ' + UI.save.streak]);
+  for (const [k,v] of rows){
+    const d = document.createElement('div'); d.className='statline';
+    d.innerHTML = `<span>${k}</span><span class="v">${v}</span>`;
+    stats.appendChild(d);
+  }
+  const marks = $('endMarks'); marks.innerHTML = '';
+  [['Listening', listen],['Reckoning', reckon],['Steady hand', steady]].forEach(([lbl,v])=>{
+    const d = document.createElement('div'); d.className = 'mark' + (v>=.75?' good':'');
+    d.innerHTML = `<span class="mlbl">${lbl}</span><div class="bar"><div class="fill"></div></div>`;
+    d.querySelector('.fill').dataset.w = Math.round(v*100);
+    marks.appendChild(d);
+  });
+  // reflection every 3rd day
+  const RQ = [
+    {q:'When a tale plays, what do you picture first?', opts:['🥾 Where they stood','🧭 Which way they faced','🗺 The spot itself']},
+    {q:"What's your trick for their left and right?", opts:['🙆 I turn my own body','🧍 I use the little scout','🧠 I flip it in my head']},
+    {q:'When the words fade, what do you hold onto?', opts:['📜 The whole tale','🔢 Just the paces','🖼 A picture in my head']},
+  ];
+  const rbox = $('reflectBox');
+  if (UI.save.day % 3 === 0){
+    const rq = RQ[UI.save.reflectIdx % RQ.length];
+    UI.save.reflectIdx++; UI.persist();
+    rbox.style.display = '';
+    $('reflectQ').textContent = 'Maera asks: ' + rq.q;
+    const ro = $('reflectOpts'); ro.innerHTML = '';
+    rq.opts.forEach(o => {
+      const b = document.createElement('button'); b.className='chipbtn'; b.textContent = o;
+      b.addEventListener('click', ()=>{
+        ro.querySelectorAll('button').forEach(x=>x.disabled=true);
+        b.style.outline = '3px solid #3fb8ad';
+        Sound.coin(); UI.save.coins++; UI.persist(); updateHUD();
+        $('reflectQ').textContent = 'Maera nods. "Good to know your own head." +1 coin';
+      }, {once:true});
+      ro.appendChild(b);
+    });
+  } else rbox.style.display = 'none';
+  $('retryBtn').style.display = stars<3 ? '' : 'none';
+  $('endOv').classList.add('show');
+  Sound.page();
+  // staggered reveal
+  st.querySelectorAll('span').forEach((s,i)=> setTimeout(()=>{ s.classList.add('on'); if(i<stars) Sound.star(); }, 500+i*380));
+  stats.querySelectorAll('.statline').forEach((d,i)=> setTimeout(()=>d.classList.add('show'), 1500+i*260));
+  setTimeout(()=> marks.querySelectorAll('.fill').forEach(f=> f.style.width = f.dataset.w+'%'), 2100);
+  if (stars===3) setTimeout(()=>{ const r = $('endOv').getBoundingClientRect();
+    for(let i=0;i<4;i++) setTimeout(()=>burst(r.left+r.width*(0.25+Math.random()*.5), r.top+120+Math.random()*80, ['#ffcb47','#3fb8ad','#ff5d6c','#f7ecd2'], 12), i*180); }, 900);
+}
+$('nextDayBtn').addEventListener('click', ()=>{
+  UI.save.day++; UI.save.attempt = 0; UI.persist();
+  $('endOv').classList.remove('show');
+  setTimeout(startDay, 350);
+});
+$('retryBtn').addEventListener('click', ()=>{
+  UI.save.attempt++; UI.persist();
+  $('endOv').classList.remove('show');
+  setTimeout(startDay, 350);
+});
+
+/* ── settings & boot ── */
+function syncToggles(){
+  $('muteBtn').classList.toggle('off', Sound.muted);
+  $('voiceBtn').classList.toggle('off', !VoiceBabble.enabled);
+  $('musicBtn').classList.toggle('off', !Music.on);
+}
+$('muteBtn').addEventListener('click', ()=>{ Sound.muted = !Sound.muted; UI.save.sound = !Sound.muted; UI.persist(); syncToggles(); if(!Sound.muted) Sound.pick(); });
+$('voiceBtn').addEventListener('click', ()=>{ VoiceBabble.enabled = !VoiceBabble.enabled; UI.save.voice = VoiceBabble.enabled; UI.persist(); syncToggles(); if(VoiceBabble.enabled){ Sound.ensure(); VoiceBabble.say('wren','hello there?'); } });
+$('musicBtn').addEventListener('click', ()=>{ const v = !Music.on; Music.setOn(v); if(v) Music.start(); UI.save.music = v; UI.persist(); syncToggles(); });
+
+// music boots on first user gesture (autoplay policy); duck under tab-hide
+let musicBooted = false;
+window.addEventListener('pointerdown', ()=>{ if(!musicBooted){ musicBooted = true; if(Music.on) Music.start(); } }, {capture:true});
+document.addEventListener('visibilitychange', ()=> Music.setHidden(document.hidden));
+window.__cartoMusic = Music;
+
+// slow-fade chip on title sheet
+const sRow = document.createElement('div');
+sRow.className = 'settingsRow';
+sRow.innerHTML = `<button class="setchip" id="fadeChip">🐢 Slow fade</button>`;
+$('titleOv').querySelector('.sheet').insertBefore(sRow, $('resetBtn'));
+const fadeChip = $('fadeChip');
+fadeChip.classList.toggle('on', UI.save.slowFade);
+fadeChip.addEventListener('click', ()=>{ UI.save.slowFade = !UI.save.slowFade; UI.persist(); fadeChip.classList.toggle('on', UI.save.slowFade); });
+
+if (UI.save.day > 1){
+  $('startBtn').textContent = `Continue — Day ${UI.save.day}`;
+  $('resetBtn').style.display = '';
+}
+let resetArmed = false;
+$('resetBtn').addEventListener('click', ()=>{
+  if (!resetArmed){ resetArmed = true; $('resetBtn').textContent = 'Tap again to erase everything'; return; }
+  Object.assign(UI.save, {day:1, attempt:0, coins:0, streak:0, best:0, reflectIdx:0});
+  UI.persist(); location.reload();
+});
+$('startBtn').addEventListener('click', ()=>{
+  Sound.ensure();
+  $('titleOv').classList.remove('show');
+  setTimeout(startDay, 300);
+});
+syncToggles();
+updateHUD();
+
+/* debug hooks for verification */
+window.CA = {
+  Engine, Sound, Speech,
+  state: () => ({day:UI.save.day, taleIdx:UI.st.taleIdx, dayCoins:UI.st.dayCoins, log:UI.st.dayLog,
+    tales:UI.st.D ? UI.st.D.tales.map(t=>({who:t.char.name, lm:t.landmark.id, lines:t.lines, truth:t.spec.truth, mirror:t.spec.mirror})) : null}),
+  start: () => { $('titleOv').classList.remove('show'); $('dayOv').classList.remove('show'); if(!UI.st.D) startDay(); },
+  ring: () => $('dayGoBtn').click(),
+  finishSpeech: () => { epoch++; Speech.cancel(); UI.st.taleDelivered = true; if(travEl) travEl.classList.remove('talking'); updateInkBtn(); },
+  placeTruth: () => { const t = currentTale(); if(!t) return 'no tale'; UI.placeAt({lm:t.landmark}, t.spec.truth); return t.spec.truth; },
+  placeMirror: () => { const t = currentTale(); if(!t||!t.spec.mirror) return 'none'; UI.placeAt({lm:t.landmark}, t.spec.mirror); return t.spec.mirror; },
+  place: (x,y) => { const t = currentTale(); if(!t) return 'no tale'; UI.placeAt({lm:t.landmark}, {x,y}); },
+  ink: () => $('inkBtn').click(),
+  endOpen: () => $('endOv').classList.contains('show'),
+  next: () => $('nextDayBtn').click(),
+  ui: UI,
+};
+})();
+</script>
+</body>
+</html>

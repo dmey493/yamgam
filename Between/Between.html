@@ -1,0 +1,664 @@
+<!--
+  BETWEEN — a daily fraction puzzle
+  Name a fraction between two numbers. Then between YOUR answer and the top. Five times.
+  The number line zooms into the shrinking gap each round: the space never runs out.
+
+  Target standards (grades 6-8):
+    6.NS.6 / 6.NS.7  — position & order rational numbers on the number line
+    7.NS             — density of rational numbers (infinitely many between any two)
+  Super-idea exercised: MAGNITUDE (how big is this, really?)
+  Misconceptions ambushed: "there's a 'next' fraction", "you run out of room",
+    "longer window = more room". The zoom proves otherwise.
+  Balance rule: each round has a DENOMINATOR BUDGET (12/24/36/48/60) so the
+    decimal escape hatch (63/100, 637/1000...) can't win. The budget grows by
+    12 per round, >= any bound's denominator, so the mediant (add tops, add
+    bottoms) is always a legal move — the puzzle can never dead-end.
+
+  Single file. No dependencies. In-memory state only.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Between — a daily puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---- One palette, declared once (custom, cohesive) ---- */
+  :root{
+    --bg:#17162a;         /* near-black indigo */
+    --bg2:#100f20;
+    --panel:#232244;      /* raised surface */
+    --panel2:#2c2b52;
+    --ink:#f4f0e3;        /* warm cream */
+    --muted:#9694c2;      /* dim lavender */
+    --gold:#ffcb47;       /* YOU / your fraction */
+    --teal:#4ecdc4;       /* the valid zone / success */
+    --coral:#ff5d6c;      /* out of bounds / danger */
+    --line:#3a3868;
+    --radius:18px;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --shadow-sm:0 4px 12px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(120% 120% at 50% -10%,#211f45 0%,var(--bg) 55%,var(--bg2) 100%);
+    color:var(--ink);
+    font-family:Nunito,system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;overflow-x:hidden;
+    letter-spacing:.2px;
+  }
+  .wrap{width:100%;max-width:560px;position:relative}
+
+  /* ---- Header ---- */
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .logo{font-family:Fredoka;font-weight:700;font-size:34px;line-height:1;letter-spacing:.5px}
+  .logo b{color:var(--teal)}
+  .logo i{font-style:normal;color:var(--gold)}
+  .tag{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1.5px}
+  .tools{display:flex;gap:8px}
+  .icon-btn{
+    width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;
+    background:var(--panel);color:var(--ink);font-size:19px;box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s ease,background .2s;
+  }
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn:hover{background:var(--panel2)}
+
+  /* ---- Progress pips ---- */
+  .pips{display:flex;gap:7px;justify-content:center;margin:2px 0 14px}
+  .pip{width:100%;max-width:46px;height:8px;border-radius:99px;background:var(--line);transition:background .4s,box-shadow .4s;position:relative;overflow:hidden}
+  .pip.done{background:var(--teal);box-shadow:0 0 12px rgba(78,205,196,.5)}
+  .pip.retry{background:var(--gold);box-shadow:0 0 12px rgba(255,203,71,.4)}
+  .pip.active{background:var(--muted)}
+
+  /* ---- Prompt ---- */
+  .prompt{text-align:center;font-family:Fredoka;font-weight:500;font-size:19px;color:var(--ink);min-height:26px;margin-bottom:6px}
+  .prompt .hl-lo{color:var(--gold)}
+  .prompt .hl-hi{color:var(--teal)}
+  .subprompt{text-align:center;color:var(--muted);font-size:13px;font-weight:700;margin-bottom:12px;min-height:16px}
+
+  /* ---- Number line ---- */
+  .stage{position:relative;height:150px;margin:6px 0 4px;user-select:none}
+  .track{position:absolute;left:0;right:0;top:96px;height:6px;background:var(--line);border-radius:99px}
+  .zone{position:absolute;top:90px;height:18px;border-radius:6px;
+    background:linear-gradient(180deg,rgba(78,205,196,.38),rgba(78,205,196,.16));
+    border:1.5px dashed rgba(78,205,196,.7);
+    transition:left .8s cubic-bezier(.6,.02,.2,1),width .8s cubic-bezier(.6,.02,.2,1);}
+  .bound{position:absolute;top:70px;transform:translateX(-50%);text-align:center;
+    transition:left .8s cubic-bezier(.6,.02,.2,1);}
+  .bound .stem{width:2px;height:26px;margin:0 auto;background:var(--muted);opacity:.6}
+  .bound .lab{margin-top:4px;font-family:Fredoka;font-weight:600;font-size:13px;white-space:nowrap}
+  .bound.lo .lab{color:var(--gold)}
+  .bound.hi .lab{color:var(--teal)}
+  .bound .dec{display:block;font-family:Nunito;font-weight:700;font-size:10px;color:var(--muted);letter-spacing:.5px}
+
+  /* ghost pin (live input preview) */
+  .pin{position:absolute;top:60px;transform:translateX(-50%);text-align:center;pointer-events:none;
+    transition:left .8s cubic-bezier(.6,.02,.2,1),opacity .5s;}
+  .pin .head{width:15px;height:15px;border-radius:50%;margin:0 auto}
+  .pin .stem2{width:2px;height:34px;margin:2px auto 0}
+  .pin.ghost{top:60px;transition:left .12s linear,opacity .2s}
+  .pin.ghost .head{width:17px;height:17px;background:var(--teal);box-shadow:0 0 0 5px rgba(78,205,196,.22)}
+  .pin.ghost .stem2{background:var(--teal);opacity:.7}
+  .pin.ghost.bad .head{background:var(--coral);box-shadow:0 0 0 5px rgba(255,93,108,.25)}
+  .pin.ghost.bad .stem2{background:var(--coral)}
+  .pin .plab{margin-top:3px;font-family:Fredoka;font-weight:600;font-size:12px}
+  .pin.ghost .plab{color:var(--teal)}
+  .pin.ghost.bad .plab{color:var(--coral)}
+
+  .zoomtip{position:absolute;left:50%;top:2px;transform:translateX(-50%);
+    font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:0;transition:opacity .4s}
+  .zoomtip.show{opacity:1}
+
+  /* ---- Input ---- */
+  .console{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-top:8px}
+  .fracrow{display:flex;align-items:center;justify-content:center;gap:16px}
+  .frac{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .frac input{
+    width:96px;height:64px;text-align:center;font-family:Fredoka;font-weight:600;font-size:38px;
+    color:var(--ink);background:var(--panel2);border:2px solid var(--line);border-radius:14px;outline:none;
+    transition:border-color .15s,box-shadow .15s;-moz-appearance:textfield;
+  }
+  .frac input::-webkit-outer-spin-button,.frac input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .frac input:focus{border-color:var(--teal);box-shadow:0 0 0 4px rgba(78,205,196,.18)}
+  .vinc{width:96px;height:5px;background:var(--ink);border-radius:99px;opacity:.85}
+  .eq{font-family:Fredoka;font-size:30px;color:var(--muted);font-weight:500}
+  .decview{min-width:104px;text-align:center}
+  .decview .big{font-family:Fredoka;font-weight:600;font-size:30px;line-height:1;transition:color .2s}
+  .decview .cap{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:1.4px;margin-top:4px}
+  .decview.ok .big{color:var(--teal)} .decview.bad .big{color:var(--coral)}
+
+  .btnrow{display:flex;gap:10px;margin-top:14px}
+  .btn{flex:1;border:none;border-radius:14px;cursor:pointer;font-family:Fredoka;font-weight:600;
+    padding:15px;font-size:18px;box-shadow:var(--shadow-sm);transition:transform .1s ease,filter .2s,background .2s}
+  .btn:active{transform:scale(.96)}
+  .btn.primary{background:var(--teal);color:#08302c}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.ghostbtn{flex:0 0 auto;background:var(--panel2);color:var(--muted);font-size:14px;padding:15px 16px}
+  .btn.ghostbtn:hover{color:var(--ink)}
+
+  .msg{text-align:center;font-weight:800;font-size:14px;min-height:20px;margin-top:12px;transition:color .2s}
+  .msg.bad{color:var(--coral)} .msg.good{color:var(--teal)} .msg.hint{color:var(--gold)}
+
+  /* score chip */
+  .scorechip{position:absolute;top:2px;right:0;display:flex;flex-direction:column;align-items:flex-end}
+  /* (score lives inline instead — see stats bar) */
+  .stats{display:flex;justify-content:center;gap:26px;margin:12px 0 2px}
+  .stat{text-align:center}
+  .stat .v{font-family:Fredoka;font-weight:700;font-size:26px;line-height:1}
+  .stat .k{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:1.3px;margin-top:2px}
+  .stat .v.gold{color:var(--gold)}
+
+  /* ---- Overlays ---- */
+  .overlay{position:fixed;inset:0;background:rgba(10,9,24,.78);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;padding:20px;z-index:20;opacity:0;transition:opacity .3s}
+  .overlay.show{display:flex;opacity:1}
+  .card{width:100%;max-width:460px;background:linear-gradient(180deg,var(--panel),#1e1d3c);
+    border-radius:24px;box-shadow:var(--shadow);padding:26px 24px;text-align:center;
+    transform:translateY(14px) scale(.97);transition:transform .35s cubic-bezier(.2,.9,.3,1.3)}
+  .overlay.show .card{transform:none}
+  .card h1{font-family:Fredoka;font-weight:700;margin:0 0 4px;font-size:34px}
+  .card h1 b{color:var(--teal)} .card h1 i{font-style:normal;color:var(--gold)}
+  .card p{color:var(--muted);font-size:14px;line-height:1.55;margin:8px 0}
+  .how{text-align:left;background:var(--bg);border-radius:16px;padding:14px 16px;margin:14px 0;font-size:14px;line-height:1.7}
+  .how b{color:var(--teal)}
+  .how .lo{color:var(--gold);font-weight:800}
+  .reveal{font-family:Fredoka;font-size:15px;color:var(--ink);margin:6px 0 2px}
+
+  /* result stats reveal, staggered */
+  .rstat{opacity:0;transform:translateY(8px);animation:rise .5s forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .resultgrid{display:flex;gap:8px;justify-content:center;margin:16px 0;font-size:26px}
+  .best{color:var(--gold);font-weight:800;font-family:Fredoka}
+  .journey{display:flex;flex-direction:column;gap:5px;margin:14px 0;text-align:left;font-family:Fredoka}
+  .jr{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+  .jr .sq{width:14px;height:14px;border-radius:4px;flex:0 0 auto}
+  .jr b{color:var(--ink);font-weight:600}
+
+  /* particles */
+  .particle{position:fixed;width:9px;height:9px;border-radius:2px;pointer-events:none;z-index:30}
+
+  .float{position:fixed;font-family:Fredoka;font-weight:700;font-size:24px;pointer-events:none;z-index:30;color:var(--gold)}
+
+  .shake{animation:shk .35s ease}
+  @keyframes shk{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+
+  .bob{animation:bob 3.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+  .foot{text-align:center;color:var(--muted);font-size:11px;margin-top:14px;font-weight:700;letter-spacing:.3px}
+
+  @media (max-width:460px){
+    .logo{font-size:28px}
+    .frac input{width:82px;font-size:32px}.vinc{width:82px}
+    .stats{gap:18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.001ms!important;animation-duration:.001ms!important}
+  }
+</style>
+
+<div class="wrap" id="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">Be<b>t</b>we<i>e</i>n</div>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="muteBtn" title="Sound on/off" aria-label="Toggle sound">🔊</button>
+      <button class="icon-btn" id="helpBtn" title="How to play" aria-label="How to play">?</button>
+    </div>
+  </header>
+
+  <div class="pips" id="pips"></div>
+
+  <div class="prompt" id="prompt"></div>
+  <div class="subprompt" id="subprompt"></div>
+
+  <div class="stage" id="stage">
+    <div class="zoomtip" id="zoomtip">🔍 zooming in…</div>
+    <div class="track"></div>
+    <div class="zone" id="zone"></div>
+    <div class="bound lo" id="boundLo"><div class="stem"></div><div class="lab"></div></div>
+    <div class="bound hi" id="boundHi"><div class="stem"></div><div class="lab"></div></div>
+    <div class="pin ghost" id="ghost" style="opacity:0"><div class="head"></div><div class="stem2"></div><div class="plab"></div></div>
+  </div>
+
+  <div class="console">
+    <div class="fracrow">
+      <div class="frac">
+        <input id="numIn" type="number" inputmode="numeric" placeholder="?" aria-label="numerator">
+        <div class="vinc"></div>
+        <input id="denIn" type="number" inputmode="numeric" placeholder="?" aria-label="denominator">
+      </div>
+      <div class="eq">=</div>
+      <div class="decview" id="decview"><div class="big">—</div><div class="cap">as a decimal</div></div>
+    </div>
+    <div class="btnrow">
+      <button class="btn ghostbtn" id="hintBtn">💡 Stuck?</button>
+      <button class="btn primary" id="placeBtn">Place it ↵</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v gold" id="scoreV">0</div><div class="k">Score</div></div>
+    <div class="stat"><div class="v" id="roundV">1<span style="color:var(--muted);font-size:16px">/5</span></div><div class="k">Round</div></div>
+    <div class="stat"><div class="v" id="gapV">—</div><div class="k">Gap width</div></div>
+    <div class="stat"><div class="v" id="capV">≤12</div><div class="k">Denom limit</div></div>
+  </div>
+
+  <div class="foot">A new puzzle every day · fractions never run out</div>
+</div>
+
+<!-- HOW TO PLAY -->
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h1>Be<b>t</b>we<i>e</i>n</h1>
+    <p style="font-weight:800;color:var(--ink);margin-top:0">One daily puzzle. Five fractions. No repeats possible.</p>
+    <div class="how">
+      1. Name a fraction <b>between</b> the <span class="lo">gold</span> number and the <b>teal</b> number.<br>
+      2. Your answer becomes the new <span class="lo">bottom</span>. Find one <b>between it and the top.</b><br>
+      3. Do it <b>five times.</b> The line <b>zooms in</b> — you'll never run out of room.<br>
+      4. Each round has a <b>denominator budget</b>: ≤12, then ≤24, ≤36, ≤48, ≤60. No hiding behind /100!
+    </div>
+    <p>Strategy is yours: common denominators, decimal scouting, or the sneaky add-the-tops-add-the-bottoms move. The smaller your denominators, the more <span class="best">elegance points</span> you earn.</p>
+    <button class="btn primary" id="playBtn" style="margin-top:6px">Play today's puzzle ▸</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="overlay" id="endOverlay">
+  <div class="card" id="endCard"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ENGINE — pure logic, no DOM. Rules / validation / scoring.
+   ============================================================ */
+const Engine = (() => {
+  const gcd = (a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b]}return a||1;};
+  const val = f => f.n/f.d;
+  const isLowest = f => gcd(f.n,f.d)===1;
+  // Wide starting windows (gap >= 1/4, vs ~0.03 before), small denominators,
+  // spread across the whole 0-1 line. Wide start + per-round budget means the
+  // challenge is finding SIMPLE fractions, not typing /1000.
+  // Constraint: the two denominators sum to <= 12 (round 1's budget), so the
+  // mediant hint is a legal move from the very first round.
+  const PAIRS = [
+    [[1,3],[2,3]], [[1,4],[3,5]], [[2,5],[3,4]], [[1,2],[5,6]],
+    [[1,5],[1,2]], [[2,7],[2,3]], [[1,2],[7,8]], [[1,8],[1,2]],
+    [[1,3],[3,4]], [[3,8],[3,4]], [[1,4],[2,3]], [[3,5],[6,7]],
+    [[1,7],[2,5]], [[1,2],[4,5]], [[1,3],[5,8]]
+  ];
+  // Denominator budget per round. Grows by 12, which is >= every bound
+  // denominator above, so the mediant (add tops, add bottoms) always fits:
+  // a legal move exists in every reachable state.
+  const CAPS = [12,24,36,48,60];
+  const capFor = r => CAPS[Math.min(r,CAPS.length)-1];
+  // deterministic RNG from an integer seed (mulberry32)
+  function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  function dailySeed(d){return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();}
+
+  function puzzleFor(date){
+    const seed = dailySeed(date);
+    const r = rng(seed);
+    let [lo,hi] = PAIRS[Math.floor(r()*PAIRS.length)];
+    let L={n:lo[0],d:lo[1]}, U={n:hi[0],d:hi[1]};
+    if(val(L)>val(U)){const t=L;L=U;U=t;}            // guarantee L < U
+    return {seed, L, U};
+  }
+
+  // Validate a placement against current (L,U) and the round's denominator
+  // budget. Returns {ok, reason, where}
+  function judge(f, L, U, cap){
+    if(!Number.isFinite(f.n)||!Number.isFinite(f.d)) return {ok:false,reason:'empty'};
+    if(f.d===0) return {ok:false,reason:'zero'};
+    if(cap && Math.abs(f.d)>cap) return {ok:false,reason:'budget'};
+    const v=val(f), lv=val(L), uv=val(U);
+    if(v<=lv) return {ok:false,reason:'low', where:'below'};
+    if(v>=uv) return {ok:false,reason:'high', where:'above'};
+    return {ok:true};
+  }
+
+  // Score a valid placement. Elegance = how far under the round's budget the
+  // simplified denominator stays — maxing out the budget scores ~0 elegance.
+  function scoreOf(f, firstTry, hintsUsed, cap){
+    const base = 100;
+    const d = Math.abs(simplify(f).d);
+    const elegance = Math.max(0, Math.round(80*(1 - d/cap)));
+    const cleanBonus = firstTry ? 40 : 0;
+    const hintPenalty = hintsUsed*25;
+    return Math.max(20, base + elegance + cleanBonus - hintPenalty);
+  }
+  const simplify = f => {const g=gcd(f.n,f.d);return {n:f.n/g,d:f.d/g};};
+  return {gcd,val,isLowest,simplify,puzzleFor,judge,scoreOf,dailySeed,capFor};
+})();
+
+/* ============================================================
+   SOUND — Web Audio blips. Reinforcement only, never required.
+   ============================================================ */
+const Sound = (()=> {
+  let ctx=null, muted=false;
+  const ac=()=>ctx||(ctx=new (window.AudioContext||window.webkitAudioContext)());
+  function tone(freqA, freqB, dur, type='sine', vol=.18){
+    if(muted) return;
+    try{
+      const c=ac(), o=c.createOscillator(), g=c.createGain(), t=c.currentTime;
+      o.type=type; o.frequency.setValueAtTime(freqA,t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,freqB), t+dur);
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+.02);
+    }catch(e){}
+  }
+  // glass voice: pure tone + faint detuned-octave shimmer
+  function glass(fa,fb,dur,vol=.14){
+    tone(fa,fb,dur,'sine',vol);
+    tone(fa*2.01,fb*2.01,dur*.8,'sine',vol*.3);
+  }
+  return {
+    /* SONIC IDENTITY: cosmic glass — high, airy, shimmering, zooming.
+       (Deliberately distinct from The Chocolate Shop's wood-and-bells.) */
+    place:()=>glass(1175,1568,.09,.13),                                   // crystal blip
+    good :()=>{glass(988,1480,.14,.15);setTimeout(()=>glass(1480,1976,.16,.12),110);}, // rising shimmer
+    zoom :()=>{tone(220,1650,.65,'sine',.09);setTimeout(()=>tone(440,2200,.5,'sine',.05),120);}, // deep-space sweep
+    bad  :()=>{tone(262,131,.32,'square',.11);tone(270,135,.32,'square',.09);},        // detuned beating wobble
+    win  :()=>{[784,880,988,1109,1245,1397].forEach((f,i)=>setTimeout(()=>glass(f,f*1.06,.22,.12),i*80));}, // glass run
+    tick :()=>tone(1760,1760,.025,'sine',.07),
+    toggle:(m)=>{muted=m;},
+    isMuted:()=>muted
+  };
+})();
+
+/* ============================================================
+   UI / GAME CONTROLLER
+   ============================================================ */
+const $=id=>document.getElementById(id);
+const reduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+let G = null; // game state
+
+function newGame(){
+  const p = Engine.puzzleFor(new Date());
+  G = {
+    seed:p.seed,
+    U:p.U,                    // fixed top for the whole run
+    L:p.L,                    // current bottom (advances)
+    startL:p.L,
+    round:1, total:5,
+    score:0,
+    placed:[],               // {f, firstTry}
+    firstTry:true,
+    hintsThisRound:0,
+    hintIdx:0,
+    results:[]               // per-round: {tries, d}
+  };
+  renderAll(true);
+}
+
+/* ---- number-line coordinate mapping (the zoom lives here) ---- */
+function view(){
+  const lv=Engine.val(G.L), uv=Engine.val(G.U), gap=uv-lv;
+  const pad=gap*0.6;
+  return {min:lv-pad, max:uv+pad};
+}
+function pct(v){const {min,max}=view();return ((v-min)/(max-min))*100;}
+
+function fracLabel(f){return `<span style="display:inline-flex;flex-direction:column;line-height:.95;vertical-align:middle"><span>${f.n}</span><span style="border-top:1.5px solid currentColor;padding-top:1px">${f.d}</span></span>`;}
+function dec(v,p=3){return v.toFixed(p).replace(/\.?0+$/,'')||'0';}
+
+function renderAll(fresh){
+  // pips
+  const pips=$('pips'); pips.innerHTML='';
+  for(let i=1;i<=G.total;i++){
+    const d=document.createElement('div'); d.className='pip';
+    const r=G.results[i-1];
+    if(r) d.className+= r.tries>1?' retry':' done';
+    else if(i===G.round) d.className+=' active';
+    pips.appendChild(d);
+  }
+  // prompt
+  const cap=Engine.capFor(G.round);
+  if(G.round===1){
+    $('prompt').innerHTML = `Name a fraction between <span class="hl-lo">${fracLabel(G.L)}</span> and <span class="hl-hi">${fracLabel(G.U)}</span>`;
+    $('subprompt').textContent = `Strictly inside the teal zone — denominator ${cap} or less.`;
+  }else{
+    $('prompt').innerHTML = `Now one between <span class="hl-lo">your ${fracLabel(G.L)}</span> and <span class="hl-hi">${fracLabel(G.U)}</span>`;
+    $('subprompt').textContent = `Round ${G.round}: smaller window, bigger budget — denominators up to ${cap}.`;
+  }
+  $('denIn').placeholder='≤'+cap;
+  $('capV').textContent='≤'+cap;
+  // bounds
+  const bl=$('boundLo'), bh=$('boundHi');
+  bl.style.left=pct(Engine.val(G.L))+'%';
+  bh.style.left=pct(Engine.val(G.U))+'%';
+  bl.querySelector('.lab').innerHTML = fracLabel(G.L)+`<span class="dec">${dec(Engine.val(G.L))}</span>`;
+  bh.querySelector('.lab').innerHTML = fracLabel(G.U)+`<span class="dec">${dec(Engine.val(G.U))}</span>`;
+  // zone
+  const z=$('zone'); const a=pct(Engine.val(G.L)), b=pct(Engine.val(G.U));
+  z.style.left=a+'%'; z.style.width=Math.max(0,(b-a))+'%';
+  // Past answers are never drawn: after the zoom your last answer IS the gold
+  // bound (drawing it doubles the label) and older ones sit below the view.
+  // The end screen's journey list is the history.
+  // stats
+  $('roundV').innerHTML = `${G.round}<span style="color:var(--muted);font-size:16px">/5</span>`;
+  const gap=Engine.val(G.U)-Engine.val(G.L);
+  $('gapV').textContent = gap<0.001? gap.toExponential(1) : dec(gap,4);
+  animateScore();
+  // clear inputs / msg
+  if(fresh!==false){ $('numIn').value=''; $('denIn').value=''; }
+  updateGhost();
+}
+
+let shownScore=0;
+function animateScore(){
+  const target=G.score;
+  const el=$('scoreV');
+  const step=()=>{
+    const diff=target-shownScore;
+    if(Math.abs(diff)<1){shownScore=target;el.textContent=target;return;}
+    shownScore+=diff*0.25; el.textContent=Math.round(shownScore);
+    requestAnimationFrame(step);
+  };
+  step();
+}
+
+/* ---- ghost preview: telegraph where the fraction lands ---- */
+function readFrac(){
+  let n=parseInt($('numIn').value,10), d=parseInt($('denIn').value,10);
+  if(d<0){ n=-n; d=-d; }   // normalize sign so budget & mediant math stay sane
+  return {n,d,ok:Number.isFinite(n)&&Number.isFinite(d)};
+}
+function updateGhost(){
+  const g=$('ghost'), dv=$('decview');
+  const f=readFrac();
+  if(!f.ok || f.d===0){
+    g.style.opacity=0; dv.className='decview';
+    dv.querySelector('.big').textContent = f.ok&&f.d===0 ? '∞' : '—';
+    dv.querySelector('.cap').textContent='as a decimal';
+    return;
+  }
+  const v=Engine.val(f);
+  const cap=Engine.capFor(G.round);
+  const j=Engine.judge(f,G.L,G.U,cap);
+  g.style.opacity=1;
+  g.style.left=Math.max(-4,Math.min(104,pct(v)))+'%';
+  g.classList.toggle('bad',!j.ok);
+  g.querySelector('.plab').innerHTML=fracLabel(f);
+  dv.className='decview '+(j.ok?'ok':'bad');
+  dv.querySelector('.big').textContent=dec(v,4);
+  dv.querySelector('.cap').textContent = j.reason==='budget' ? `over budget (≤ ${cap})` : 'as a decimal';
+}
+
+/* ---- placement ---- */
+function place(){
+  const f=readFrac();
+  const msg=$('msg');
+  if(!f.ok){ flashMsg('Type a numerator and a denominator.','bad'); nudge(); return; }
+  if(f.d===0){ flashMsg("A denominator of 0 isn't a number — it explodes. 💥",'bad'); Sound.bad(); nudge(); return; }
+  const cap=Engine.capFor(G.round);
+  const j=Engine.judge(f,G.L,G.U,cap);
+  if(!j.ok){
+    Sound.bad();
+    if(j.reason==='budget'){
+      flashMsg(`Too fine! This round's budget is denominators ≤ ${cap}. Find a simpler fraction.`,'bad');
+    }else{
+      const v=Engine.val(f);
+      const where = j.where==='below'
+        ? `${dec(v,4)} is below the zone (≤ ${dec(Engine.val(G.L))}).`
+        : `${dec(v,4)} is above the zone (≥ ${dec(Engine.val(G.U))}).`;
+      flashMsg('Not between! '+where,'bad');
+    }
+    G.firstTry=false;
+    ghostBounce();
+    nudge();
+    return;
+  }
+  // success!
+  const gained=Engine.scoreOf(f,G.firstTry,G.hintsThisRound,cap);
+  G.score+=gained;
+  G.placed.push({f:{...f}, firstTry:G.firstTry});
+  G.results.push({tries:G.firstTry?1:2, d:Math.abs(Engine.simplify(f).d)});
+  Sound.good();
+  burst();
+  floatGain('+'+gained);
+  flashMsg(G.firstTry?'Perfect. That fits!':'Got it — that fits!','good');
+
+  // advance
+  const last = G.round>=G.total;
+  setTimeout(()=>{
+    if(last){ endGame(); return; }
+    G.L={...f};           // your answer becomes the new bottom
+    G.round++;
+    G.firstTry=true; G.hintsThisRound=0;
+    // zoom!
+    $('zoomtip').classList.add('show'); Sound.zoom();
+    renderAll();
+    setTimeout(()=>$('zoomtip').classList.remove('show'),1000);
+    $('numIn').focus();
+  }, last?650:820);
+}
+
+/* ---- hints (cost elegance points via hintsThisRound) ---- */
+const HINTS=[
+  '🔢 Turn both into decimals to scout the gap — then hunt a simple fraction inside it.',
+  '⚖️ Rewrite both with a common denominator inside the budget — then any numerator between fits.',
+  '➕ Secret move: add the tops, add the bottoms. It always lands between — and always fits the budget.'
+];
+function hint(){
+  const i=G.hintIdx%HINTS.length; G.hintIdx++;
+  G.hintsThisRound++; G.firstTry=false;
+  Sound.tick();
+  // For the mediant hint, actually compute it to model the strategy.
+  let extra='';
+  if(HINTS[i].startsWith('➕')){
+    const L=G.L,U=G.U;
+    const s=Engine.simplify({n:L.n+U.n, d:L.d+U.d});
+    extra=` e.g. (${L.n}+${U.n})/(${L.d}+${U.d}) = ${s.n}/${s.d}`;
+  }
+  flashMsg(HINTS[i]+extra+'  (−elegance)','hint');
+}
+
+/* ---- feedback helpers ---- */
+let msgTimer;
+function flashMsg(t,cls){const m=$('msg');m.textContent=t;m.className='msg '+cls;clearTimeout(msgTimer);
+  if(cls!=='hint') msgTimer=setTimeout(()=>{if(m.textContent===t){m.textContent='';m.className='msg';}},2600);}
+function nudge(){if(reduced)return;const w=$('console');}
+function ghostBounce(){
+  const g=$('ghost'); if(reduced){$('wrap').classList.add('shake');setTimeout(()=>$('wrap').classList.remove('shake'),350);return;}
+  const cur=parseFloat(g.style.left)||50;
+  const f=readFrac(); const below=Engine.val(f)<=Engine.val(G.L);
+  g.animate([{transform:'translateX(-50%) translateY(0)'},
+             {transform:`translateX(-50%) translateY(-14px) rotate(${below?-8:8}deg)`},
+             {transform:'translateX(-50%) translateY(0)'}],{duration:360,easing:'ease-out'});
+  $('wrap').classList.add('shake');setTimeout(()=>$('wrap').classList.remove('shake'),350);
+}
+function burst(){
+  if(reduced)return;
+  const g=$('ghost').getBoundingClientRect();
+  const cx=g.left+g.width/2, cy=g.top+g.height/2;
+  const cols=['#4ecdc4','#ffcb47','#f4f0e3','#4ecdc4'];
+  for(let i=0;i<16;i++){
+    const p=document.createElement('div');p.className='particle';
+    p.style.background=cols[i%cols.length];p.style.left=cx+'px';p.style.top=cy+'px';
+    document.body.appendChild(p);
+    const ang=Math.random()*Math.PI*2, dist=40+Math.random()*70;
+    p.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},
+      {transform:`translate(${Math.cos(ang)*dist-6}px,${Math.sin(ang)*dist-6}px) scale(0)`,opacity:0}],
+      {duration:600+Math.random()*300,easing:'cubic-bezier(.2,.8,.3,1)'}).onfinish=()=>p.remove();
+  }
+}
+function floatGain(txt){
+  if(reduced)return;
+  const g=$('ghost').getBoundingClientRect();
+  const el=document.createElement('div');el.className='float';el.textContent=txt;
+  el.style.left=(g.left+g.width/2)+'px';el.style.top=(g.top-6)+'px';el.style.transform='translate(-50%,0)';
+  document.body.appendChild(el);
+  el.animate([{transform:'translate(-50%,0)',opacity:1},{transform:'translate(-50%,-46px)',opacity:0}],
+    {duration:900,easing:'ease-out'}).onfinish=()=>el.remove();
+}
+
+/* ---- end of run ---- */
+function endGame(){
+  Sound.win();
+  const best = G.score;             // in-memory only
+  const cleanCount=G.results.filter(r=>r.tries===1).length;
+  const firstGap=Engine.val(G.U)-Engine.val(G.startL);
+  const lastGap =Engine.val(G.U)-Engine.val(G.placed[G.placed.length-1].f);
+  const shrink=Math.round(firstGap/Math.max(lastGap,1e-12));
+
+  const squares=G.results.map(r=>r.tries===1?'🟩':'🟨').join('');
+  const journeyRows=G.placed.map((pl,i)=>{
+    const col=pl.firstTry?'var(--teal)':'var(--gold)';
+    return `<div class="jr" style="animation:rise .5s ${0.15+i*0.08}s forwards;opacity:0">
+      <span class="sq" style="background:${col}"></span>
+      <span>Round ${i+1}:</span> <b>${pl.f.n}/${pl.f.d}</b>
+      <span style="margin-left:auto">${dec(Engine.val(pl.f),4)}</span></div>`;
+  }).join('');
+
+  const card=$('endCard');
+  card.innerHTML=`
+    <h1 style="animation:rise .5s forwards">You threaded the <b>needle</b> 🪡</h1>
+    <p class="rstat" style="animation-delay:.1s">You placed <b style="color:var(--ink)">5 fractions</b>, squeezing a window <b style="color:var(--gold)">${dec(firstGap,4)}</b> wide down to <b style="color:var(--teal)">${lastGap<1e-4?lastGap.toExponential(1):dec(lastGap,5)}</b>.</p>
+    <div class="resultgrid rstat" style="animation-delay:.2s">${squares.split('').map(s=>`<span>${s}</span>`).join('')}</div>
+    <div class="stats rstat" style="animation-delay:.28s">
+      <div class="stat"><div class="v gold">${G.score}</div><div class="k">Score</div></div>
+      <div class="stat"><div class="v" style="color:var(--teal)">${cleanCount}/5</div><div class="k">First try</div></div>
+      <div class="stat"><div class="v">${shrink>1?shrink+'×':'—'}</div><div class="k">Zoomed in</div></div>
+    </div>
+    <div class="journey">${journeyRows}</div>
+    <p class="rstat" style="animation-delay:.4s">And the mind-bender: that leftover sliver <i>still</i> holds infinitely many more fractions. You could keep going forever.</p>
+    <button class="btn primary" id="shareBtn" style="margin:8px 0 8px;width:100%">Copy result to share 📋</button>
+    <button class="btn ghostbtn" id="replayBtn" style="width:100%;color:var(--ink)">Play again ↻</button>
+  `;
+  $('endOverlay').classList.add('show');
+  $('shareBtn').onclick=()=>{
+    const maxD=Math.max(...G.results.map(r=>r.d));
+    const txt=`Between 🪡 — daily fraction puzzle\nScore ${G.score} · ${cleanCount}/5 clean\n${squares}\nI fit 5 fractions into a ${dec(firstGap,4)} gap — never needing a denominator over ${maxD}.`;
+    navigator.clipboard?.writeText(txt).then(()=>{$('shareBtn').textContent='Copied! ✓';},()=>{$('shareBtn').textContent='Copy failed';});
+  };
+  $('replayBtn').onclick=()=>{ $('endOverlay').classList.remove('show'); newGame(); $('numIn').focus(); };
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+$('numIn').addEventListener('input',updateGhost);
+$('denIn').addEventListener('input',updateGhost);
+[$('numIn'),$('denIn')].forEach(inp=>inp.addEventListener('keydown',e=>{if(e.key==='Enter')place();}));
+$('placeBtn').onclick=place;
+$('hintBtn').onclick=hint;
+$('muteBtn').onclick=()=>{const m=!Sound.isMuted();Sound.toggle(m);$('muteBtn').textContent=m?'🔇':'🔊';};
+$('helpBtn').onclick=()=>{$('startOverlay').classList.add('show');};
+$('playBtn').onclick=()=>{$('startOverlay').classList.remove('show');newGame();setTimeout(()=>$('numIn').focus(),50);};
+
+// boot: show how-to first (juicy Play button IS the tutorial)
+window.addEventListener('load',()=>{
+  newGame();                 // build board behind the overlay
+  $('startOverlay').classList.add('show');
+});
+</script>

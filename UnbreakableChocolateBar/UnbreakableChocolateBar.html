@@ -1,0 +1,967 @@
+<!--
+  THE CHOCOLATE SHOP — slice-by-eye fractions, tycoon edition (v5)
+  Story: you inherited Grandma Pearl's chocolate shop. Customers order exact
+  fractions of chocolate slabs and chocolate pizza wheels. You slice by eye,
+  match pieces to customers, and earn tips by accuracy. Coins buy shop
+  upgrades; your shop levels up; orders grow from 2 to 4 customers.
+
+  Structure: each DAY = 3 orders. Close of day -> earnings + SHOP (buy
+  upgrades) -> next day. Difficulty ramps by day & shop level. Progress
+  saves to localStorage.
+
+  Target standards (grades 6-8, CCSS-aligned):
+    6.RP.3c — percent as a rate per 100 (fraction <-> percent, constantly)
+    6.G.1   — areas of triangles & quadrilaterals; circle-segment intuition
+    6.NS.7  — magnitude & ordering of rational numbers
+  Super-idea: MAGNITUDE. Upgrades assist (ticks, percent labels, taste test)
+  but never compute the answer — the eye still does the math.
+  Fluency = advantage: sloppy cuts still earn small tips; sharp eyes get rich.
+
+  Single file. No dependencies. No emoji.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>The Chocolate Shop — slice it by eye</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#2a1a12; --bg2:#1d1009;
+    --panel:#3b2317; --panel2:#4a2c1d;
+    --ink:#f8ead8; --muted:#c49a7a;
+    --choc:#7b4a2d; --choc-dark:#54301b; --choc-lite:#96603c;
+    --c1:#ffb246; --c2:#63d3c4; --c3:#ff7d92; --c4:#b48ce8;
+    --good:#7ddb8a; --bad:#ff6b5e; --coin:#ffd166;
+    --radius:16px;
+    --shadow:0 10px 28px rgba(0,0,0,.45);
+    --shadow-sm:0 4px 12px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(130% 110% at 50% -10%,#3a2415 0%,var(--bg) 55%,var(--bg2) 100%);
+    color:var(--ink);font-family:Nunito,system-ui,sans-serif;
+    display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow-x:hidden}
+  .wrap{width:100%;max-width:600px}
+
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .brandrow{display:flex;align-items:center;gap:11px}
+  .minibar{display:grid;grid-template-columns:repeat(2,14px);grid-template-rows:repeat(3,10px);gap:2.5px;
+    background:var(--choc-dark);padding:4px;border-radius:6px;box-shadow:var(--shadow-sm);
+    animation:bob 3.4s ease-in-out infinite}
+  .minibar span{background:var(--choc);border-radius:2.5px;box-shadow:inset 0 1.5px 0 var(--choc-lite)}
+  @keyframes bob{0%,100%{transform:rotate(-4deg)}50%{transform:translateY(-3px) rotate(4deg)}}
+  .logo{font-family:'Baloo 2';font-weight:800;font-size:24px;line-height:1.05}
+  .logo small{display:block;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+  .tools{display:flex;gap:8px}
+  .icon-btn{width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;background:var(--panel);
+    color:var(--ink);font-size:15px;font-weight:800;font-family:'Baloo 2';box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s,background .2s}
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn:hover{background:var(--panel2)}
+  .icon-btn svg{width:20px;height:20px}
+
+  /* day / order progress */
+  .dayrow{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 10px}
+  .daytag{font-family:'Baloo 2';font-weight:800;font-size:13px;color:var(--c1);letter-spacing:1.5px;text-transform:uppercase}
+  .orderpips{display:flex;gap:6px}
+  .opip{width:30px;height:8px;border-radius:99px;background:#573322;transition:.4s}
+  .opip.done{background:var(--good)} .opip.active{background:var(--muted)}
+  .lvltag{font-family:'Baloo 2';font-weight:700;font-size:12px;color:var(--muted)}
+
+  .ticket{background:var(--ink);color:#3a2415;border-radius:12px;padding:10px 14px;margin-bottom:10px;
+    box-shadow:var(--shadow-sm);position:relative;font-weight:800;font-size:14px;text-align:center;font-family:'Baloo 2'}
+  .ticket:before,.ticket:after{content:'';position:absolute;top:-6px;width:34px;height:12px;background:rgba(255,255,255,.45);border-radius:2px;transform:rotate(-3deg)}
+  .ticket:before{left:18%} .ticket:after{right:18%;transform:rotate(3deg)}
+  .ticket .lvl{font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#a2795a}
+
+  .friends{display:flex;gap:8px;margin-bottom:10px}
+  .friend{flex:1;background:var(--panel);border-radius:var(--radius);padding:9px 6px 8px;text-align:center;
+    box-shadow:var(--shadow-sm);border:2.5px solid transparent;transition:border-color .25s;position:relative;min-width:0}
+  .avatar{width:36px;height:36px;border-radius:50%;margin:0 auto 4px;display:grid;place-items:center;
+    font-family:'Baloo 2';font-weight:800;font-size:16px;color:#2a1a12;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18);
+    cursor:grab;touch-action:none;transition:transform .15s,opacity .2s,filter .2s}
+  .avatar:active{cursor:grabbing}
+  .avatar.placed{opacity:.35;filter:saturate(.4)}
+  .avatar.nudge{animation:nudge 1.1s ease-in-out infinite}
+  @keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .dragGhost{position:fixed;z-index:40;pointer-events:none;width:40px;height:40px;border-radius:50%;
+    display:grid;place-items:center;font-family:'Baloo 2';font-weight:800;font-size:17px;color:#2a1a12;
+    box-shadow:var(--shadow);transform:scale(1.15)}
+  .friend .pname{font-family:'Baloo 2';font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .friend .order{font-family:'Baloo 2';font-weight:800;font-size:19px;line-height:1.1}
+  .friend .got{font-size:10.5px;font-weight:800;color:var(--muted);min-height:14px;margin-top:2px}
+  .friend.happy{border-color:var(--good)}
+  .friend.grumpy{border-color:var(--bad)}
+
+  .stage{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px;position:relative}
+  svg{display:block;width:100%;height:auto;user-select:none;touch-action:none;cursor:crosshair}
+
+  .hudrow{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px;flex-wrap:wrap}
+  .slices{font-family:'Baloo 2';font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px;color:var(--muted)}
+  .slices .k{display:inline-flex;gap:4px}
+  .blade{width:22px;height:9px;border-radius:99px 3px 3px 99px;background:linear-gradient(90deg,#d8d3c8,#a9a294);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.25);position:relative;transition:.25s}
+  .blade:after{content:'';position:absolute;right:-7px;top:1px;width:9px;height:7px;border-radius:2px;background:var(--choc-dark)}
+  .blade.used{filter:grayscale(1) brightness(.45)}
+  .btn{border:none;border-radius:12px;cursor:pointer;font-family:'Baloo 2';font-weight:700;padding:11px 16px;font-size:16px;box-shadow:var(--shadow-sm);transition:transform .1s,filter .2s}
+  .btn:active{transform:scale(.95)}
+  .btn.primary{background:var(--good);color:#12300f;font-size:17px;flex:1}
+  .btn.subtle{background:var(--panel2);color:var(--muted);font-size:13px}
+  .btn.subtle:hover{color:var(--ink)}
+  .btn.subtle:disabled{opacity:.4;cursor:default}
+  .btn.taste{background:var(--c4);color:#241436;font-size:13px}
+
+  .msg{text-align:center;font-weight:800;font-size:13.5px;min-height:19px;margin-top:8px}
+  .msg.bad{color:var(--bad)} .msg.good{color:var(--good)} .msg.hint{color:var(--c1)}
+
+  .stats{display:flex;justify-content:center;gap:22px;margin:10px 0 0;flex-wrap:wrap}
+  .stat{text-align:center}
+  .stat .v{font-family:'Baloo 2';font-weight:800;font-size:23px;line-height:1}
+  .stat .v.gold{color:var(--coin)}
+  .stat .k{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:1.3px;margin-top:2px}
+
+  .overlay{position:fixed;inset:0;background:rgba(20,10,4,.82);backdrop-filter:blur(4px);display:none;
+    align-items:center;justify-content:center;padding:20px;z-index:20;opacity:0;transition:opacity .3s}
+  .overlay.show{display:flex;opacity:1}
+  .card{width:100%;max-width:480px;background:linear-gradient(180deg,var(--panel),#2f1c11);border-radius:24px;
+    box-shadow:var(--shadow);padding:24px 22px;text-align:center;transform:translateY(14px) scale(.97);
+    transition:transform .35s cubic-bezier(.2,.9,.3,1.3);max-height:92vh;overflow-y:auto}
+  .overlay.show .card{transform:none}
+  .card h1{font-family:'Baloo 2';font-weight:800;margin:0 0 4px;font-size:27px}
+  .card h2{font-family:'Baloo 2';font-weight:800;margin:14px 0 8px;font-size:17px;color:var(--c1);text-align:left}
+  .card p{color:var(--muted);font-size:14px;line-height:1.55;margin:8px 0;font-weight:700}
+  .how{text-align:left;background:var(--bg2);border-radius:16px;padding:13px 15px;margin:12px 0;font-size:13.5px;line-height:1.7;font-weight:700}
+  .how b{color:var(--c1)} .how i{font-style:normal;color:var(--c2);font-weight:800}
+  .card .minibar{margin:0 auto 10px;grid-template-columns:repeat(3,18px);grid-template-rows:repeat(2,13px)}
+  .rstat{opacity:0;transform:translateY(8px);animation:rise .5s forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* shop */
+  .shopgrid{display:flex;flex-direction:column;gap:8px;margin:10px 0;text-align:left}
+  .shopitem{display:flex;align-items:center;gap:11px;background:var(--bg2);border-radius:14px;padding:10px 12px}
+  .shopicon{width:40px;height:40px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center}
+  .shopicon svg{width:23px;height:23px}
+  .shopmain{flex:1;min-width:0}
+  .shopmain .t{font-family:'Baloo 2';font-weight:800;font-size:14.5px}
+  .shopmain .d{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.4}
+  .buybtn{border:none;border-radius:10px;cursor:pointer;font-family:'Baloo 2';font-weight:800;font-size:13.5px;
+    padding:8px 13px;background:var(--coin);color:#3d2c05;box-shadow:var(--shadow-sm);white-space:nowrap;transition:transform .1s}
+  .buybtn:active{transform:scale(.93)}
+  .buybtn:disabled{background:#573322;color:#8a6248;cursor:default}
+  .buybtn.owned{background:var(--good);color:#12300f}
+  .coinline{font-family:'Baloo 2';font-weight:800;font-size:16px;color:var(--coin)}
+
+  .particle{position:fixed;border-radius:3px;pointer-events:none;z-index:30}
+  .float{position:fixed;font-family:'Baloo 2';font-weight:800;font-size:22px;pointer-events:none;z-index:30;color:var(--coin)}
+  .shake{animation:shk .35s ease}
+  @keyframes shk{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+  .foot{text-align:center;color:var(--muted);font-size:11px;margin-top:10px;font-weight:700}
+
+  @media (max-width:480px){ .friend .order{font-size:16px}.logo{font-size:20px}.avatar{width:32px;height:32px;font-size:14px} }
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.001ms!important;animation-duration:.001ms!important}}
+</style>
+
+<div class="wrap" id="wrap">
+  <header>
+    <div class="brandrow">
+      <div class="minibar" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="logo">The Chocolate Shop<small>slice it by eye</small></div>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="muteBtn" aria-label="Toggle sound">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path id="soundWaves" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 6a9 9 0 0 1 0 12"/></svg>
+      </button>
+      <button class="icon-btn" id="helpBtn" aria-label="How to play">?</button>
+    </div>
+  </header>
+
+  <div class="dayrow">
+    <span class="daytag" id="dayTag">Day 1</span>
+    <span class="orderpips" id="orderPips"></span>
+    <span class="lvltag" id="lvlTag"></span>
+  </div>
+  <div class="ticket" id="ticket"></div>
+  <div class="friends" id="friends"></div>
+
+  <div class="stage" id="stage">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="hudrow">
+      <div class="slices">Slices <span class="k" id="knives"></span></div>
+      <button class="btn taste" id="tasteBtn" style="display:none">Taste test</button>
+      <button class="btn subtle" id="resetBtn">Re-mold</button>
+      <button class="btn primary" id="serveBtn">Serve</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v gold" id="coinV">0</div><div class="k">Coins</div></div>
+    <div class="stat"><div class="v" id="dayV">1</div><div class="k">Day</div></div>
+    <div class="stat"><div class="v" id="xpV">0</div><div class="k">Shop XP</div></div>
+    <div class="stat"><div class="v" id="accV">—</div><div class="k">Last accuracy</div></div>
+  </div>
+  <div class="foot">Grandma Pearl's rule: measure with your eyes, charge with your heart</div>
+</div>
+
+<!-- STORY / HOW TO PLAY -->
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <div class="minibar" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <h1>The Chocolate Shop</h1>
+    <p style="color:var(--ink);margin-top:0">Grandma Pearl left you her famous chocolate shop — and her strangest rule: <i style="color:var(--c2)">no rulers allowed.</i> Every customer orders an exact fraction, and you cut by eye alone.</p>
+    <div class="how">
+      1. <b>Slice:</b> hold down and drag the knife across the slab — wiggly cuts welcome, as long as each slice goes clean through. One piece per customer.<br>
+      2. <b>Match:</b> drag each customer's badge onto their piece.<br>
+      3. <b>Serve:</b> every slice reveals its TRUE percent, and closer cuts mean bigger <i>tips</i>.<br>
+      4. <b>Grow:</b> spend tips on shop upgrades. Level up. Bigger parties. Trickier slabs. Chocolate pizza wheels.
+    </div>
+    <button class="btn primary" id="playBtn" style="width:100%;margin-top:4px">Open the shop</button>
+    <button class="btn subtle" id="wipeBtn" style="width:100%;margin-top:8px">Start over (erase progress)</button>
+  </div>
+</div>
+
+<!-- DAY SUMMARY + SHOP -->
+<div class="overlay" id="shopOverlay"><div class="card" id="shopCard"></div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   GEOMETRY
+   ============================================================ */
+const Geo = (() => {
+  const area = pts => Math.abs(pts.reduce((s,p,i)=>{const q=pts[(i+1)%pts.length];return s+(p[0]*q[1]-q[0]*p[1]);},0))/2;
+  const centroid = pts => { let x=0,y=0; pts.forEach(p=>{x+=p[0];y+=p[1];}); return [x/pts.length,y/pts.length]; };
+  // segment-segment intersection; returns {t,u,pt} with t along ab, u along cd
+  function segInt(a,b,c,d){
+    const rx=b[0]-a[0], ry=b[1]-a[1], sx=d[0]-c[0], sy=d[1]-c[1];
+    const den=rx*sy-ry*sx;
+    if(Math.abs(den)<1e-12) return null;
+    const t=((c[0]-a[0])*sy-(c[1]-a[1])*sx)/den;
+    const u=((c[0]-a[0])*ry-(c[1]-a[1])*rx)/den;
+    if(t<-1e-9||t>1+1e-9||u<-1e-9||u>1+1e-9) return null;
+    return {t:Math.max(0,Math.min(1,t)), u:Math.max(0,Math.min(1,u)), pt:[a[0]+rx*t,a[1]+ry*t]};
+  }
+  // ray-cast point-in-polygon (any simple polygon)
+  function inPoly(pts,[x,y]){
+    let inside=false;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const [xi,yi]=pts[i],[xj,yj]=pts[j];
+      if(((yi>y)!==(yj>y)) && x < (xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+    }
+    return inside;
+  }
+  /* Split a simple polygon by a freehand PATH (array of points).
+     Valid cut = path crosses this piece's boundary exactly twice
+     (enters once, exits once). Returns:
+       null            — path never crosses this piece
+       {invalid,reason}— messy cut (doubled back / stopped inside / sliver)
+       [A,B]           — the two new polygons                              */
+  function splitByPath(poly, path){
+    const n=poly.length, raw=[];
+    for(let j=0;j<path.length-1;j++){
+      for(let i=0;i<n;i++){
+        const X=segInt(path[j],path[j+1],poly[i],poly[(i+1)%n]);
+        if(X) raw.push({s:j+X.t, b:i+X.u, pt:X.pt});
+      }
+    }
+    raw.sort((a,b)=>a.s-b.s);
+    const cs=[];   // dedupe near-coincident crossings (corner grazes)
+    raw.forEach(c=>{
+      if(!cs.length || (Math.abs(c.s-cs[cs.length-1].s)>1e-6 &&
+        Math.hypot(c.pt[0]-cs[cs.length-1].pt[0],c.pt[1]-cs[cs.length-1].pt[1])>1)) cs.push(c);
+    });
+    if(cs.length===0) return null;
+    if(cs.length===1) return {invalid:true, reason:'through'};
+    if(cs.length>2)  return {invalid:true, reason:'wiggle'};
+    const [c1,c2]=cs;
+    const interior=[];
+    for(let j=0;j<path.length;j++) if(j>c1.s && j<c2.s) interior.push(path[j]);
+    // walk boundary vertices with param in (from,to), forward & cyclic
+    const walk=(from,to)=>{
+      const out=[], dist=((to-from)%n+n)%n;
+      for(let step=1;step<=n;step++){
+        const k=Math.floor(from)+step;
+        if(k-from < dist-1e-9) out.push(poly[((k%n)+n)%n]); else break;
+      }
+      return out;
+    };
+    const A=[c1.pt,...interior,c2.pt,...walk(c2.b,c1.b)];
+    const B=[c2.pt,...[...interior].reverse(),c1.pt,...walk(c1.b,c2.b)];
+    if(A.length<3||B.length<3) return {invalid:true, reason:'sliver'};
+    if(area(A)<600||area(B)<600) return {invalid:true, reason:'sliver'};
+    return [A,B];
+  }
+  return {area, centroid, splitByPath, inPoly};
+})();
+function circlePoly(cx,cy,r,n=44){
+  const pts=[];
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2;pts.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);}
+  return pts;
+}
+function pepperoni(cx,cy,r){
+  const spots=[[0,0],[.45,.2],[-.4,.35],[.2,-.45],[-.35,-.3],[.55,-.15],[-.1,.55],[-.6,.05],[.1,.18],[.33,.52]];
+  return spots.map(([ux,uy])=>[cx+ux*r,cy+uy*r]);
+}
+
+/* ============================================================
+   PROGRESSION — save, XP levels, upgrades, order generation
+   ============================================================ */
+const SAVE_KEY='chocShopSave_v1';
+const XP_LEVELS=[0,500,1400,2800,5000,8000,12000];
+const TITLES=['Corner Stand','Little Shop','Local Favorite','Town Treasure','Regional Star','Chocolate Empire','Legend of Cocoa'];
+const UPGRADES={
+  recipe:{name:'Recipe Book',   cost:100, desc:'Order tickets also show each fraction as a percent.',
+    icon:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'},
+  ticks: {name:'Etched Tray',   cost:150, desc:'Faint tick marks at the midpoint of every tray edge.',
+    icon:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 6v3M12 15v3M3 12h3M18 12h3"/>'},
+  steady:{name:'Steady Hands',  cost:200, desc:'Two extra re-molds per order for fearless slicing.',
+    icon:'<path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="5" y="11" width="14" height="10" rx="2"/>'},
+  taste: {name:'Taste Test',    cost:280, desc:'Once per order: tap a piece to taste its true percent before serving.',
+    icon:'<path d="M12 3a7 7 0 0 1 7 7c0 4-3 6-3 9h-8c0-3-3-5-3-9a7 7 0 0 1 7-7z"/>'},
+  wrap:  {name:'Gold Wrapping', cost:350, desc:'Fancy wrapping: all tips increased by 25%.',
+    icon:'<rect x="4" y="8" width="16" height="13" rx="2"/><path d="M12 8v13M4 12h16M12 8c-3 0-4-5 0-5s3 5 0 5zm0 0c3 0 4-5 0-5"/>'},
+};
+let P=null;   // persistent profile
+function defaultProfile(){ return {coins:0, xp:0, day:1, orderIdx:0, owned:{}, bestDayTips:0}; }
+function loadProfile(){
+  try{ const s=localStorage.getItem(SAVE_KEY); if(s){ P={...defaultProfile(),...JSON.parse(s)}; return; } }catch(e){}
+  P=defaultProfile();
+}
+function saveProfile(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(P)); }catch(e){} }
+function shopLevel(){ let l=0; XP_LEVELS.forEach((t,i)=>{ if(P.xp>=t) l=i; }); return l; }
+
+const NAMES=['Kai','Maya','Rio','Ana','Ben','Cleo','Zoe','Finn','Ivy','Leo','Sam','Nia','Theo','Willa','Gus','Poppy'];
+const gcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b]}return a||1;};
+
+function genOrder(){
+  const R=Math.random, day=P.day, lvl=shopLevel();
+  // customer count: starts at 2; parties of 3 from day 2; parties of 4 once shop level >= 2
+  let pool;
+  if(day<2) pool=[2];
+  else if(lvl<1) pool=[2,3];
+  else if(lvl<2) pool=[2,3,3];
+  else pool=[2,3,3,4];
+  const k=pool[Math.floor(R()*pool.length)];
+  // shapes ramp by day
+  const shapes = day<2 ? ['rect']
+              : day<3 ? ['rect','tallrect']
+              : day<5 ? ['rect','tallrect','triangle','pizza']
+              : day<7 ? ['rect','triangle','trapezoid','pizza','parallelogram']
+              : ['triangle','trapezoid','pizza','parallelogram','pentagon','pizza'];
+  const kind=shapes[Math.floor(R()*shapes.length)];
+  let shape,pep=null,food='choc',foodName='chocolate slab';
+  if(kind==='rect'){ shape=[[40,75],[520,75],[520,285],[40,285]]; }
+  else if(kind==='tallrect'){ const h=170+R()*80; shape=[[70,300-h],[490,300-h],[490,300],[70,300]]; }
+  else if(kind==='triangle'){ const apex=180+R()*200; shape=[[60,290],[500,290],[apex,55]]; foodName='triangle slab'; }
+  else if(kind==='trapezoid'){ const a=80+R()*90,b=80+R()*90; shape=[[40,280],[520,280],[520-a,65],[40+b,65]]; foodName='trapezoid slab'; }
+  else if(kind==='parallelogram'){ const sk=60+R()*70; shape=[[40,280],[460,280],[460+sk,70],[40+sk,70]]; foodName='slanted slab'; }
+  else if(kind==='pentagon'){ shape=[[280,55],[510,160],[430,295],[130,295],[50,160]]; foodName='pentagon slab'; }
+  else { food='pizza'; foodName='chocolate pizza wheel'; shape=circlePoly(280,175,128); pep=pepperoni(280,175,128); }
+  // fractions: partition d into k parts
+  const dens = day<3 ? [4,6,8] : day<6 ? [6,8,10,12] : [8,10,12,16];
+  const d=dens[Math.floor(R()*dens.length)];
+  let parts;
+  do{
+    const cuts=new Set();
+    while(cuts.size<k-1) cuts.add(1+Math.floor(R()*(d-1)));
+    const cs=[0,...[...cuts].sort((a,b)=>a-b),d];
+    parts=cs.slice(1).map((c,i)=>c-cs[i]);
+  }while(parts.some(p=>p<d/(2.5*k)));
+  // distinct-initial customer names
+  const names=[]; const used=new Set();
+  for(const n of [...NAMES].sort(()=>R()-.5)){ if(!used.has(n[0])){names.push(n);used.add(n[0]);} if(names.length===k)break; }
+  const orders=parts.map((p,i)=>{ const g=gcd(p,d); return {name:names[i], n:p/g, d:d/g}; });
+  return { food, foodName, shape, pep, orders,
+    intro:`A ${foodName} for a party of ${k}. Cut ${k} pieces by eye.` };
+}
+
+/* ============================================================
+   SOUND
+   ============================================================ */
+const Sound=(()=>{ let ctx=null,muted=false;
+  const ac=()=>ctx||(ctx=new (window.AudioContext||window.webkitAudioContext)());
+  function tone(fa,fb,dur,type='sine',vol=.18,delay=0){ if(muted)return;
+    try{const c=ac(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime+delay;
+      o.type=type;o.frequency.setValueAtTime(fa,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,fb),t+dur);
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+      o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+.02);}catch(e){} }
+  function noise(dur,vol){ if(muted)return;
+    try{const c=ac(),t=c.currentTime,len=c.sampleRate*dur,buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);
+      for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
+      const s=c.createBufferSource(),g=c.createGain();s.buffer=buf;
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+      s.connect(g);g.connect(c.destination);s.start(t);}catch(e){} }
+  // bell voice: fundamental + inharmonic partial (2.76x) — reads as a real shop bell
+  function bell(f,dur,vol=.16,delay=0){
+    tone(f,f*0.995,dur,'sine',vol,delay);
+    tone(f*2.76,f*2.74,dur*.6,'sine',vol*.35,delay);
+  }
+  // warm two-voice "brass": slightly detuned pair, low register
+  function warm(f,dur,vol=.1,delay=0){
+    tone(f,f,dur,'square',vol,delay);
+    tone(f*1.004,f*1.004,dur,'sawtooth',vol*.5,delay);
+  }
+  return {
+    /* SONIC IDENTITY: cozy shop — wood knocks, doorbells, coins, warm brass */
+    slice:()=>{noise(.12,.3);tone(150,55,.11,'triangle',.13);},           // crack + low knock
+    bellIn:()=>{bell(1318,.5,.13);bell(1046,.6,.13,.22);},                // doorbell: customer walks in
+    perfect:()=>{[1046,1318,1568,2093].forEach((f,i)=>bell(f,.5,.13,i*.09));},  // bell cascade
+    good:()=>{bell(1318,.4,.15);bell(1046,.5,.15,.16);},                  // ding-dong
+    meh:()=>{tone(330,320,.16,'triangle',.15);tone(262,250,.18,'triangle',.1,.1);},   // dull wood tap
+    off:()=>{tone(120,85,.22,'sawtooth',.14);noise(.08,.12);},            // muffled buzzer + thud
+    coin:()=>{[2093,2637,2093].forEach((f,i)=>tone(f,f*1.05,.05,'sine',.11,i*.05));}, // jingle
+    win:()=>{[262,330,392,523].forEach((f,i)=>warm(f,.22,.09,i*.09));},   // warm brass arpeggio
+    fanfare:()=>{[262,330,392,523,659].forEach((f,i)=>warm(f,.3,.09,i*.11));bell(1568,.8,.12,.55);},
+    drop:()=>tone(210,140,.09,'triangle',.16),                            // soft thump on plate
+    toggle:m=>muted=m, isMuted:()=>muted
+  };
+})();
+
+/* ============================================================
+   ORDER STATE
+   ============================================================ */
+const $=id=>document.getElementById(id);
+const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const VBW=560, VBH=330;
+const COLORS=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+let G=null, shownCoins=0, nextPid=1, lastCutAt=0, tasteMode=false;
+
+function startOrder(){
+  const L=genOrder();
+  G={ L,
+    totalArea:Geo.area(L.shape),
+    pieces:[{id:nextPid++, pts:L.shape.map(p=>[...p]), owner:null}],
+    slicesLeft:L.orders.length-1,
+    remoldsLeft:1+(P.owned.steady?2:0),
+    tasteLeft:P.owned.taste?1:0,
+    served:false, lastResults:null
+  };
+  tasteMode=false;
+  renderTop(); renderFriends(); renderTicket(); renderBar(); renderHud(); updateBadges();
+  $('serveBtn').textContent='Serve';
+  Sound.bellIn();                       // shop doorbell: a customer walks in
+  flashMsg(L.intro,'hint',4200);
+}
+
+const colorOf=i=>getComputedStyle(document.documentElement).getPropertyValue(['--c1','--c2','--c3','--c4'][i]||'--c1').trim();
+const initialOf=o=>o.name[0];
+
+function renderTop(){
+  $('dayTag').textContent='Day '+P.day;
+  const el=$('orderPips'); el.innerHTML='';
+  for(let i=0;i<3;i++){const d=document.createElement('span');d.className='opip'+(i<P.orderIdx?' done':i===P.orderIdx?' active':'');el.appendChild(d);}
+  $('lvlTag').textContent=TITLES[shopLevel()];
+  $('dayV').textContent=P.day;
+  $('xpV').textContent=P.xp;
+  animateCoins();
+}
+function renderTicket(){
+  const pct=o=>P.owned.recipe? ` <span style="font-family:Nunito;font-size:11px;color:#a2795a">(${(o.n/o.d*100).toFixed(o.n/o.d*100%1?1:0)}%)</span>`:'';
+  const parts=G.L.orders.map((o,i)=>`<b style="color:${COLORS[i]}">${o.name}: ${o.n}⁄${o.d}${pct(o)}</b>`).join(' &nbsp;·&nbsp; ');
+  $('ticket').innerHTML=`<div class="lvl">Order ${P.orderIdx+1} of 3 — ${G.L.foodName} · party of ${G.L.orders.length}</div>${parts}`;
+}
+function renderFriends(){
+  const el=$('friends'); el.innerHTML='';
+  G.L.orders.forEach((o,i)=>{
+    const d=document.createElement('div'); d.className='friend';
+    d.innerHTML=`<div class="avatar" id="avat${i}" style="background:${COLORS[i]}">${initialOf(o)}</div>
+      <div class="pname" style="color:${COLORS[i]}">${o.name}</div>
+      <div class="order">${o.n}⁄${o.d}</div><div class="got" id="got${i}">wants ${(o.n/o.d*100).toFixed(0)}%</div>`;
+    el.appendChild(d);
+    d.querySelector('.avatar').addEventListener('pointerdown',e=>avatarDown(e,i));
+  });
+}
+function updateBadges(){
+  G.L.orders.forEach((o,i)=>{
+    const assigned=G.pieces.some(p=>p.owner===i);
+    const av=$('avat'+i); if(!av)return;
+    av.classList.toggle('placed',assigned);
+    av.classList.toggle('nudge',!assigned && G.slicesLeft===0 && !G.served);
+    if(!G.served) $('got'+i).textContent = assigned? 'piece chosen' : `wants ${(o.n/o.d*100).toFixed(0)}%`;
+  });
+}
+
+const FOOD={
+  choc :{fill:'var(--choc)', stroke:'var(--choc-dark)', sheen:'var(--choc-lite)'},
+  pizza:{fill:'#e8b45f',     stroke:'#b06f31',          sheen:'#f4cf8c'}
+};
+/* Visual center of a piece: the interior point farthest from every edge
+   (grid-search pole of inaccessibility). Returns [x, y, clearance].     */
+function labelSpot(pts){
+  let bx0=Infinity,by0=Infinity,bx1=-Infinity,by1=-Infinity;
+  pts.forEach(([x,y])=>{bx0=Math.min(bx0,x);by0=Math.min(by0,y);bx1=Math.max(bx1,x);by1=Math.max(by1,y);});
+  const segD=(x,y)=>{let m=Infinity;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i],b=pts[(i+1)%pts.length];
+      const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
+      let t=((x-a[0])*dx+(y-a[1])*dy)/L2; t=Math.max(0,Math.min(1,t));
+      const qx=a[0]+dx*t-x,qy=a[1]+dy*t-y; m=Math.min(m,qx*qx+qy*qy);
+    }
+    return Math.sqrt(m);};
+  let best=[(bx0+bx1)/2,(by0+by1)/2], bd=0;
+  const N=22;
+  for(let i=1;i<N;i++)for(let j=1;j<N;j++){
+    const x=bx0+(bx1-bx0)*i/N, y=by0+(by1-by0)*j/N;
+    if(!Geo.inPoly(pts,[x,y])) continue;
+    const d=segD(x,y);
+    if(d>bd){bd=d;best=[x,y];}
+  }
+  return [best[0],best[1],bd];
+}
+function renderBar(){
+  const svg=$('svg');
+  svg.setAttribute('viewBox',`0 0 ${VBW} ${VBH}`);
+  svg.innerHTML='';
+  const [cx,cy]=Geo.centroid(G.L.shape);
+  const F=FOOD[G.L.food]||FOOD.choc;
+  G.pieces.forEach(p=>{
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    const [px,py]=Geo.centroid(p.pts);
+    const ang=Math.atan2(py-cy,px-cx), off=G.pieces.length>1?7:0;
+    const odx=(Math.cos(ang)*off)||0, ody=(Math.sin(ang)*off)||0;
+    p._off=[odx,ody]; p._g=g;
+    g.setAttribute('transform',`translate(${odx},${ody})`);
+    g.addEventListener('click',()=>pieceClick(p));
+    const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    poly.setAttribute('points',p.pts.map(q=>q.join(',')).join(' '));
+    poly.setAttribute('fill', p.owner!=null? colorOf(p.owner) : F.fill);
+    poly.setAttribute('stroke',F.stroke);
+    poly.setAttribute('stroke-width','7');
+    poly.setAttribute('stroke-linejoin','round');
+    g.appendChild(poly);
+    if(G.L.food==='choc'){
+      const sheen=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      const sh=p.pts.map(q=>[(q[0]-px)*0.86+px,(q[1]-py)*0.86+py-3]);
+      sheen.setAttribute('points',sh.map(q=>q.join(',')).join(' '));
+      sheen.setAttribute('fill', p.owner!=null? 'rgba(255,255,255,.25)' : F.sheen);
+      sheen.setAttribute('opacity','.35'); sheen.setAttribute('pointer-events','none');
+      g.appendChild(sheen);
+    }
+    if(G.L.food==='pizza'&&G.L.pep){
+      G.L.pep.forEach(([qx,qy])=>{
+        if(Geo.inPoly(p.pts,[qx,qy])){
+          const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+          c.setAttribute('cx',qx);c.setAttribute('cy',qy);c.setAttribute('r','11');
+          c.setAttribute('fill',p.owner!=null?'rgba(42,26,18,.35)':'#c2452e');
+          c.setAttribute('stroke','rgba(0,0,0,.18)');c.setAttribute('stroke-width','2');
+          c.setAttribute('pointer-events','none');
+          g.appendChild(c);
+        }
+      });
+    }
+    if(!p._spot) p._spot=labelSpot(p.pts);
+    const [lx,ly,clear]=p._spot;
+    const sc=Math.max(.5,Math.min(1,clear/52));   // shrink label block on tight pieces
+    const label=(txt,dy,size,fill)=>{
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',lx);t.setAttribute('y',ly+dy*sc);t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size',Math.max(9,size*sc));t.setAttribute('font-family','Baloo 2');t.setAttribute('font-weight','800');
+      t.setAttribute('fill',fill);t.setAttribute('pointer-events','none');
+      t.setAttribute('paint-order','stroke');t.setAttribute('stroke','rgba(248,234,216,.55)');t.setAttribute('stroke-width',G.served?'3':'0');
+      t.textContent=txt; g.appendChild(t);
+    };
+    if(G.served && p.owner!=null && G.lastResults){
+      const r=G.lastResults.find(r=>r.i===p.owner);
+      label(r.o.name.toUpperCase(), -28, 13, '#2a1a12');
+      label((r.served*100).toFixed(1)+'%', 0, 26, '#2a1a12');
+      label(`wanted ${(r.target*100).toFixed(1)}%`, 18, 11.5, 'rgba(42,26,18,.75)');
+      label(`+${r.tip} tip`, 40, 17, r.errPct<8 ? '#1d5c28' : '#8f1f14');
+    } else if(p.owner!=null){
+      label(G.L.orders[p.owner].name.toUpperCase(), 5, 18, '#2a1a12');
+    }
+    svg.appendChild(g);
+  });
+  /* Etched Tray upgrade: midpoint ticks on the ORIGINAL shape's edges */
+  if(P.owned.ticks && !G.served){
+    const S=G.L.shape, n=S.length;
+    const step=Math.max(1,Math.round(n/ (n>8?4:n) ));   // circles: 4 ticks; polygons: every edge
+    for(let i=0;i<n;i+= (n>8? Math.round(n/4):1)){
+      const a=S[i], b=S[(i+1)%n];
+      const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+      const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy)||1;
+      const nx=-dy/len, ny=dx/len;   // inward-ish normal (convex, CCW or CW — draw both dirs)
+      const t=document.createElementNS('http://www.w3.org/2000/svg','line');
+      t.setAttribute('x1',mx-nx*7);t.setAttribute('y1',my-ny*7);
+      t.setAttribute('x2',mx+nx*7);t.setAttribute('y2',my+ny*7);
+      t.setAttribute('stroke','rgba(248,234,216,.5)');t.setAttribute('stroke-width','2.5');
+      t.setAttribute('stroke-linecap','round');t.setAttribute('pointer-events','none');
+      svg.appendChild(t);
+    }
+  }
+  const prev=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+  prev.setAttribute('id','cutPreview');
+  prev.setAttribute('fill','none');
+  prev.setAttribute('stroke','var(--ink)');prev.setAttribute('stroke-width','3.5');
+  prev.setAttribute('stroke-dasharray','10 7');prev.setAttribute('stroke-linecap','round');
+  prev.setAttribute('stroke-linejoin','round');
+  prev.setAttribute('pointer-events','none');
+  svg.appendChild(prev);
+}
+function renderHud(){
+  const k=$('knives'); k.innerHTML='';
+  const total=G.L.orders.length-1;
+  for(let i=0;i<total;i++){
+    const s=document.createElement('span');s.className='blade'+(i<total-G.slicesLeft?' used':'');
+    k.appendChild(s);
+  }
+  $('resetBtn').textContent=`Re-mold (${G.remoldsLeft})`;
+  $('resetBtn').disabled=G.remoldsLeft<=0||G.served;
+  const tb=$('tasteBtn');
+  if(P.owned.taste){ tb.style.display=''; tb.textContent=tasteMode?'Tap a piece...':`Taste test (${G.tasteLeft})`; tb.disabled=G.tasteLeft<=0||G.served; }
+  else tb.style.display='none';
+}
+function animateCoins(){
+  const el=$('coinV'),target=P.coins;
+  const step=()=>{const diff=target-shownCoins;
+    if(Math.abs(diff)<1){shownCoins=target;el.textContent=target;return;}
+    shownCoins+=diff*.25;el.textContent=Math.round(shownCoins);requestAnimationFrame(step);};
+  step();
+}
+
+/* ============================================================
+   SLICING
+   ============================================================ */
+let drag=null;
+function svgPoint(ev){
+  const svg=$('svg'), pt=svg.createSVGPoint();
+  pt.x=ev.clientX; pt.y=ev.clientY;
+  const m=svg.getScreenCTM(); if(!m)return null;
+  const p=pt.matrixTransform(m.inverse());
+  return [p.x,p.y];
+}
+function onDown(ev){ const p=svgPoint(ev); if(!p)return; drag={path:[p],len:0}; }
+function onMove(ev){
+  if(!drag)return;
+  const p=svgPoint(ev); if(!p)return;
+  const last=drag.path[drag.path.length-1];
+  const d=Math.hypot(p[0]-last[0],p[1]-last[1]);
+  if(d<4) return;                       // thin the samples
+  drag.path.push(p); drag.len+=d;
+  const prev=$('cutPreview');
+  if(drag.len>16&&prev) prev.setAttribute('points',drag.path.map(q=>q.join(',')).join(' '));
+}
+const CUT_MSG={
+  through:'Slice all the way through — start outside, end outside.',
+  wiggle:'One clean slice per piece — no doubling back through it.',
+  sliver:'That sliver is too thin — cut real pieces.'
+};
+function onUp(){
+  if(!drag)return;
+  const path=drag.path, wasCut=drag.len>16; drag=null;
+  const prev=$('cutPreview'); if(prev)prev.setAttribute('points','');
+  if(!wasCut) return;
+  if(G.served||tasteMode) return;
+  if(G.slicesLeft<=0){ flashMsg('No slices left — one piece per customer. Re-mold to redo.','bad'); wobble(); Sound.off(); return; }
+  // plan the whole cut first; commit only if every crossed piece splits cleanly
+  const plan=[]; let any=false;
+  for(const p of G.pieces){
+    const r=Geo.splitByPath(p.pts,path);
+    if(r===null){ plan.push({p}); continue; }
+    if(r.invalid){ flashMsg(CUT_MSG[r.reason],'bad'); wobble(); Sound.off(); return; }
+    any=true; plan.push({p,parts:r});
+  }
+  if(!any){ flashMsg('The knife missed the chocolate.','hint',1500); return; }
+  const newPieces=[];
+  plan.forEach(({p,parts})=>{
+    if(parts) newPieces.push({id:nextPid++,pts:parts[0],owner:null},{id:nextPid++,pts:parts[1],owner:null});
+    else newPieces.push(p);
+  });
+  G.pieces=newPieces; G.slicesLeft--; lastCutAt=Date.now();
+  Sound.slice();
+  crumbsAlong(path[0],path[path.length-1]);
+  renderBar(); renderHud(); updateBadges();
+  if(G.slicesLeft===0) flashMsg('All cut! Drag each customer badge onto a piece, then Serve.','good',3400);
+}
+function resetBar(){
+  if(G.served||G.remoldsLeft<=0) return;
+  G.remoldsLeft--;
+  const L=G.L;
+  G.pieces=[{id:nextPid++,pts:L.shape.map(p=>[...p]),owner:null}];
+  G.slicesLeft=L.orders.length-1;
+  document.querySelectorAll('.friend').forEach(f=>f.classList.remove('happy','grumpy'));
+  Sound.drop(); flashMsg('Re-molded. Fresh slab, full slices.','hint',1600);
+  renderBar(); renderHud(); updateBadges();
+}
+
+/* ============================================================
+   TASTE TEST + piece clicks
+   ============================================================ */
+function pieceClick(p){
+  if(Date.now()-lastCutAt<250) return;
+  if(tasteMode){
+    tasteMode=false; G.tasteLeft--;
+    const pct=(Geo.area(p.pts)/G.totalArea*100).toFixed(1);
+    if(!p._spot) p._spot=labelSpot(p.pts);
+    const [px,py]=p._spot;
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',px);t.setAttribute('y',py-14);t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-size','24');t.setAttribute('font-family','Baloo 2');t.setAttribute('font-weight','800');
+    t.setAttribute('fill','#241436');t.setAttribute('paint-order','stroke');
+    t.setAttribute('stroke','rgba(180,140,232,.9)');t.setAttribute('stroke-width','4');
+    t.setAttribute('pointer-events','none');
+    t.textContent=pct+'%';
+    p._g.appendChild(t);
+    setTimeout(()=>t.remove(),2600);
+    Sound.good();
+    flashMsg(`Mmm. That piece is ${pct}% of the whole.`,'hint',2600);
+    renderHud();
+    return;
+  }
+  if(p.owner!=null && !G.served){ p.owner=null; Sound.drop(); flashMsg('Badge returned.','hint',1200); renderBar(); updateBadges(); }
+}
+
+/* ============================================================
+   BADGE DRAG & DROP
+   ============================================================ */
+let avDrag=null;
+function pieceAt(ev){
+  const svg=$('svg'), pt=svg.createSVGPoint();
+  pt.x=ev.clientX; pt.y=ev.clientY;
+  const m=svg.getScreenCTM(); if(!m)return null;
+  const p=pt.matrixTransform(m.inverse());
+  for(const pc of G.pieces){
+    const off=pc._off||[0,0];
+    if(Geo.inPoly(pc.pts,[p.x-off[0],p.y-off[1]])) return pc.id;
+  }
+  return null;
+}
+function setPieceHover(pid,on){
+  const p=G.pieces.find(x=>x.id===pid);
+  if(p&&p._g) p._g.style.filter=on?'brightness(1.3) drop-shadow(0 0 6px rgba(248,234,216,.4))':'';
+}
+function avatarDown(ev,i){
+  if(G.served) return;
+  ev.preventDefault();
+  const ghost=document.createElement('div');
+  ghost.className='dragGhost';
+  ghost.style.background=colorOf(i);
+  ghost.textContent=initialOf(G.L.orders[i]);
+  document.body.appendChild(ghost);
+  avDrag={i,ghost,hover:null};
+  ghostMove(ev);
+  try{ev.target.setPointerCapture(ev.pointerId);}catch(e){}
+}
+function ghostMove(ev){
+  if(!avDrag) return;
+  avDrag.ghost.style.left=(ev.clientX-20)+'px';
+  avDrag.ghost.style.top=(ev.clientY-20)+'px';
+  const pid=pieceAt(ev);
+  if(pid!==avDrag.hover){ setPieceHover(avDrag.hover,false); avDrag.hover=pid; setPieceHover(pid,true); }
+}
+function ghostUp(){
+  if(!avDrag) return;
+  const {i,hover,ghost}=avDrag;
+  ghost.remove(); setPieceHover(hover,false); avDrag=null;
+  if(hover==null) return;
+  G.pieces.forEach(p=>{ if(p.owner===i) p.owner=null; });
+  const p=G.pieces.find(x=>x.id===hover); if(!p) return;
+  p.owner=i;
+  Sound.drop();
+  renderBar(); updateBadges();
+}
+document.addEventListener('pointermove',ghostMove);
+document.addEventListener('pointerup',ghostUp);
+
+/* ============================================================
+   SERVING — tips by accuracy, reveal on slices
+   ============================================================ */
+function gradeOf(errPct){
+  if(errPct<1)  return {label:'PERFECT',  pts:e=>125,                        snd:'perfect'};
+  if(errPct<3)  return {label:'SO CLOSE', pts:e=>Math.round(110-8*e),        snd:'good'};
+  if(errPct<8)  return {label:'NOT BAD',  pts:e=>Math.round(95-7*e),         snd:'meh'};
+  return          {label:'WAY OFF',  pts:e=>Math.max(5,Math.round(60-3*e)),  snd:'off'};
+}
+function serve(){
+  if(G.served){ advance(); return; }
+  const need=G.L.orders.length;
+  if(G.pieces.length!==need){
+    flashMsg(`Cut into ${need} pieces first — you have ${G.pieces.length}.`,'bad'); wobble(); Sound.off(); return;
+  }
+  const unclaimed=G.pieces.filter(p=>p.owner==null).length;
+  if(unclaimed){
+    flashMsg(`Drag each customer badge onto a piece — ${unclaimed} unclaimed.`,'bad'); wobble(); Sound.off(); return;
+  }
+  const mult=P.owned.wrap?1.25:1;
+  const results=G.L.orders.map((o,i)=>{
+    const mine=G.pieces.find(p=>p.owner===i);
+    const served=Geo.area(mine.pts)/G.totalArea;
+    const target=o.n/o.d;
+    const errPct=Math.abs(served-target)*100;
+    const grade=gradeOf(errPct);
+    const pts=grade.pts(errPct);
+    return {o,i,served,target,errPct,pts,tip:Math.round(pts*mult/2),grade};
+  });
+  const gainedXP=results.reduce((s,r)=>s+r.pts,0);
+  const tips=results.reduce((s,r)=>s+r.tip,0);
+  const avgErr=results.reduce((s,r)=>s+r.errPct,0)/results.length;
+  const lvlBefore=shopLevel();
+  P.xp+=gainedXP; P.coins+=tips;
+  G.served=true; G.lastResults=results; G._tips=tips; G._avgErr=avgErr;
+  $('accV').textContent=(100-avgErr).toFixed(1)+'%';
+  saveProfile();
+
+  renderBar();
+  results.forEach(r=>{
+    const card=document.querySelectorAll('.friend')[r.i];
+    card.classList.add(r.errPct<8?'happy':'grumpy');
+    $('got'+r.i).textContent=`${r.grade.label} · +${r.tip} tip`;
+  });
+  const worst=results.reduce((w,r)=>r.errPct>w.errPct?r:w,results[0]);
+  Sound[worst.grade.snd]();
+  setTimeout(()=>Sound.coin(),350);
+  if(avgErr<3) confettiBurst();
+  floatGain('+'+tips+' coins');
+  renderTop(); renderHud(); updateBadges();
+  if(shopLevel()>lvlBefore){
+    Sound.fanfare();
+    flashMsg(`SHOP LEVEL UP — you're now a ${TITLES[shopLevel()]}!`,'good',5000);
+  } else {
+    flashMsg(avgErr<1? 'Grandma Pearl would be proud. Look at those slices.' :
+             avgErr<3? 'Sharp knife-work! The tips show it.' :
+             avgErr<8? 'Decent — study each piece to see your misses.' :
+                       'Study the slices — that\'s where the tips went.','good',5000);
+  }
+  $('serveBtn').textContent = P.orderIdx>=2 ? 'Close up shop' : 'Next customer';
+  $('serveBtn').focus();
+}
+
+function advance(){
+  P.orderIdx++;
+  if(P.orderIdx>=3){ dayEnd(); }
+  else { saveProfile(); startOrder(); }
+}
+
+/* ============================================================
+   DAY END + SHOP
+   ============================================================ */
+function shopItemsHtml(){
+  return Object.entries(UPGRADES).map(([k,u])=>{
+    const owned=!!P.owned[k], afford=P.coins>=u.cost;
+    return `<div class="shopitem">
+      <span class="shopicon" style="background:${owned?'var(--good)':'var(--panel2)'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="${owned?'#12300f':'#c49a7a'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.icon}</svg>
+      </span>
+      <span class="shopmain"><span class="t">${u.name}</span><br><span class="d">${u.desc}</span></span>
+      <button class="buybtn ${owned?'owned':''}" data-k="${k}" ${owned||!afford?'disabled':''}>${owned?'OWNED':u.cost+'c'}</button>
+    </div>`;
+  }).join('');
+}
+function wireShopButtons(){
+  document.querySelectorAll('.buybtn[data-k]').forEach(b=>{
+    b.onclick=()=>{
+      const k=b.dataset.k, u=UPGRADES[k];
+      if(P.owned[k]||P.coins<u.cost) return;
+      P.coins-=u.cost; P.owned[k]=true; saveProfile();
+      Sound.coin(); Sound.win();
+      $('shopCoins').textContent=P.coins+' coins';
+      document.getElementById('shopItems').innerHTML=shopItemsHtml();
+      wireShopButtons();
+      renderTop();
+    };
+  });
+}
+function dayEnd(){
+  const dayTips=G._tips;   // last order's; better: track per-day
+  Sound.win();
+  $('shopCard').innerHTML=`
+    <div class="minibar" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <h1 class="rstat">Day ${P.day} — closed</h1>
+    <p class="rstat" style="animation-delay:.08s">Three orders served. The shop smells amazing.</p>
+    <div class="stats rstat" style="animation-delay:.16s;justify-content:center">
+      <div class="stat"><div class="v gold">${P.coins}</div><div class="k">Coins</div></div>
+      <div class="stat"><div class="v">${P.xp}</div><div class="k">Shop XP</div></div>
+      <div class="stat"><div class="v" style="color:var(--c2)">${TITLES[shopLevel()]}</div><div class="k">Rank</div></div>
+    </div>
+    <h2>Pearl's Supply Cupboard <span class="coinline" id="shopCoins" style="float:right">${P.coins} coins</span></h2>
+    <div class="shopgrid" id="shopItems">${shopItemsHtml()}</div>
+    <button class="btn primary" id="nextDayBtn" style="width:100%;margin-top:6px">Open shop — Day ${P.day+1}</button>`;
+  $('shopOverlay').classList.add('show');
+  wireShopButtons();
+  $('nextDayBtn').onclick=()=>{
+    P.day++; P.orderIdx=0; saveProfile();
+    $('shopOverlay').classList.remove('show');
+    startOrder();
+  };
+  $('nextDayBtn').focus();
+}
+
+/* ============================================================
+   FX
+   ============================================================ */
+let msgTimer;
+function flashMsg(t,cls,ms=2600){const m=$('msg');m.textContent=t;m.className='msg '+cls;
+  clearTimeout(msgTimer);msgTimer=setTimeout(()=>{if(m.textContent===t){m.textContent='';m.className='msg';}},ms);}
+function wobble(){ if(reduced)return; $('wrap').classList.add('shake'); setTimeout(()=>$('wrap').classList.remove('shake'),350); }
+function crumbsAlong(a,b){
+  if(reduced)return;
+  const svg=$('svg'), m=svg.getScreenCTM(); if(!m)return;
+  const cols=G.L.food==='pizza'? ['#b06f31','#e8b45f','#c2452e'] : ['#54301b','#7b4a2d','#96603c'];
+  for(let i=0;i<12;i++){
+    const pt=svg.createSVGPoint(), t=Math.random();
+    pt.x=a[0]+(b[0]-a[0])*t; pt.y=a[1]+(b[1]-a[1])*t;
+    const sp=pt.matrixTransform(m);
+    const p=document.createElement('div');p.className='particle';
+    const s=3+Math.random()*4;p.style.width=s+'px';p.style.height=s+'px';
+    p.style.background=cols[i%3];
+    p.style.left=sp.x+'px';p.style.top=sp.y+'px';document.body.appendChild(p);
+    const ang=Math.random()*Math.PI*2,d=18+Math.random()*35;
+    p.animate([{transform:'translate(-50%,-50%)',opacity:1},
+      {transform:`translate(${Math.cos(ang)*d}px,${Math.sin(ang)*d+25}px) rotate(${Math.random()*300}deg)`,opacity:0}],
+      {duration:450+Math.random()*300,easing:'cubic-bezier(.2,.7,.4,1)'}).onfinish=()=>p.remove();
+  }
+}
+function confettiBurst(){
+  if(reduced)return;
+  const r=$('stage').getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/3;
+  const cols=['#ffb246','#63d3c4','#ff7d92','#b48ce8','#7ddb8a','#f8ead8'];
+  for(let i=0;i<22;i++){
+    const p=document.createElement('div');p.className='particle';
+    p.style.width='8px';p.style.height='8px';p.style.background=cols[i%cols.length];
+    p.style.left=cx+'px';p.style.top=cy+'px';document.body.appendChild(p);
+    const a=Math.random()*Math.PI*2,d=50+Math.random()*90;
+    p.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},
+      {transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d}px) scale(0) rotate(${Math.random()*400}deg)`,opacity:0}],
+      {duration:700+Math.random()*400,easing:'cubic-bezier(.2,.8,.3,1)'}).onfinish=()=>p.remove();
+  }
+}
+function floatGain(txt){
+  if(reduced)return;
+  const r=$('stage').getBoundingClientRect();
+  const el=document.createElement('div');el.className='float';el.textContent=txt;
+  el.style.left=(r.left+r.width/2)+'px';el.style.top=(r.top+20)+'px';el.style.transform='translate(-50%,0)';
+  document.body.appendChild(el);
+  el.animate([{transform:'translate(-50%,0)',opacity:1},{transform:'translate(-50%,-44px)',opacity:0}],
+    {duration:900,easing:'ease-out'}).onfinish=()=>el.remove();
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+const svgEl=$('svg');
+svgEl.addEventListener('pointerdown',e=>{svgEl.setPointerCapture(e.pointerId);onDown(e);});
+svgEl.addEventListener('pointermove',onMove);
+svgEl.addEventListener('pointerup',onUp);
+svgEl.addEventListener('pointercancel',()=>{drag=null;const p=$('cutPreview');if(p)p.setAttribute('points','');});
+
+$('serveBtn').onclick=serve;
+$('resetBtn').onclick=resetBar;
+$('tasteBtn').onclick=()=>{ if(G.tasteLeft<=0||G.served)return; tasteMode=!tasteMode; renderHud();
+  if(tasteMode)flashMsg('Tap a piece to taste it.','hint',3000); };
+$('muteBtn').onclick=()=>{const m=!Sound.isMuted();Sound.toggle(m);$('soundWaves').style.display=m?'none':'';};
+$('helpBtn').onclick=()=>$('startOverlay').classList.add('show');
+$('playBtn').onclick=()=>$('startOverlay').classList.remove('show');
+$('wipeBtn').onclick=()=>{
+  try{localStorage.removeItem(SAVE_KEY);}catch(e){}
+  P=defaultProfile(); saveProfile(); shownCoins=0;
+  $('startOverlay').classList.remove('show');
+  startOrder();
+};
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('startOverlay').classList.contains('show')&&!$('shopOverlay').classList.contains('show'))serve();});
+
+window.addEventListener('load',()=>{
+  loadProfile();
+  startOrder();
+  $('startOverlay').classList.add('show');
+});
+</script>

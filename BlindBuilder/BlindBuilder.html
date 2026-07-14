@@ -1,0 +1,1185 @@
+<!--
+  BLIND BUILDER — Wobbly & Sons, Master Builders
+  Asymmetric-communication co-op: the ARCHITECT sees the blueprint and can't touch
+  the board; the BUILDER has the blocks and can't see the blueprint. Everything
+  travels by carrier pigeon. The pigeon is judgmental.
+
+  CORE VERB: describe (Architect) / place (Builder). One target, two half-views.
+  LOOP (2-4 min/contract): read blueprint → compose message → pigeon flies →
+  partner builds → (reply) → … → REVEAL: wall slides away, blueprint vs. build,
+  match % sweeps in, client reacts. 100% = Perfect Contract fanfare.
+  TENSION: Tier 2's word budget (pigeon stamina) — every word costs; rambling is
+  expensive, precision is economical. No dead ends: when the pigeon is spent you
+  can still build & reveal; the honest path always finishes.
+
+  Cognitive functions (design-doc only, never shown in game):
+    OUTPUT — precise, unegocentric communication (the star; Feuerstein output phase)
+    receptive precision (Builder), perspective taking, vocabulary discipline
+  Math bridge: coordinates get INVENTED out of necessity — in Bot mode the
+  coordinate chips (B4) are simply the CHEAPEST unambiguous way to say a location.
+  Error classification: bot mode counts legal interpretations per message
+  (ambiguity = Architect output error, shown post-game as "fuzzy notes");
+  mismatch review ties every wrong cell back to the message that placed it —
+  blamelessly. Post-round: ONE strategy-naming tap, role-specific.
+  Misconception ambushed: "my description is obvious" — the bot follows words
+  EXACTLY; ambiguity resolved by comic literalism.
+
+  MODES: 2-player hotseat pass-and-play (Tier 1 open notes → Tier 2 word budget)
+  and Bot Builder solo (chip composer; bot builds with deliberate literal-mindedness).
+  12 Cottage District contracts, escalating.
+
+  AUDIO IDENTITY (per suite rules — unique fingerprint):
+    World: cheerful construction yard. Timbre: rubber/toy (pitch-bent triangle
+    plops, squeaks) + mechanical accents (crane ratchet). Key: C major.
+    Success motif: bouncy 1-3-5-8. Fail: comedic pitch-bend down-slide.
+    Signature: pigeon coo — pitch varies with message length. Mute toggle.
+
+  House style: single file, no dependencies, Fredoka+Nunito, one palette
+  (warm night-yard: timber dark, construction amber, blueprint blue), hand-rolled
+  SVG/CSS art. Colorblind-safe: every block color carries its own glyph.
+  Progress saved locally when storage allows. Touch-first; keyboard works.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Blind Builder — Wobbly &amp; Sons</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---- One palette: warm night construction yard + blueprint blue ---- */
+  :root{
+    --bg1:#2b2118; --bg2:#191209;
+    --ink:#f7efdd; --muted:#b39c7e;
+    --panel:#3a2d1f; --panel2:#4a3a28; --line:#5b4832;
+    --amber:#ffb03b;           /* construction gold — buttons, YOU */
+    --bp:#173f75; --bp2:#0f2c55; --bpline:#7fb4ff; /* blueprint side */
+    --good:#63d68c; --bad:#ff6b5d;
+    --blkR:#e85d4a; --blkY:#f4c542; --blkB:#5aa2e8; --blkG:#6cc46f;
+    --radius:18px;
+    --shadow:0 12px 34px rgba(10,5,0,.5);
+    --shadow-sm:0 4px 14px rgba(10,5,0,.4);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(130% 100% at 50% -12%,#3a2c1c 0%,var(--bg1) 45%,var(--bg2) 100%);
+    color:var(--ink);font-family:Nunito,system-ui,sans-serif;letter-spacing:.2px;
+    overflow:hidden;user-select:none;-webkit-user-select:none;
+  }
+  button{font-family:inherit;color:inherit}
+  h1,h2,h3{font-family:Fredoka;font-weight:600;margin:0}
+
+  .screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
+    padding:14px;opacity:0;pointer-events:none;visibility:hidden;overflow:hidden auto;
+    transition:opacity .3s ease,visibility .3s}
+  .screen.on{opacity:1;pointer-events:auto;visibility:visible}
+  .wrap{width:100%;max-width:900px;margin:0 auto}
+
+  .btn{border:none;cursor:pointer;border-radius:16px;font-family:Fredoka;font-weight:600;
+    background:var(--panel2);box-shadow:var(--shadow-sm);font-size:16px;padding:11px 20px;
+    transition:transform .13s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,filter .2s,opacity .2s}
+  .btn:hover{transform:translateY(-2px) scale(1.03)}
+  .btn:active{transform:scale(.94)}
+  .btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+  .btn.primary{background:linear-gradient(180deg,#ffcd74,var(--amber));color:#4a2c00;font-weight:700;
+    box-shadow:0 8px 24px rgba(255,176,59,.35),var(--shadow-sm)}
+  .btn.big{font-size:22px;padding:15px 40px;border-radius:20px}
+  .btn.ghostb{background:transparent;border:2px solid var(--line);box-shadow:none;color:var(--muted)}
+  .btn.ghostb:hover{color:var(--ink);border-color:var(--muted)}
+  .btn:disabled{opacity:.38;pointer-events:none}
+  .icon-btn{width:42px;height:42px;border:none;border-radius:12px;cursor:pointer;flex:none;
+    background:var(--panel);color:var(--ink);font-size:19px;box-shadow:var(--shadow-sm);
+    display:grid;place-items:center;transition:transform .12s}
+  .icon-btn:active{transform:scale(.9)}
+
+  /* ---------- title ---------- */
+  #title .yard{margin:2vh 0 10px;position:relative}
+  #title h1{font-size:clamp(38px,9vw,64px);line-height:1.05;text-align:center}
+  #title h1 b{color:var(--amber)}
+  #title .sub{font-family:Fredoka;color:var(--muted);text-align:center;font-size:clamp(14px,3.4vw,19px);margin-top:6px}
+  .firmplate{margin:14px auto 4px;background:var(--panel);border:2px solid var(--line);border-radius:12px;
+    padding:7px 18px;font-family:Fredoka;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);width:max-content}
+  .modes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:22px 0 8px}
+  .modecard{width:250px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;cursor:pointer;text-align:left;box-shadow:var(--shadow-sm);
+    transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .2s}
+  .modecard:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .modecard:active{transform:scale(.97)}
+  .modecard h3{font-size:21px;margin-bottom:6px}
+  .modecard p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.45}
+  .modecard .who{margin-top:10px;font-family:Fredoka;font-size:12px;color:var(--amber);letter-spacing:1px;text-transform:uppercase}
+
+  /* ---------- contracts ---------- */
+  #contracts .topbar{display:flex;align-items:center;gap:12px;margin:4px 0 14px;width:100%;max-width:900px}
+  #contracts h2{font-size:24px;flex:1}
+  .districttag{font-family:Fredoka;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;width:100%;max-width:900px;padding-bottom:24px}
+  .ccard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 13px 11px;
+    cursor:pointer;text-align:left;box-shadow:var(--shadow-sm);position:relative;
+    transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .2s}
+  .ccard:hover{transform:translateY(-3px)}
+  .ccard:active{transform:scale(.96)}
+  .ccard .num{font-family:Fredoka;font-size:11px;color:var(--muted);letter-spacing:1.5px}
+  .ccard h3{font-size:16.5px;margin:2px 0 7px;line-height:1.15}
+  .ccard .meta{display:flex;gap:5px;flex-wrap:wrap}
+  .tierchip{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+    padding:3px 8px;border-radius:99px;background:var(--panel2);color:var(--muted)}
+  .tierchip.budget{background:#4a3313;color:var(--amber)}
+  .beststar{position:absolute;top:9px;right:11px;font-family:Fredoka;font-size:13px;color:var(--muted)}
+  .beststar.perfect{color:var(--amber)}
+  .minibp{margin-top:9px;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:var(--bp2);
+    border-radius:8px;padding:5px;border:1px solid #24549b}
+  .minibp i{aspect-ratio:1;border-radius:2px;background:transparent}
+  .minibp i.f{background:var(--bpline);opacity:.85}
+
+  /* ---------- pass screen ---------- */
+  #pass{justify-content:center;text-align:center;background:radial-gradient(130% 100% at 50% -12%,#3a2c1c 0%,var(--bg1) 45%,var(--bg2) 100%)}
+  #pass .bigrole{font-family:Fredoka;font-size:clamp(30px,8vw,52px);margin:10px 0 4px}
+  #pass .bigrole b{color:var(--amber)}
+  #pass p{color:var(--muted);max-width:46ch;margin:6px auto;font-size:15.5px;line-height:1.5}
+
+  /* ---------- game layout ---------- */
+  .gamebar{display:flex;align-items:center;gap:10px;width:100%;max-width:900px;margin-bottom:8px}
+  .gamebar .cname{flex:1;min-width:0}
+  .gamebar .cname h3{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gamebar .cname .role{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--amber)}
+  .stamina{display:flex;align-items:center;gap:7px;background:var(--panel);border-radius:12px;padding:6px 11px;box-shadow:var(--shadow-sm)}
+  .stamina .bar{width:74px;height:9px;border-radius:99px;background:var(--bg2);overflow:hidden}
+  .stamina .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ffcd74,var(--amber));transition:width .35s ease}
+  .stamina b{font-family:Fredoka;font-size:15px;min-width:26px;text-align:right}
+  .stamina .lbl{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+
+  .split{display:flex;gap:14px;width:100%;max-width:900px;flex:1;min-height:0;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+  .pane{flex:1 1 300px;min-width:280px;max-width:440px;display:flex;flex-direction:column;gap:10px}
+
+  /* ---------- grids ---------- */
+  .board{border-radius:var(--radius);padding:10px;box-shadow:var(--shadow-sm);position:relative}
+  .board.blueprint{background:linear-gradient(180deg,var(--bp),var(--bp2));border:2px solid #24549b}
+  .board.blueprint::after{content:'BLUEPRINT Nº ' attr(data-num);position:absolute;top:7px;right:12px;
+    font-family:Fredoka;font-size:10px;letter-spacing:1.6px;color:var(--bpline);opacity:.75}
+  .board.site{background:linear-gradient(180deg,var(--panel),#31251a);border:2px solid var(--line)}
+  .gwrap{display:grid;grid-template-columns:auto 1fr;grid-template-rows:1fr auto;gap:4px}
+  .rowlbl{display:grid;grid-template-rows:repeat(6,1fr);gap:3px;padding-right:2px}
+  .collbl{grid-column:2;display:grid;grid-template-columns:repeat(6,1fr);gap:3px;padding-top:2px}
+  .rowlbl span,.collbl span{display:grid;place-items:center;font-family:Fredoka;font-size:11px;color:var(--muted);opacity:.9}
+  .blueprint .rowlbl span,.blueprint .collbl span{color:var(--bpline)}
+  .cells{display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:3px;aspect-ratio:1}
+  .cell{border-radius:7px;position:relative;background:rgba(0,0,0,.22);transition:transform .12s,box-shadow .2s;border:none;padding:0;cursor:default}
+  .blueprint .cell{background:rgba(255,255,255,.05);outline:1px dashed rgba(127,180,255,.35);outline-offset:-1px}
+  .site .cell.tappable{cursor:pointer}
+  .site .cell.tappable:active{transform:scale(.9)}
+  .blk{position:absolute;inset:1px;border-radius:6px;display:grid;place-items:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),inset 0 2px 0 rgba(255,255,255,.22)}
+  .blk svg{width:56%;height:56%;opacity:.75}
+  .blk.cR{background:var(--blkR)} .blk.cY{background:var(--blkY)}
+  .blk.cB{background:var(--blkB)} .blk.cG{background:var(--blkG)}
+  .blueprint .blk{background:transparent;box-shadow:none;outline:2px solid var(--bpline);outline-offset:-2px}
+  .blueprint .blk svg{opacity:.95}
+  .blueprint .blk .cdot{position:absolute;inset:0;border-radius:6px;opacity:.30}
+  .blueprint .blk.cR .cdot{background:var(--blkR)} .blueprint .blk.cY .cdot{background:var(--blkY)}
+  .blueprint .blk.cB .cdot{background:var(--blkB)} .blueprint .blk.cG .cdot{background:var(--blkG)}
+  @keyframes plop{0%{transform:translateY(-14px) scale(1.15,.8);opacity:0}55%{transform:translateY(2px) scale(.92,1.1);opacity:1}100%{transform:none;opacity:1}}
+  .blk.new{animation:plop .28s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes poofout{0%{transform:scale(1);opacity:1}100%{transform:scale(1.6);opacity:0}}
+  .blk.poof{animation:poofout .3s ease forwards}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+  .blk.wob{animation:wobble .35s ease 2}
+  .cell.matched .blk{box-shadow:0 0 0 2px var(--good),0 0 14px rgba(99,214,140,.6),inset 0 -3px 0 rgba(0,0,0,.25)}
+  .cell.missing{outline:2px dashed var(--bad);outline-offset:-2px}
+  .cell.wrong .blk{box-shadow:0 0 0 2px var(--bad),0 0 12px rgba(255,107,93,.55),inset 0 -3px 0 rgba(0,0,0,.25)}
+  .cell.reviewable{cursor:pointer}
+
+  /* ---------- palette ---------- */
+  .palette{display:flex;gap:8px;justify-content:center;align-items:center;background:var(--panel);
+    border-radius:14px;padding:8px 10px;box-shadow:var(--shadow-sm)}
+  .swatch{width:46px;height:46px;border-radius:12px;border:none;cursor:pointer;display:grid;place-items:center;
+    box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),var(--shadow-sm);transition:transform .13s cubic-bezier(.34,1.56,.64,1)}
+  .swatch svg{width:22px;height:22px;opacity:.8}
+  .swatch:active{transform:scale(.88)}
+  .swatch.sel{transform:translateY(-4px) scale(1.08);outline:3px solid var(--ink);outline-offset:2px}
+  .swatch.cR{background:var(--blkR)} .swatch.cY{background:var(--blkY)}
+  .swatch.cB{background:var(--blkB)} .swatch.cG{background:var(--blkG)}
+  .swatch.eraser{background:var(--panel2);font-size:20px}
+
+  /* ---------- messages ---------- */
+  .msglog{flex:1;min-height:70px;max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;
+    padding:10px;background:rgba(0,0,0,.18);border-radius:14px}
+  .msg{max-width:88%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.4;position:relative;
+    animation:msgin .25s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes msgin{from{transform:translateY(8px) scale(.92);opacity:0}to{transform:none;opacity:1}}
+  .msg.A{align-self:flex-start;background:var(--bp);border:1px solid #24549b;border-bottom-left-radius:4px}
+  .msg.B{align-self:flex-end;background:var(--panel2);border:1px solid var(--line);border-bottom-right-radius:4px}
+  .msg.P{align-self:center;background:transparent;color:var(--muted);font-size:12.5px;font-style:italic;padding:2px 8px}
+  .msg .who{display:block;font-family:Fredoka;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;opacity:.7;margin-bottom:2px}
+  .msg .amb{display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:var(--amber);letter-spacing:.5px}
+
+  .composer{display:flex;flex-direction:column;gap:8px;background:var(--panel);border-radius:14px;padding:10px;box-shadow:var(--shadow-sm)}
+  .composer textarea{width:100%;min-height:58px;resize:none;border:2px solid var(--line);border-radius:10px;
+    background:rgba(0,0,0,.25);color:var(--ink);font-family:Nunito;font-size:15px;padding:8px 10px;outline:none}
+  .composer textarea:focus{border-color:var(--amber)}
+  .composer .row{display:flex;gap:8px;align-items:center}
+  .wordcount{font-family:Fredoka;font-size:13px;color:var(--muted);flex:1}
+  .wordcount b{color:var(--ink)} .wordcount.over b{color:var(--bad)}
+
+  /* ---------- chips ---------- */
+  .chipbox{display:flex;flex-direction:column;gap:7px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:5px}
+  .chiprow .lb{width:100%;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .chip{border:none;cursor:pointer;border-radius:99px;padding:6px 12px;font-family:Fredoka;font-weight:500;font-size:14px;
+    background:var(--panel2);box-shadow:var(--shadow-sm);transition:transform .12s cubic-bezier(.34,1.56,.64,1)}
+  .chip:active{transform:scale(.88)}
+  .chip.color{color:#241300}
+  .chip.cR{background:var(--blkR);color:#fff} .chip.cY{background:var(--blkY)}
+  .chip.cB{background:var(--blkB);color:#fff} .chip.cG{background:var(--blkG);color:#12300f}
+  .chip.coord{background:var(--bp);color:var(--bpline);border:1px solid #24549b}
+  .draft{min-height:40px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;background:rgba(0,0,0,.25);
+    border-radius:10px;padding:7px 9px;border:2px dashed var(--line)}
+  .draft .dchip{border-radius:99px;padding:4px 11px;font-family:Fredoka;font-size:14px;background:var(--panel2)}
+  .draft .hint{color:var(--muted);font-size:13px;font-style:italic}
+
+  /* ---------- pigeon ---------- */
+  .pigeonbox{display:flex;align-items:flex-end;gap:10px;min-height:64px}
+  .pigeon{width:62px;height:62px;flex:none}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .pigeon .body{animation:bob 2.4s ease-in-out infinite;transform-origin:50% 90%}
+  .pigeon.tired .body{animation:none;transform:rotate(8deg) translateY(4px)}
+  .pigeon.salute .body{animation:none}
+  @keyframes wingup{from{transform:rotate(0)}to{transform:rotate(-60deg)}}
+  .pigeon.salute .wing{animation:wingup .3s ease forwards;transform-origin:20% 20%}
+  @keyframes flyoff{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(240px,-160px) rotate(14deg);opacity:0}}
+  .pigeon.fly{animation:flyoff .8s ease-in forwards}
+  .pbubble{background:var(--panel2);border-radius:12px;border-bottom-left-radius:3px;padding:7px 12px;
+    font-size:13px;line-height:1.35;color:var(--ink);max-width:36ch;box-shadow:var(--shadow-sm)}
+  .pbubble i{color:var(--muted)}
+
+  /* ---------- reveal ---------- */
+  #reveal{justify-content:flex-start}
+  #reveal .rgrids{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;width:100%;max-width:820px}
+  #reveal .rgrids .pane{max-width:380px;min-width:260px}
+  .panetag{text-align:center;font-family:Fredoka;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+  .wall{position:absolute;inset:-2px;background:linear-gradient(180deg,#57432c,#3a2d1f);border-radius:var(--radius);
+    z-index:3;display:grid;place-items:center;font-family:Fredoka;color:var(--muted);letter-spacing:2px;font-size:13px;
+    transition:transform .8s cubic-bezier(.6,0,.3,1)}
+  .wall.slide{transform:translateX(104%) rotate(2deg);pointer-events:none;opacity:.9}
+  .scorecard{margin-top:14px;text-align:center;width:100%;max-width:560px}
+  .scorecard .pct{font-family:Fredoka;font-weight:700;font-size:clamp(44px,12vw,74px);line-height:1}
+  .scorecard .pct.perfect{color:var(--amber);text-shadow:0 0 26px rgba(255,176,59,.55)}
+  .verdict{font-family:Fredoka;font-size:19px;margin-top:2px}
+  .clientline{display:flex;align-items:center;gap:12px;justify-content:center;margin:12px 0 4px;opacity:0;transform:translateY(8px);transition:all .4s ease}
+  .clientline.in{opacity:1;transform:none}
+  .clientface{width:58px;height:58px;flex:none}
+  .clientsay{background:var(--panel);border-radius:14px;border-bottom-left-radius:4px;padding:9px 14px;font-size:14.5px;
+    max-width:34ch;text-align:left;box-shadow:var(--shadow-sm)}
+  .clientsay b{font-family:Fredoka;display:block;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+  .reviewnote{color:var(--muted);font-size:13px;margin:8px 0 2px;min-height:20px}
+  .reviewnote b{color:var(--ink)}
+  .rbtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0 26px}
+  .plaque{margin:10px auto 0;background:linear-gradient(180deg,#57432c,#41321f);border:2px solid var(--amber);
+    border-radius:12px;padding:8px 20px;font-family:Fredoka;width:max-content;max-width:92%;
+    box-shadow:0 0 24px rgba(255,176,59,.3);animation:msgin .5s cubic-bezier(.34,1.56,.64,1)}
+  .plaque small{display:block;font-size:10px;letter-spacing:2px;color:var(--amber);text-transform:uppercase}
+
+  /* ---------- reflect ---------- */
+  #reflect{justify-content:center;text-align:center}
+  #reflect h2{font-size:clamp(20px,5vw,26px);max-width:24ch;margin:0 auto 18px}
+  .stratgrid{display:flex;flex-direction:column;gap:9px;width:100%;max-width:420px}
+  .strat{text-align:left;font-size:15px;font-weight:700;padding:13px 16px;border-radius:14px;border:2px solid var(--line);
+    background:var(--panel);cursor:pointer;transition:transform .13s,border-color .2s}
+  .strat:hover{border-color:var(--amber);transform:translateY(-2px)}
+  .strat:active{transform:scale(.97)}
+  .bridge{margin-top:18px;color:var(--muted);font-size:13.5px;font-style:italic;max-width:44ch}
+
+  /* ---------- confetti & floaters ---------- */
+  .cparticle{position:fixed;width:10px;height:14px;z-index:200;pointer-events:none;border-radius:3px}
+  @keyframes cfall{0%{transform:translateY(-10vh) rotate(0)}100%{transform:translateY(110vh) rotate(720deg)}}
+  .floater{position:fixed;z-index:210;pointer-events:none;font-family:Fredoka;font-weight:700;animation:floatup 1s ease forwards}
+  @keyframes floatup{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-46px);opacity:0}}
+  @keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,-2px)}80%{transform:translate(3px,2px)}}
+  .shaking{animation:shake .28s ease}
+
+  .topcorner{position:fixed;top:12px;right:12px;z-index:60;display:flex;gap:8px}
+
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001s !important;transition-duration:.06s !important}
+  }
+  @media (max-width:640px){
+    .split{gap:10px}
+    .msglog{max-height:130px}
+  }
+</style>
+
+<div class="topcorner">
+  <button class="icon-btn" id="muteBtn" aria-label="toggle sound">🔊</button>
+</div>
+
+<!-- ================= TITLE ================= -->
+<div class="screen on" id="title">
+  <div class="wrap" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%">
+    <div class="yard" id="titlePigeon"></div>
+    <h1>BLIND <b>BUILDER</b></h1>
+    <div class="sub">One of you sees the blueprint. One of you holds the blocks.<br>Everything in between travels by pigeon.</div>
+    <div class="firmplate">Wobbly &amp; Sons · Master Builders · est. eventually</div>
+    <div class="modes">
+      <button class="modecard" id="modeDuo">
+        <h3>🤝 Two Builders</h3>
+        <p>Pass one device back and forth. The Architect describes, the Builder builds, and nobody peeks. Then the wall slides away…</p>
+        <div class="who">2 players · pass &amp; play</div>
+      </button>
+      <button class="modecard" id="modeBot">
+        <h3>🐦 Bot Builder</h3>
+        <p>You describe, the yard-bot builds — and it does <b>exactly</b> what your words say. Exactly. You have been warned.</p>
+        <div class="who">1 player · you are the architect</div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CONTRACTS ================= -->
+<div class="screen" id="contracts">
+  <div class="topbar">
+    <button class="icon-btn" id="backTitle" aria-label="back">←</button>
+    <h2>Contracts</h2>
+    <span class="districttag">Cottage District</span>
+  </div>
+  <div class="cgrid" id="cgrid"></div>
+</div>
+
+<!-- ================= PASS SCREEN ================= -->
+<div class="screen" id="pass">
+  <div class="wrap">
+    <div id="passPigeon" style="display:flex;justify-content:center"></div>
+    <div class="bigrole" id="passRole">Hand this to the <b>Builder</b></div>
+    <p id="passNote"></p>
+    <button class="btn primary big" id="passGo">I'm ready</button>
+  </div>
+</div>
+
+<!-- ================= ARCHITECT (hotseat) ================= -->
+<div class="screen" id="arch">
+  <div class="gamebar">
+    <button class="icon-btn" id="archQuit" aria-label="leave contract">←</button>
+    <div class="cname"><div class="role">Architect · tower office</div><h3 id="archName"></h3></div>
+    <div class="stamina" id="archStam" hidden><span class="lbl">Pigeon</span><span class="bar"><i></i></span><b>0</b></div>
+  </div>
+  <div class="split">
+    <div class="pane">
+      <div class="board blueprint" id="archBoard" data-num=""></div>
+      <div class="panetag">the client's blueprint — describe it. you can't touch the site.</div>
+    </div>
+    <div class="pane">
+      <div class="msglog" id="archLog"></div>
+      <div class="composer">
+        <div class="pigeonbox"><div class="pigeon" id="archPigeon"></div><div class="pbubble" id="archBub">Coo. I fly when you're ready.</div></div>
+        <textarea id="archText" rows="2" placeholder="Describe the build… then send the pigeon." maxlength="400"></textarea>
+        <div class="row">
+          <div class="wordcount" id="archCount"></div>
+          <button class="btn primary" id="archSend">Send pigeon 📤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= BUILDER (hotseat) ================= -->
+<div class="screen" id="build">
+  <div class="gamebar">
+    <button class="icon-btn" id="buildQuit" aria-label="leave contract">←</button>
+    <div class="cname"><div class="role">Builder · the site</div><h3 id="buildName"></h3></div>
+    <div class="stamina" id="buildStam" hidden><span class="lbl">Pigeon</span><span class="bar"><i></i></span><b>0</b></div>
+  </div>
+  <div class="split">
+    <div class="pane">
+      <div class="board site" id="buildBoard"></div>
+      <div class="palette" id="buildPal"></div>
+    </div>
+    <div class="pane">
+      <div class="msglog" id="buildLog"></div>
+      <div class="composer">
+        <textarea id="buildText" rows="1" placeholder="Ask the Architect something… (optional)" maxlength="200"></textarea>
+        <div class="row">
+          <div class="wordcount" id="buildCount"></div>
+          <button class="btn" id="buildSend">Reply 📤</button>
+          <button class="btn primary" id="buildDone">Reveal! 🧱</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= BOT MODE ================= -->
+<div class="screen" id="bot">
+  <div class="gamebar">
+    <button class="icon-btn" id="botQuit" aria-label="leave contract">←</button>
+    <div class="cname"><div class="role">Architect · bot on site</div><h3 id="botName"></h3></div>
+    <div class="stamina" id="botStam"><span class="lbl">Pigeon</span><span class="bar"><i></i></span><b>0</b></div>
+  </div>
+  <div class="split">
+    <div class="pane">
+      <div class="board blueprint" id="botBP" data-num=""></div>
+      <div class="panetag">blueprint</div>
+      <div class="board site" id="botSite"></div>
+      <div class="panetag">the site — the bot builds here</div>
+    </div>
+    <div class="pane">
+      <div class="pigeonbox"><div class="pigeon" id="botPigeon"></div><div class="pbubble" id="botBub">Coo. Tap chips to write a note. Every chip costs one word of pigeon stamina.</div></div>
+      <div class="composer">
+        <div class="draft" id="botDraft"><span class="hint">tap chips below…</span></div>
+        <div class="row">
+          <div class="wordcount" id="botCost"></div>
+          <button class="btn ghostb" id="botBack">⌫</button>
+          <button class="btn ghostb" id="botClear">clear</button>
+          <button class="btn primary" id="botSend">Send 📤</button>
+        </div>
+        <div class="chipbox" id="botChips"></div>
+      </div>
+      <button class="btn primary" id="botDone" style="align-self:center">Reveal! 🧱</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= REVEAL ================= -->
+<div class="screen" id="reveal">
+  <div class="gamebar" style="justify-content:center">
+    <h2 id="revealTitle" style="font-size:22px">The Reveal</h2>
+  </div>
+  <div class="rgrids">
+    <div class="pane">
+      <div class="board blueprint" id="revBP" data-num="" style="position:relative">
+        <div class="wall" id="revWall">— THE WALL —</div>
+      </div>
+      <div class="panetag">blueprint</div>
+    </div>
+    <div class="pane">
+      <div class="board site" id="revSite"></div>
+      <div class="panetag">what got built</div>
+    </div>
+  </div>
+  <div class="scorecard">
+    <div class="pct" id="revPct">0%</div>
+    <div class="verdict" id="revVerdict"></div>
+    <div class="clientline" id="clientLine">
+      <div class="clientface" id="clientFace"></div>
+      <div class="clientsay"><b id="clientName"></b><span id="clientSay"></span></div>
+    </div>
+    <div id="plaqueSlot"></div>
+    <div class="reviewnote" id="reviewNote"></div>
+    <div class="rbtns">
+      <button class="btn ghostb" id="revContracts">Contracts</button>
+      <button class="btn primary big" id="revNext">Next contract →</button>
+      <button class="btn" id="revRetry">Retry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= REFLECT ================= -->
+<div class="screen" id="reflect">
+  <div class="wrap" style="display:flex;flex-direction:column;align-items:center">
+    <h2 id="reflectQ">How did you crack it?</h2>
+    <div class="stratgrid" id="stratGrid"></div>
+    <div class="bridge" id="bridgeLine"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================== DATA ============================== */
+const COLORS = {R:'#e85d4a', Y:'#f4c542', B:'#5aa2e8', G:'#6cc46f'};
+const CNAMES = {R:'red', Y:'yellow', B:'blue', G:'green'};
+// colorblind-safe glyph per color
+const GLYPH = {
+  R:'<svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2" fill="#fff"/></svg>',
+  Y:'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5" fill="#fff"/></svg>',
+  B:'<svg viewBox="0 0 20 20"><path d="M10 3 L17 16 H3 Z" fill="#fff"/></svg>',
+  G:'<svg viewBox="0 0 20 20"><path d="M8 3h4v5h5v4h-5v5H8v-5H3V8h5z" fill="#fff"/></svg>'
+};
+const COLS = ['A','B','C','D','E','F'];
+
+// 6 strings, top row first. Row label = 6 - rowIndex (row 1 = ground).
+const CONTRACTS = [
+ {name:'The Garden Bench', client:0, art:[
+  '......','......','......','......','.YYYY.','.Y..Y.']},
+ {name:'The Little Sapling', client:1, art:[
+  '......','..G...','.GGG..','..G...','..R...','.RRR..']},
+ {name:'The Doghouse', client:2, art:[
+  '......','..RR..','.RRRR.','.R..R.','.RYYR.','.RYYR.']},
+ {name:'The Sunny Window', client:3, art:[
+  '.Y....','......','..BB..','..BB..','.GGGG.','......']},
+ {name:'The Garden Gate', client:0, art:[
+  '......','......','Y....Y','Y.RR.Y','Y.RR.Y','YYRRYY']},
+ {name:'The Wishing Well', client:1, art:[
+  '..RR..','.R..R.','.B..B.','.BBBB.','.B..B.','.BBBB.']},
+ {name:'The Cozy Cottage', client:2, art:[
+  '......','..RR..','.RRRR.','RRRRRR','.B.YB.','.B.YB.']},
+ {name:'The Flower Cart', client:3, art:[
+  '.R.G.R','.GRGR.','.YYYY.','.YYYY.','..B.B.','..B.B.']},
+ {name:'The Bakery Sign', client:0, art:[
+  'YYYYYY','Y.RR.Y','Y.RR.Y','YYYYYY','..B...','..B...']},
+ {name:'The Twin Chimneys', client:1, art:[
+  '.R..R.','.R..R.','RRRRRR','.YBBY.','.YBBY.','.YYYY.']},
+ {name:'The Greenhouse', client:2, art:[
+  '..GG..','.G..G.','G.BB.G','G.BB.G','GBBBBG','GGGGGG']},
+ {name:"The Mayor's Cottage", client:3, art:[
+  '..RR.Y','.RRRR.','RRRRRR','B.YY.B','B.YY.B','BBYYBB']},
+];
+// tiers: 0-3 open notes, 4-7 word budget (roomy), 8-11 word budget (tight)
+function contractInfo(i){
+  const t = CONTRACTS[i], blocks = t.art.join('').replace(/\./g,'').length;
+  let tier, budget;
+  if (i < 4)      { tier = 1; budget = null; }
+  else if (i < 8) { tier = 2; budget = blocks * 4; }
+  else            { tier = 2; budget = blocks * 3; }
+  const botBudget = i < 4 ? blocks * 5 : budget;
+  return {blocks, tier, budget, botBudget};
+}
+const CLIENTS = [
+ {name:'Mrs. Petunia', hue:'#e88bb1',
+  delight:"It's EXACTLY like my dream! You two speak fluent cottage!",
+  ok:"Well… it has character. Lots of… character.",
+  faint:"*fans herself* Is… is that supposed to be a bench?"},
+ {name:'Old Man Brick', hue:'#c4885a',
+  delight:'In forty years of masonry I have never seen better. Never!',
+  ok:"Hm. Close. My cousin's dog could tell them apart, but close.",
+  faint:'*stares* *slowly puts glasses on* *stares harder*'},
+ {name:'Granny Wobble', hue:'#9aa5e8',
+  delight:'Ooh, perfect! Founders would be proud. Cookie for the pigeon!',
+  ok:"It's lovely, dear. Is it… upside down? Don't tell me.",
+  faint:'Oh my. Oh MY. I need to sit on something that exists.'},
+ {name:'The Mayor', hue:'#8bc79a',
+  delight:'MAGNIFICENT. I shall cut a ribbon immediately. Two ribbons!',
+  ok:'The town will accept it. Reluctantly. Diplomatically.',
+  faint:'*the mayoral sash falls off* We shall never speak of this.'},
+];
+const STRATS_A = ['Went row by row','Anchored one landmark first','Used coordinates (like B4)','Described the shape before positions'];
+const STRATS_B = ['Built as each note arrived','Waited for the full picture','Asked early about anything fuzzy','Guessed and hoped'];
+const BRIDGES = [
+ 'A note means whatever the READER can see. — the Pigeon',
+ 'Cheap AND clear beats long AND fancy. — the Pigeon',
+ 'If a note could mean two places, it will mean the wrong one. — the Pigeon',
+];
+
+/* ============================== AUDIO ============================== */
+/* Rubber/toy triangle plops + mechanical ratchet, all in C major. */
+let AC = null, muted = false;
+function ac(){ if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended')AC.resume(); return AC; }
+function tone(f0, f1, t0, dur, vol=0.16, type='triangle'){
+  if (muted) return;
+  try{
+    const a = ac(), o = a.createOscillator(), g = a.createGain();
+    o.type = type; const t = a.currentTime + t0;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(30,f1), t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+const C = n => 261.63 * Math.pow(2, n/12); // semitones above middle C
+const sfx = {
+  tick(){ tone(C(12), C(12), 0, .05, .05); },
+  pick(){ tone(C(7), C(9), 0, .08, .09); },
+  plop(i=0){ const b = C([0,2,4,7,9][i%5]); tone(b*2, b, 0, .12, .17); },        // rubber plop, pitch bends down
+  erase(){ tone(C(4), C(-3), 0, .14, .1); },
+  send(){ // wing flap + coo up
+    tone(C(4), C(16), 0, .18, .1, 'sawtooth'); tone(C(19), C(24), .1, .12, .07);
+  },
+  coo(len){ // signature: pitch varies with message length (long = low tired coo)
+    const drop = Math.min(12, len/4);
+    tone(C(19-drop), C(15-drop), 0, .1, .1); tone(C(15-drop), C(17-drop), .12, .14, .09);
+  },
+  ratchet(){ for(let i=0;i<4;i++) tone(C(-5), C(-5), i*.05, .03, .07, 'square'); }, // crane
+  match(step){ tone(C([0,4,7,12,16,19,24][Math.min(step,6)]), C([0,4,7,12,16,19,24][Math.min(step,6)]), 0, .16, .13); },
+  wrongPoof(){ tone(C(7), C(-8), 0, .28, .13); },
+  fanfare(){ [0,4,7,12].forEach((n,i)=> tone(C(n)*2, C(n)*2, i*.13, .22, .17)); tone(C(12)*2, C(12)*2, .55, .4, .14); },
+  sad(){ tone(C(7), C(-14), 0, .55, .15); },  // comedic slide down
+  confused(){ tone(C(5), C(6), 0, .12, .1); tone(C(6), C(5), .16, .16, .1); },
+};
+document.getElementById('muteBtn').onclick = e => {
+  muted = !muted; e.currentTarget.textContent = muted ? '🔇' : '🔊'; if(!muted) sfx.tick();
+};
+
+/* ============================== STATE ============================== */
+const S = {
+  mode:'duo', ci:0, contract:null, info:null,
+  target:[], build:[], placedBy:[],
+  messages:[], spent:0, draft:[],
+  score:0, revealed:false,
+};
+let saved = {};
+try{ saved = JSON.parse(localStorage.getItem('blindbuilder_v1')||'{}'); }catch(e){ saved = {}; }
+function persist(){ try{ localStorage.setItem('blindbuilder_v1', JSON.stringify(saved)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  $(id).classList.add('on');
+}
+function esc(s){ const d=document.createElement('i'); d.textContent=s; return d.innerHTML; }
+function wordsOf(t){ t=t.trim(); return t ? t.split(/\s+/).length : 0; }
+function budgetLeft(){ const b = S.mode==='bot' ? S.info.botBudget : S.info.budget; return b==null ? null : Math.max(0, b - S.spent); }
+
+/* ============================== PIGEON & CLIENT ART ============================== */
+function pigeonSVG(){
+  return `<svg viewBox="0 0 64 64" width="100%" height="100%">
+    <g class="body">
+      <ellipse cx="32" cy="42" rx="17" ry="14" fill="#8f95a8"/>
+      <circle cx="41" cy="26" r="10" fill="#a7adc0"/>
+      <path class="wing" d="M18 38 Q28 28 40 36 Q30 46 18 42 Z" fill="#767c92"/>
+      <circle cx="44.5" cy="24" r="1.9" fill="#241c12"/>
+      <path d="M50 26 l7 2.4 -7 2.4 Z" fill="#f4a83b"/>
+      <path d="M46 20 q3 -5 -1 -7" stroke="#5fae6f" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <rect x="26" y="54" width="3" height="6" rx="1.5" fill="#f4a83b"/>
+      <rect x="34" y="54" width="3" height="6" rx="1.5" fill="#f4a83b"/>
+    </g></svg>`;
+}
+function clientSVG(hue){
+  return `<svg viewBox="0 0 64 64" width="100%" height="100%">
+    <circle cx="32" cy="34" r="24" fill="${hue}"/>
+    <circle class="eyeL" cx="24" cy="30" r="3" fill="#241c12"/>
+    <circle class="eyeR" cx="40" cy="30" r="3" fill="#241c12"/>
+    <path class="mouth" d="M24 42 Q32 48 40 42" stroke="#241c12" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M14 22 Q32 6 50 22" stroke="#241c12" stroke-width="4" fill="none" stroke-linecap="round" opacity=".35"/>
+  </svg>`;
+}
+function setClientMood(el, mood){
+  const m = el.querySelector('.mouth');
+  if (mood==='delight') m.setAttribute('d','M23 40 Q32 52 41 40');
+  else if (mood==='ok') m.setAttribute('d','M25 44 L39 44');
+  else m.setAttribute('d','M24 46 Q32 38 40 46');
+}
+$('titlePigeon').innerHTML = `<div class="pigeon" style="width:96px;height:96px">${pigeonSVG()}</div>`;
+
+/* ============================== GRID RENDERING ============================== */
+function artToTarget(art){
+  const t = Array(36).fill(null);
+  art.forEach((row,r)=> row.split('').forEach((ch,c)=>{ if(ch!=='.') t[r*6+c]=ch; }));
+  return t;
+}
+function cellName(i){ return COLS[i%6] + (6 - Math.floor(i/6)); }
+function blockHTML(color, blueprint){
+  return `<div class="blk c${color}">${blueprint?'<div class="cdot"></div>':''}${GLYPH[color]}</div>`;
+}
+function renderBoard(el, grid, {blueprint=false, tappable=false}={}){
+  el.innerHTML = `<div class="gwrap">
+    <div class="rowlbl">${[6,5,4,3,2,1].map(n=>`<span>${n}</span>`).join('')}</div>
+    <div class="cells"></div>
+    <div class="collbl">${COLS.map(c=>`<span>${c}</span>`).join('')}</div>
+  </div>`;
+  const cells = el.querySelector('.cells');
+  for (let i=0;i<36;i++){
+    const b = document.createElement(tappable?'button':'div');
+    b.className = 'cell'+(tappable?' tappable':''); b.dataset.i = i;
+    if (tappable) b.setAttribute('aria-label','cell '+cellName(i));
+    if (grid[i]) b.innerHTML = blockHTML(grid[i], blueprint);
+    cells.appendChild(b);
+  }
+  return cells;
+}
+function setCell(cellsEl, i, color, animate=true){
+  const cell = cellsEl.children[i];
+  if (!color){ cell.innerHTML=''; return; }
+  cell.innerHTML = blockHTML(color, false);
+  if (animate) cell.firstChild.classList.add('new');
+}
+
+/* ============================== CONTRACT LIST ============================== */
+function renderContracts(){
+  const g = $('cgrid'); g.innerHTML='';
+  CONTRACTS.forEach((c,i)=>{
+    const info = contractInfo(i);
+    const best = saved['c'+i+'_'+S.mode];
+    const card = document.createElement('button');
+    card.className='ccard';
+    card.innerHTML = `
+      <span class="num">CONTRACT ${String(i+1).padStart(2,'0')}</span>
+      <h3>${c.name}</h3>
+      <div class="meta">
+        <span class="tierchip">${info.blocks} blocks</span>
+        ${S.mode==='bot' ? `<span class="tierchip budget">🐦 ${info.botBudget} words</span>`
+          : info.budget ? `<span class="tierchip budget">🐦 ${info.budget} words</span>`
+          : `<span class="tierchip">open notes</span>`}
+      </div>
+      <div class="minibp">${Array.from({length:36},(_,k)=>{
+        const t = artToTarget(c.art);
+        return `<i class="${t[k]?'f':''}"></i>`;
+      }).join('')}</div>
+      ${best!=null ? `<span class="beststar ${best===100?'perfect':''}">${best===100?'★ 100%':'best '+best+'%'}</span>`:''}
+    `;
+    card.onclick = ()=>{ sfx.tick(); startContract(i); };
+    g.appendChild(card);
+  });
+}
+
+/* ============================== FLOW ============================== */
+$('modeDuo').onclick = ()=>{ S.mode='duo'; sfx.pick(); renderContracts(); show('contracts'); };
+$('modeBot').onclick = ()=>{ S.mode='bot'; sfx.pick(); renderContracts(); show('contracts'); };
+$('backTitle').onclick = ()=>{ sfx.tick(); show('title'); };
+['archQuit','buildQuit','botQuit'].forEach(id=> $(id).onclick = ()=>{ sfx.tick(); renderContracts(); show('contracts'); });
+
+function startContract(i){
+  S.ci = i; S.contract = CONTRACTS[i]; S.info = contractInfo(i);
+  S.target = artToTarget(S.contract.art);
+  S.build = Array(36).fill(null);
+  S.placedBy = Array(36).fill(-1);
+  S.messages = []; S.spent = 0; S.draft = []; S.revealed = false;
+  if (S.mode === 'bot') startBot();
+  else passTo('A', true);
+}
+
+/* ---------- pass screen (hotseat) ---------- */
+function passTo(role, first=false){
+  const isA = role==='A';
+  $('passRole').innerHTML = `Hand this to the <b>${isA?'Architect':'Builder'}</b>`;
+  $('passNote').textContent = first
+    ? `“${S.contract.name}” for ${CLIENTS[S.contract.client].name}. Architect: you'll see the blueprint — describe it. Builder: no peeking until it's your turn!`
+    : isA ? 'The pigeon has returned to the tower. No peeking at the site!'
+          : 'A note has arrived at the site. No peeking at the blueprint!';
+  $('passPigeon').innerHTML = `<div class="pigeon" style="width:84px;height:84px">${pigeonSVG()}</div>`;
+  $('passGo').onclick = ()=>{ sfx.send(); isA ? showArch() : showBuild(); };
+  show('pass');
+}
+
+/* ---------- stamina ---------- */
+function paintStamina(el){
+  const total = S.mode==='bot' ? S.info.botBudget : S.info.budget;
+  if (total == null){ el.hidden = true; return; }
+  el.hidden = false;
+  const left = budgetLeft();
+  el.querySelector('i').style.width = (100*left/total)+'%';
+  el.querySelector('b').textContent = left;
+}
+
+/* ---------- message log ---------- */
+function paintLog(el){
+  el.innerHTML = S.messages.map((m,i)=>{
+    if (m.from==='P') return `<div class="msg P">${esc(m.text)}</div>`;
+    const who = m.from==='A' ? 'Architect' : 'Builder';
+    const amb = m.amb>1 ? `<span class="amb">~${m.amb} ways to read</span>` : '';
+    return `<div class="msg ${m.from}"><span class="who">${who} · note ${i+1}</span>${esc(m.text)}${S.revealed?amb:''}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ============================== ARCHITECT (hotseat) ============================== */
+function showArch(){
+  $('archName').textContent = S.contract.name;
+  $('archBoard').dataset.num = String(S.ci+1).padStart(2,'0');
+  renderBoard($('archBoard'), S.target, {blueprint:true});
+  paintLog($('archLog'));
+  paintStamina($('archStam'));
+  $('archText').value=''; archCount();
+  const p = $('archPigeon'); p.innerHTML = pigeonSVG(); p.className='pigeon';
+  const left = budgetLeft();
+  $('archBub').textContent = left===0 ? 'The pigeon is DONE. No more notes — trust your Builder.' :
+    S.messages.length===0 ? 'Coo. I fly when you\'re ready.' : 'Back for another note. Coo.';
+  show('arch');
+}
+function archCount(){
+  const w = wordsOf($('archText').value), left = budgetLeft();
+  const cEl = $('archCount');
+  if (left==null){ cEl.innerHTML = `<b>${w}</b> word${w===1?'':'s'}`; cEl.classList.remove('over'); }
+  else {
+    cEl.innerHTML = `<b>${w}</b> / ${left} words left`;
+    cEl.classList.toggle('over', w>left);
+    const p = $('archPigeon');
+    p.classList.toggle('tired', w > Math.min(left,14));
+  }
+  $('archSend').disabled = w===0 || (left!=null && (w>left || left===0));
+}
+$('archText').addEventListener('input', archCount);
+$('archSend').onclick = ()=>{
+  const t = $('archText').value.trim(); if(!t) return;
+  const w = wordsOf(t);
+  S.messages.push({from:'A', text:t, words:w, amb:0});
+  S.spent += (S.info.budget!=null ? w : 0);
+  sfx.send(); setTimeout(()=>sfx.coo(t.length), 250);
+  const p = $('archPigeon'); p.classList.add('fly');
+  setTimeout(()=> passTo('B'), 650);
+};
+
+/* ============================== BUILDER (hotseat) ============================== */
+let selColor = 'R';
+function paintPalette(el){
+  el.innerHTML='';
+  Object.keys(COLORS).forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'swatch c'+k+(selColor===k?' sel':'');
+    b.innerHTML = GLYPH[k];
+    b.setAttribute('aria-label', CNAMES[k]+' block');
+    b.onclick = ()=>{ selColor=k; sfx.pick(); paintPalette(el); };
+    el.appendChild(b);
+  });
+  const e = document.createElement('button');
+  e.className = 'swatch eraser'+(selColor==='X'?' sel':''); e.textContent='✕';
+  e.setAttribute('aria-label','eraser');
+  e.onclick = ()=>{ selColor='X'; sfx.pick(); paintPalette(el); };
+  el.appendChild(e);
+}
+let buildCells = null;
+function showBuild(){
+  $('buildName').textContent = S.contract.name;
+  buildCells = renderBoard($('buildBoard'), S.build, {tappable:true});
+  buildCells.addEventListener('click', onBuildTap);
+  paintPalette($('buildPal'));
+  paintLog($('buildLog'));
+  paintStamina($('buildStam'));
+  $('buildText').value=''; buildCount();
+  show('build');
+}
+function onBuildTap(e){
+  const cell = e.target.closest('.cell'); if(!cell) return;
+  const i = +cell.dataset.i;
+  if (selColor==='X'){
+    if (S.build[i]){ S.build[i]=null; S.placedBy[i]=-1; setCell(buildCells,i,null); sfx.erase(); }
+    return;
+  }
+  S.build[i] = selColor;
+  S.placedBy[i] = S.messages.length-1;
+  setCell(buildCells, i, selColor);
+  sfx.plop(i);
+}
+function buildCount(){
+  const w = wordsOf($('buildText').value), left = budgetLeft();
+  const cEl = $('buildCount');
+  if (left==null) cEl.innerHTML = w? `<b>${w}</b> word${w===1?'':'s'}` : '';
+  else { cEl.innerHTML = `<b>${w}</b> / ${left} left`; cEl.classList.toggle('over', w>left); }
+  $('buildSend').disabled = w===0 || (left!=null && (w>left || left===0));
+}
+$('buildText').addEventListener('input', buildCount);
+$('buildSend').onclick = ()=>{
+  const t = $('buildText').value.trim(); if(!t) return;
+  const w = wordsOf(t);
+  S.messages.push({from:'B', text:t, words:w, amb:0});
+  S.spent += (S.info.budget!=null ? w : 0);
+  sfx.send(); setTimeout(()=>sfx.coo(t.length), 250);
+  setTimeout(()=> passTo('A'), 500);
+};
+$('buildDone').onclick = ()=>{ sfx.ratchet(); doReveal(); };
+
+/* ============================== BOT BUILDER ============================== */
+const CHIPS = [
+ {lb:'actions', items:['put','remove']},
+ {lb:'blocks', items:['red','yellow','blue','green'], cls:c=>'color c'+c[0].toUpperCase()},
+ {lb:'places (cheap!)', items:['A','B','C','D','E','F','1','2','3','4','5','6'], cls:()=>'coord'},
+ {lb:'words', items:['row','column','above','below','left-of','right-of','touching','top','bottom','left-side','right-side','corner','middle']},
+];
+let botSiteCells = null;
+function startBot(){
+  $('botName').textContent = S.contract.name;
+  $('botBP').dataset.num = String(S.ci+1).padStart(2,'0');
+  renderBoard($('botBP'), S.target, {blueprint:true});
+  botSiteCells = renderBoard($('botSite'), S.build, {});
+  $('botPigeon').innerHTML = pigeonSVG(); $('botPigeon').className='pigeon';
+  $('botBub').textContent = `“${S.contract.name}” for ${CLIENTS[S.contract.client].name}. The bot does EXACTLY what your note says. Chips cost 1 word each.`;
+  const box = $('botChips'); box.innerHTML='';
+  CHIPS.forEach(row=>{
+    const div = document.createElement('div'); div.className='chiprow';
+    div.innerHTML = `<span class="lb">${row.lb}</span>`;
+    row.items.forEach(it=>{
+      const b = document.createElement('button');
+      b.className = 'chip ' + (row.cls ? row.cls(it) : '');
+      b.textContent = it;
+      b.onclick = ()=>{ if(budgetLeft()===0) return; S.draft.push(it); sfx.tick(); paintDraft(); };
+      div.appendChild(b);
+    });
+    box.appendChild(div);
+  });
+  paintDraft(); paintStamina($('botStam'));
+  show('bot');
+}
+function paintDraft(){
+  const d = $('botDraft');
+  d.innerHTML = S.draft.length
+    ? S.draft.map(c=>`<span class="dchip">${esc(c)}</span>`).join('')
+    : '<span class="hint">tap chips below…</span>';
+  const left = budgetLeft();
+  $('botCost').innerHTML = `<b>${S.draft.length}</b> / ${left} words left`;
+  $('botCost').classList.toggle('over', S.draft.length>left);
+  $('botSend').disabled = S.draft.length===0 || S.draft.length>left;
+  $('botPigeon').classList.toggle('tired', left < 6);
+}
+$('botBack').onclick = ()=>{ S.draft.pop(); sfx.erase(); paintDraft(); };
+$('botClear').onclick = ()=>{ S.draft=[]; sfx.erase(); paintDraft(); };
+$('botDone').onclick = ()=>{ sfx.ratchet(); doReveal(); };
+
+/* ---- the literal-minded interpreter ---- */
+function botParse(tokens){
+  const has = w => tokens.includes(w);
+  const action = has('remove') ? 'remove' : 'put';
+  const colorWords = {red:'R',yellow:'Y',blue:'B',green:'G'};
+  const colors = tokens.filter(t=>colorWords[t]).map(t=>colorWords[t]);
+  const relIdx = tokens.findIndex(t=>['above','below','left-of','right-of','touching'].includes(t));
+  const rel = relIdx>=0 ? tokens[relIdx] : null;
+  const pre = relIdx>=0 ? tokens.slice(0,relIdx) : tokens;
+  const post = relIdx>=0 ? tokens.slice(relIdx+1) : [];
+  const findCoord = arr => {
+    const L = arr.find(t=>COLS.includes(t)), N = arr.find(t=>'123456'.includes(t)&&t.length===1);
+    // 'row 3' / 'column B' handled separately
+    if (arr.includes('row')||arr.includes('column')) return null;
+    if (L!=null && N!=null) return COLS.indexOf(L) + (6-+N)*6;
+    return null;
+  };
+  const color = colors[0] || null;
+  // reference for relation: coordinate or color after the relation word
+  let refCells = null;
+  if (rel){
+    const rc = findCoord(post);
+    if (rc!=null) refCells = [rc];
+    else {
+      const refColor = post.map(t=>colorWords[t]).find(Boolean) || colors[1] || null;
+      if (refColor) refCells = S.build.map((v,i)=>v===refColor?i:-1).filter(i=>i>=0);
+    }
+  }
+  // build candidate set
+  let cand = [], how = 'nowhere';
+  const emptyOrFilled = i => action==='put' ? !S.build[i] : !!S.build[i];
+  if (rel && refCells && refCells.length){
+    const d = {above:-6, below:6, 'left-of':-1, 'right-of':1};
+    refCells.forEach(rc=>{
+      if (rel==='touching'){
+        [[-6,''],[6,''],[-1,'c'],[1,'c']].forEach(([off,edge])=>{
+          const n = rc+off;
+          if (n<0||n>35) return;
+          if (edge==='c' && Math.floor(n/6)!==Math.floor(rc/6)) return;
+          if (emptyOrFilled(n)) cand.push(n);
+        });
+      } else {
+        const n = rc + d[rel];
+        if (n>=0 && n<=35 && !(Math.abs(d[rel])===1 && Math.floor(n/6)!==Math.floor(rc/6)) && emptyOrFilled(n)) cand.push(n);
+      }
+    });
+    how = 'relation';
+  } else {
+    const exact = findCoord(pre.concat(post));
+    if (exact!=null){ if (emptyOrFilled(exact)) cand=[exact]; how='coord'; }
+    else if (has('row')){
+      const n = tokens.find(t=>'123456'.includes(t)&&t.length===1);
+      if (n){ const r = 6-+n; for(let c=0;c<6;c++) if(emptyOrFilled(r*6+c)) cand.push(r*6+c); how='row'; }
+    } else if (has('column')){
+      const L = tokens.find(t=>COLS.includes(t));
+      if (L){ const c = COLS.indexOf(L); for(let r=0;r<6;r++) if(emptyOrFilled(r*6+c)) cand.push(r*6+c); how='col'; }
+    } else if (has('corner')){ [0,5,30,35].forEach(i=>{ if(emptyOrFilled(i)) cand.push(i); }); how='corner'; }
+    else if (has('middle')){ [14,15,20,21].forEach(i=>{ if(emptyOrFilled(i)) cand.push(i); }); how='middle'; }
+    else if (has('top')){ for(let i=0;i<12;i++) if(emptyOrFilled(i)) cand.push(i); how='region'; }
+    else if (has('bottom')){ for(let i=24;i<36;i++) if(emptyOrFilled(i)) cand.push(i); how='region'; }
+    else if (has('left-side')){ for(let r=0;r<6;r++) for(let c=0;c<2;c++) if(emptyOrFilled(r*6+c)) cand.push(r*6+c); how='region'; }
+    else if (has('right-side')){ for(let r=0;r<6;r++) for(let c=4;c<6;c++) if(emptyOrFilled(r*6+c)) cand.push(r*6+c); how='region'; }
+  }
+  // remove with a color and no position = all blocks of that color
+  if (action==='remove' && how==='nowhere' && color){
+    cand = S.build.map((v,i)=>v===color?i:-1).filter(i=>i>=0); how='bycolor';
+  }
+  cand = [...new Set(cand)];
+  return {action, color, cand, how};
+}
+$('botSend').onclick = ()=>{
+  const tokens = S.draft.slice(); if(!tokens.length) return;
+  const text = tokens.join(' ');
+  S.spent += tokens.length; S.draft = [];
+  sfx.send(); setTimeout(()=>sfx.coo(text.length), 250);
+
+  const P = botParse(tokens);
+  const amb = P.cand.length;
+  S.messages.push({from:'A', text, words:tokens.length, amb});
+  const bub = $('botBub');
+  const msgIdx = S.messages.length-1;
+
+  setTimeout(()=>{
+    if (P.action==='put'){
+      if (!P.cand.length){
+        bub.textContent = 'Coo…? The bot reads the note, turns it over, reads the back. Nothing happens.';
+        sfx.confused();
+      } else {
+        const i = P.cand[Math.floor(Math.random()*P.cand.length)];
+        let color = P.color;
+        let line;
+        if (!color){
+          const keys = Object.keys(COLORS);
+          color = keys[Math.floor(Math.random()*keys.length)];
+          line = `You never said which color. The bot likes ${CNAMES[color]}. ${cellName(i)} it is.`;
+        } else if (amb===1){
+          line = `Crystal clear. ${CNAMES[color]} at ${cellName(i)}. Coo.`;
+        } else {
+          line = `That note fits ${amb} different cells. The bot boldly chose ${cellName(i)}.`;
+        }
+        S.build[i]=color; S.placedBy[i]=msgIdx;
+        setCell(botSiteCells, i, color);
+        sfx.plop(i);
+        bub.textContent = line;
+        if (amb>1) sfx.confused();
+      }
+    } else { // remove
+      if (!P.cand.length){ bub.textContent='Remove… what? The bot pats the empty cells reassuringly.'; sfx.confused(); }
+      else {
+        const i = P.cand[Math.floor(Math.random()*P.cand.length)];
+        bub.textContent = amb===1 ? `Gone. ${cellName(i)} is clear.` : `That could mean ${amb} blocks. The bot yanked ${cellName(i)}.`;
+        const blk = botSiteCells.children[i].querySelector('.blk');
+        if (blk){ blk.classList.add('poof'); setTimeout(()=>{ setCell(botSiteCells,i,null); },280); }
+        S.build[i]=null; S.placedBy[i]=-1;
+        sfx.erase();
+      }
+    }
+    paintStamina($('botStam')); paintDraft();
+    if (budgetLeft()===0) bub.textContent += ' …And that was the pigeon\'s last flight. Reveal when ready.';
+  }, 600);
+};
+
+/* ============================== REVEAL ============================== */
+function scoreBuild(){
+  let match=0, union=0;
+  for (let i=0;i<36;i++){
+    const t=S.target[i], b=S.build[i];
+    if (t||b){ union++; if (t===b) match++; }
+  }
+  return union===0 ? 100 : Math.round(100*match/union);
+}
+function doReveal(){
+  S.revealed = true;
+  S.score = scoreBuild();
+  const key = 'c'+S.ci+'_'+S.mode;
+  const isBest = saved[key]==null || S.score>saved[key];
+  if (isBest){ saved[key]=S.score; persist(); }
+
+  $('revealTitle').textContent = `Contract ${String(S.ci+1).padStart(2,'0')} — ${S.contract.name}`;
+  $('revBP').dataset.num = String(S.ci+1).padStart(2,'0');
+  const bpCells = renderBoard($('revBP'), S.target, {blueprint:true});
+  const siteCells = renderBoard($('revSite'), S.build, {});
+  const wall = document.createElement('div');
+  wall.className='wall'; wall.id='revWall'; wall.textContent='— THE WALL —';
+  $('revBP').appendChild(wall);
+  $('revPct').textContent='0%'; $('revPct').className='pct';
+  $('revVerdict').textContent=''; $('reviewNote').textContent='';
+  $('clientLine').classList.remove('in'); $('plaqueSlot').innerHTML='';
+  $('revNext').style.display = S.ci < CONTRACTS.length-1 ? '' : 'none';
+  show('reveal');
+
+  // 1) wall slides
+  setTimeout(()=>{ wall.classList.add('slide'); sfx.ratchet(); }, 500);
+  // 2) sweep columns
+  let step=0, done=0, mismatches=[];
+  setTimeout(()=>{
+    for (let c=0;c<6;c++){
+      setTimeout(()=>{
+        for (let r=0;r<6;r++){
+          const i=r*6+c, t=S.target[i], b=S.build[i];
+          if (!t && !b) continue;
+          if (t===b){ siteCells.children[i].classList.add('matched'); bpCells.children[i].classList.add('matched'); sfx.match(step++); }
+          else {
+            mismatches.push(i);
+            if (b){ siteCells.children[i].classList.add('wrong'); const blk=siteCells.children[i].querySelector('.blk'); blk&&blk.classList.add('wob'); }
+            else siteCells.children[i].classList.add('missing');
+            if (t) bpCells.children[i].classList.add('missing');
+            sfx.wrongPoof();
+            $('revSite').classList.remove('shaking'); void $('revSite').offsetWidth; $('revSite').classList.add('shaking');
+          }
+        }
+      }, 1400 + c*260);
+    }
+    // 3) score & client
+    setTimeout(()=> finishReveal(mismatches, siteCells, isBest), 1400 + 6*260 + 300);
+  }, 400);
+}
+function finishReveal(mismatches, siteCells, isBest){
+  const pctEl = $('revPct');
+  const target = S.score;
+  const t0 = performance.now();
+  (function tick(){
+    const p = Math.min(1,(performance.now()-t0)/700);
+    pctEl.textContent = Math.round(target * (1-Math.pow(1-p,3))) + '%';
+    if (p<1) requestAnimationFrame(tick);
+  })();
+  const client = CLIENTS[S.contract.client];
+  const mood = target===100 ? 'delight' : target>=90 ? 'delight' : target>=60 ? 'ok' : 'faint';
+  const say = target===100 ? client.delight : client[mood==='delight'?'delight':mood==='ok'?'ok':'faint'];
+
+  setTimeout(()=>{
+    $('revVerdict').textContent =
+      target===100 ? '★ PERFECT CONTRACT ★' :
+      target>=90 ? 'So close the pigeon squints.' :
+      target>=60 ? 'Recognizable! Mostly. From a distance.' :
+      'The site and the blueprint have never met.';
+    if (target===100){ pctEl.classList.add('perfect'); sfx.fanfare(); confetti(); salutePigeons();
+      $('plaqueSlot').innerHTML = `<div class="plaque"><small>Contract of the day</small>${S.contract.name} — flawless build${isBest?' · new best':''}</div>`;
+    } else if (target>=60){ sfx.coo(20); }
+    else sfx.sad();
+    $('clientFace').innerHTML = clientSVG(client.hue);
+    setClientMood($('clientFace'), mood);
+    $('clientName').textContent = client.name;
+    $('clientSay').textContent = say;
+    $('clientLine').classList.add('in');
+
+    // mismatch review — blameless
+    if (mismatches.length){
+      $('reviewNote').innerHTML = 'Tap a glowing cell to see which note put it there.';
+      mismatches.forEach(i=>{
+        const cell = siteCells.children[i];
+        cell.classList.add('reviewable');
+        cell.style.cursor='pointer';
+        cell.onclick = ()=>{
+          sfx.tick();
+          const m = S.placedBy[i]>=0 ? S.messages[S.placedBy[i]] : null;
+          const want = S.target[i] ? `${CNAMES[S.target[i]]} block` : 'empty';
+          const got = S.build[i] ? `${CNAMES[S.build[i]]} block` : 'nothing';
+          $('reviewNote').innerHTML = m
+            ? `<b>${cellName(i)}</b> — blueprint wanted <b>${want}</b>, got <b>${got}</b>. Placed after note ${S.placedBy[i]+1}: <b>“${esc(m.text)}”</b>${m.amb>1?` <i>(that note fit ${m.amb} cells)</i>`:''}`
+            : `<b>${cellName(i)}</b> — blueprint wanted <b>${want}</b>, but nothing was ever placed here.`;
+        };
+      });
+    } else $('reviewNote').textContent = 'Nothing to review. The pigeon is speechless.';
+  }, 750);
+}
+function confetti(){
+  const hues = [COLORS.R, COLORS.Y, COLORS.B, COLORS.G, '#ffb03b'];
+  for (let i=0;i<44;i++){
+    const d = document.createElement('div');
+    d.className='cparticle';
+    d.style.left = Math.random()*100+'vw';
+    d.style.background = hues[i%hues.length];
+    d.style.animation = `cfall ${1.6+Math.random()*1.6}s linear ${Math.random()*.7}s forwards`;
+    document.body.appendChild(d);
+    setTimeout(()=>d.remove(), 4200);
+  }
+}
+function salutePigeons(){
+  document.querySelectorAll('.pigeon').forEach(p=>p.classList.add('salute'));
+  setTimeout(()=>document.querySelectorAll('.pigeon').forEach(p=>p.classList.remove('salute')), 2200);
+}
+
+$('revContracts').onclick = ()=>{ sfx.tick(); maybeReflect(()=>{ renderContracts(); show('contracts'); }); };
+$('revRetry').onclick = ()=>{ sfx.pick(); startContract(S.ci); };
+$('revNext').onclick = ()=>{ sfx.pick(); maybeReflect(()=> startContract(Math.min(S.ci+1, CONTRACTS.length-1))); };
+
+/* ============================== REFLECT ============================== */
+let reflectCounter = 0, afterReflect = null;
+function maybeReflect(next){
+  reflectCounter++;
+  if (reflectCounter % 2 !== 0){ next(); return; } // every other contract, keep it light
+  afterReflect = next;
+  const isArch = S.mode==='bot';
+  $('reflectQ').textContent = isArch ? 'How did you write your notes?' : 'How did your team crack it?';
+  const opts = isArch ? STRATS_A : (Math.random()<0.5 ? STRATS_A : STRATS_B);
+  const g = $('stratGrid'); g.innerHTML='';
+  opts.forEach(o=>{
+    const b = document.createElement('button');
+    b.className='strat'; b.textContent=o;
+    b.onclick = ()=>{ sfx.pick(); done(); };
+    g.appendChild(b);
+  });
+  const skip = document.createElement('button');
+  skip.className='strat'; skip.style.opacity='.65'; skip.textContent='(skip)';
+  skip.onclick = ()=>{ sfx.tick(); done(); };
+  g.appendChild(skip);
+  $('bridgeLine').textContent = BRIDGES[reflectCounter/2 % BRIDGES.length | 0];
+  show('reflect');
+  function done(){ const f=afterReflect; afterReflect=null; f&&f(); }
+}
+
+/* ============================== KEYBOARD ============================== */
+document.addEventListener('keydown', e=>{
+  if (e.key==='Enter' && $('reveal').classList.contains('on')){ $('revNext').style.display!=='none' ? $('revNext').click() : $('revRetry').click(); }
+  if (e.key==='Enter' && $('pass').classList.contains('on')) $('passGo').click();
+  if (e.key==='Enter' && e.ctrlKey && $('arch').classList.contains('on')) $('archSend').click();
+});
+// unlock audio on first gesture
+document.addEventListener('pointerdown', function un(){ ac(); document.removeEventListener('pointerdown', un); }, {once:true});
+</script>

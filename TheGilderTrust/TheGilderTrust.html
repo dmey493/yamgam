@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Gilder Trust</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  THE GILDER TRUST — full campaign skeleton (18 shifts, 4 acts)
+  Papers-Please-style teller sim. You verify, compute, and stamp.
+
+  DESIGN NOTE
+  Standards (invisible): 7.NS.1 signed add/subtract (balances, overdrafts,
+    debt), 7.RP.3 percent (interest slips), number sense / decimals (coin
+    counting), 8.EE exponential growth (the Circle's doubling promise and
+    its collapse — the recruitment numbers in the night scenes).
+  Super-idea: the math IS the job — every stamp is arithmetic + verification.
+  Misconception ambushes: negative balances behave lawfully; withdrawal from
+    a negative goes MORE negative; "the passbook says so" is not proof;
+    −50% then +50% is not even; doubling forever is impossible in a finite town.
+  Cognitive layer (Feuerstein): systematic exploration, relevant-detail
+    discrimination, impulse control (hold-to-confirm DECLINE), precise
+    output (typed balances). Errors classified input/elaboration/output.
+  ENDINGS: 10 unique epilogues resolved ONLY after shift 18 from the moral
+    ledger (conscience/greed/warnings/evidence/obeyed/defied + stamp stats).
+    NO EMOJI anywhere in this game (user rule 2026-07-13).
+  Visual identity: Papers-Please-leaning — pixel mugshots (SVG rect grids,
+    crispEdges), drab desaturated booth, aged paper, stamp red, scanline
+    grain. Oswald condensed for stamps/headers, VT323 for documents/dialogue
+    with teletype reveal.
+  Audio identity: mechanical family, E minor. Brutish early-1800s march:
+    low saw drone on E, bass thump on the beat, sparse minor brass motif.
+    Approve thunk round, decline flat. Discrepancy = one cold F#5 chime.
+  Debug: window.GT = { Engine, truth(), state(), moral(), ending(), skipTo(n) }
+  ═══════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#17140f; --ink2:#37311f; --paper:#c8bfa3; --paper2:#b9ae8e; --paper3:#a4976f;
+  --red:#a81f26; --red2:#7d161c; --booth:#26241f; --shadow:rgba(10,9,7,.45);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+html,body{margin:0;height:100%;overflow:hidden;background:#12110e;font-family:'VT323',monospace;color:var(--ink);}
+#stage{position:relative;width:100vw;height:100vh;max-width:1100px;margin:0 auto;overflow:hidden;background:#1f1e1a;}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:200;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 1px,transparent 1px 3px);opacity:.5;}
+h1,h2,h3,.osw{font-family:'Oswald',sans-serif;letter-spacing:.04em;}
+button{font-family:'Oswald',sans-serif;cursor:pointer;}
+
+/* ---------- customer window ---------- */
+#hall{position:absolute;inset:0 0 62% 0;background:
+  radial-gradient(ellipse at 50% 130%, #4c4a41 0%, #35342c 55%, #262520 100%);}
+#hall::after{content:"";position:absolute;inset:0;background:
+  repeating-linear-gradient(90deg,transparent 0 118px, rgba(0,0,0,.16) 118px 126px);}
+#windowbars{position:absolute;left:50%;top:0;transform:translateX(-50%);width:min(560px,86%);height:100%;
+  border-left:16px solid #191713;border-right:16px solid #191713;
+  background:linear-gradient(180deg,rgba(220,205,160,.05),rgba(220,205,160,0));}
+#custslot{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:300px;height:96%;display:flex;align-items:flex-end;justify-content:center;}
+#custsvg{width:250px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));}
+#custsvg svg{image-rendering:pixelated;}
+#speech{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:min(540px,92%);
+  background:var(--paper);border:2px solid var(--ink);padding:7px 12px;font-size:19px;line-height:1.3;
+  box-shadow:3px 4px 0 var(--shadow);z-index:5;min-height:46px;}
+#speech .who{font-family:'Oswald';font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.1em;color:var(--red);}
+#speech.memo{background:#d4c8a4;border-color:var(--red);}
+#counter{position:absolute;left:0;right:0;top:36.5%;height:3.5%;background:linear-gradient(180deg,#453c2d,#211c14);
+  border-top:3px solid #57503e;border-bottom:4px solid #0f0d0a;z-index:4;}
+
+/* ---------- desk ---------- */
+#desk{position:absolute;left:0;right:0;top:40%;bottom:0;
+  background:
+   radial-gradient(ellipse 60% 46% at 24% 12%, rgba(224,186,120,.13), transparent 70%),
+   repeating-linear-gradient(94deg, #3d3323 0 3px, #423723 3px 6px),
+   linear-gradient(180deg,#42361f,#332a17);}
+#tray{position:absolute;inset:0 0 84px 0;overflow:hidden;}
+
+/* documents */
+.doc{position:absolute;background:var(--paper);border:1.5px solid var(--ink2);
+  box-shadow:2px 3px 8px var(--shadow);padding:8px 12px;font-size:18px;line-height:1.25;
+  touch-action:none;cursor:grab;transition:box-shadow .15s;}
+.doc.drag{cursor:grabbing;box-shadow:6px 10px 18px var(--shadow);}
+.doc h4{margin:0 0 4px;font-family:'Oswald';font-size:12.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.12em;border-bottom:1.5px solid var(--ink);padding-bottom:2px;}
+.doc .row{display:flex;justify-content:space-between;gap:10px;}
+.doc .neg{color:var(--red);font-weight:bold;}
+.stampmark{position:absolute;right:6px;bottom:6px;font-family:'Oswald';font-weight:700;font-size:22px;
+  color:var(--red);border:3px solid var(--red);padding:0 8px;transform:rotate(-12deg);opacity:.85;
+  pointer-events:none;letter-spacing:.06em;}
+.stampmark.ok{color:#2e4632;border-color:#2e4632;}
+.photo{width:62px;height:74px;border:1.5px solid var(--ink);background:#9a927c;float:right;margin:0 0 4px 8px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.photo svg{image-rendering:pixelated;}
+.balbar{height:10px;background:var(--paper3);border:1px solid var(--ink2);position:relative;margin-top:4px;}
+.balbar .zero{position:absolute;left:50%;top:-3px;bottom:-3px;width:1.5px;background:var(--ink);}
+.balbar .fill{position:absolute;top:1px;bottom:1px;background:var(--ink2);transition:left .6s cubic-bezier(.34,1.4,.64,1), width .6s cubic-bezier(.34,1.4,.64,1);}
+.balbar .fill.neg{background:var(--red);}
+#tray .coinrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.coin{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Oswald';font-weight:700;font-size:15px;cursor:pointer;position:relative;
+  background:radial-gradient(circle at 34% 30%, #b5a678, #8f7f55 60%, #6f6140);
+  border:2px solid #55482a;box-shadow:0 2px 3px rgba(0,0,0,.4);transition:transform .12s;color:#3a301b;}
+.coin:active{transform:scale(1.12);}
+.coin.note{width:66px;height:36px;border-radius:3px;background:linear-gradient(120deg,#a89a72,#968758);}
+.coin.fakeObvious{background:radial-gradient(circle at 34% 30%, #b56a70, #96434c 60%, #732c34);border-color:#5c2128;}
+.balinput{width:84px;font-family:'VT323';font-size:22px;background:#d9d0b2;border:1.5px solid var(--ink);
+  padding:0 4px;text-align:right;color:var(--ink);}
+.balinput:focus{outline:2px solid var(--red);}
+.memoband{margin-top:6px;border:1.5px solid var(--red);color:var(--red);font-size:15px;padding:2px 6px;
+  font-family:'Oswald';letter-spacing:.06em;text-transform:uppercase;}
+
+/* ---------- toolbar ---------- */
+#tools{position:absolute;left:0;right:0;bottom:0;height:84px;background:linear-gradient(180deg,#211f19,#14120d);
+  border-top:3px solid #57503e;display:flex;align-items:center;gap:10px;padding:0 12px;z-index:30;}
+.stamp{width:118px;height:60px;border:none;border-radius:8px;color:var(--paper);font-size:17px;font-weight:700;
+  letter-spacing:.08em;box-shadow:0 5px 0 rgba(0,0,0,.55);position:relative;transition:transform .08s, box-shadow .08s;}
+.stamp:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(0,0,0,.55);}
+#stApprove{background:linear-gradient(180deg,#35503b,#26392b);}
+#stDecline{background:linear-gradient(180deg,#a3323a,#7d161c);}
+.stamp:disabled{opacity:.35;filter:grayscale(.6);}
+#stDecline .hold{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--paper);border-radius:0 0 0 8px;}
+.tool{height:52px;padding:0 14px;background:#3d382b;color:var(--paper);border:1.5px solid #57503e;border-radius:6px;
+  font-size:14px;letter-spacing:.06em;}
+.tool.on{background:#57503e;}
+#tillreadout{margin-left:auto;color:var(--paper2);font-family:'Oswald';font-size:14px;text-align:right;line-height:1.3;}
+#tillreadout b{font-size:19px;color:var(--paper);}
+#daylabel{color:#7d745c;font-size:12px;letter-spacing:.14em;text-transform:uppercase;}
+
+/* ---------- panels/overlays ---------- */
+.overlay{position:absolute;inset:0;background:rgba(12,11,9,.85);z-index:60;display:flex;
+  align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;}
+.overlay.show{opacity:1;pointer-events:auto;}
+.sheet{background:var(--paper);border:2.5px solid var(--ink);box-shadow:6px 8px 0 rgba(0,0,0,.5);
+  width:min(560px,92vw);max-height:86vh;overflow-y:auto;padding:20px 24px;position:relative;font-size:19px;}
+.sheet h2{margin:0 0 8px;font-size:23px;text-transform:uppercase;letter-spacing:.1em;border-bottom:3px double var(--ink);padding-bottom:6px;}
+.sheet .btnrow{display:flex;gap:10px;margin-top:16px;justify-content:flex-end;flex-wrap:wrap;}
+.bigbtn{background:var(--ink);color:var(--paper);border:none;padding:10px 22px;font-size:16px;
+  letter-spacing:.08em;text-transform:uppercase;box-shadow:3px 3px 0 var(--shadow);}
+.bigbtn.red{background:var(--red);}
+.bigbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow);}
+#registryPanel{position:absolute;right:0;top:0;bottom:84px;width:min(310px,80vw);background:var(--paper2);
+  border-left:2.5px solid var(--ink);z-index:40;transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.9,.3,1);
+  overflow-y:auto;padding:12px;box-shadow:-6px 0 14px rgba(0,0,0,.4);}
+#registryPanel.show{transform:translateX(0);}
+#registryPanel h3{margin:2px 0 8px;font-size:16px;text-transform:uppercase;letter-spacing:.14em;border-bottom:2px solid var(--ink);}
+.regrow{display:flex;gap:8px;align-items:center;padding:5px 4px;border-bottom:1px dotted var(--ink2);font-size:16px;line-height:1.15;}
+.regrow svg{flex:0 0 40px;image-rendering:pixelated;}
+#inspectOv .sheet{width:min(400px,92vw);text-align:center;}
+#inspectOv svg{width:min(300px,76vw);}
+.flawnote{color:var(--red);font-weight:bold;}
+.ledgerline{display:flex;justify-content:space-between;font-size:19px;padding:2px 6px;border-bottom:1px dotted var(--ink2);}
+.ledgerline .amt{font-weight:bold;}
+.ledgerline .amt.neg{color:var(--red);}
+.paydeduct{color:var(--red);}
+.circleposter{border:3px solid var(--red);color:var(--red);text-align:center;padding:14px 10px;margin:12px 0;
+  font-family:'Oswald';text-transform:uppercase;line-height:1.4;background:#cfc19c;transform:rotate(-1.5deg);
+  box-shadow:4px 5px 0 var(--shadow);}
+.circleposter .big{font-size:26px;font-weight:700;letter-spacing:.1em;}
+.actcard{text-align:center;padding:10px 0 4px;}
+.actcard .no{font-family:'Oswald';font-size:14px;letter-spacing:.4em;color:var(--red);}
+.actcard .nm{font-family:'Oswald';font-size:32px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;}
+
+/* particles / fx */
+.pt{position:absolute;pointer-events:none;z-index:80;font-size:14px;font-family:'Oswald';}
+#flash{position:absolute;inset:0;background:var(--red);opacity:0;pointer-events:none;z-index:70;transition:opacity .25s;}
+@keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,3px)}40%{transform:translate(5px,-4px)}60%{transform:translate(-4px,2px)}80%{transform:translate(3px,-2px)}}
+.shake{animation:shake .22s linear;}
+@keyframes dealin{from{transform:translateY(40px) rotate(var(--rot,0deg)) scale(.9);opacity:0}
+  to{transform:translateY(0) rotate(var(--rot,0deg)) scale(1);opacity:1}}
+.doc{animation:dealin .38s cubic-bezier(.2,1.3,.4,1) backwards;}
+#muteRow{position:absolute;top:8px;right:10px;z-index:90;display:flex;gap:6px;}
+#muteRow button{background:rgba(18,16,12,.7);color:var(--paper2);border:1px solid #57503e;border-radius:4px;
+  height:30px;padding:0 10px;font-size:11px;letter-spacing:.1em;}
+#muteRow button.off{opacity:.45;text-decoration:line-through;}
+#titleOv{background:#14120e;}
+#titleOv .sheet{text-align:center;background:var(--paper);}
+#titleOv h1{font-size:42px;margin:4px 0 0;letter-spacing:.14em;text-transform:uppercase;}
+#titleOv .sub{letter-spacing:.28em;font-size:12px;text-transform:uppercase;color:var(--ink2);font-family:'Oswald';}
+#titleOv .seal{font-size:38px;color:var(--red);font-family:Georgia,serif;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="hall">
+    <div id="windowbars"></div>
+    <div id="custslot"><div id="custsvg"></div></div>
+    <div id="speech"><span class="who"></span><span class="txt"></span></div>
+  </div>
+  <div id="counter"></div>
+  <div id="desk"><div id="tray"></div></div>
+
+  <div id="tools">
+    <button class="stamp" id="stApprove">APPROVE</button>
+    <button class="stamp" id="stDecline">DECLINE<div class="hold"></div></button>
+    <button class="tool" id="btnRegistry">REGISTRY</button>
+    <div id="tillreadout"><div id="daylabel">Shift 1 - 9:00</div><div>TILL <b id="tillAmt">150g</b></div></div>
+  </div>
+
+  <div id="registryPanel"><h3>Town Registry — Marrowgate</h3><div id="regList"></div></div>
+
+  <div class="overlay" id="inspectOv"><div class="sheet"><div id="inspectBody"></div>
+    <div class="btnrow"><button class="bigbtn" id="inspectClose">Put down</button></div></div></div>
+
+  <div class="overlay" id="sheetOv"><div class="sheet" id="sheetBody"></div></div>
+
+  <div class="overlay show" id="titleOv"><div class="sheet">
+    <div class="seal">&#10087;</div>
+    <div class="sub">Marrowgate - est. 1873</div>
+    <h1>The Gilder Trust</h1>
+    <p style="font-size:19px">"You can count. And more importantly,<br>you don't ask questions."<br>— Mr. Aurelius Vault, Branch Director</p>
+    <p style="font-size:17px;color:var(--ink2)">Verify the documents. Do the arithmetic. Stamp.<br>Eighteen shifts. Your till must balance — every gilder.</p>
+    <div class="btnrow" style="justify-content:center"><button class="bigbtn red" id="btnStart">Clock in</button>
+      <button class="bigbtn" id="btnEndings">Epilogues</button></div>
+    <div id="contRow" style="display:none;margin-top:8px;text-align:center"><button class="bigbtn" id="btnContinue">Continue — Shift <span id="contShift"></span></button></div>
+  </div></div>
+
+  <div id="flash"></div>
+  <div id="muteRow"><button id="btnSfx">SOUND</button><button id="btnMus">MUSIC</button></div>
+</div>
+
+<script>
+"use strict";
+/* ═════════════ RNG ═════════════ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+/* ═════════════ ENGINE (pure, no DOM) ═════════════ */
+const Engine=(function(){
+  const REGISTRY=[
+    {id:"marja", name:"Marja Petrossian", dob:"12 Mar 1874", acct:101, bal:220, face:{hair:3,hat:2,glasses:0,stache:0,skin:0,hairC:2}},
+    {id:"bo",    name:"Bo Tallow",        dob:"30 Jul 1888", acct:102, bal:35,  face:{hair:1,hat:1,glasses:0,stache:2,skin:1,hairC:0}},
+    {id:"fenn",  name:"Fenn Oster",       dob:"05 Nov 1881", acct:103, bal:4,   face:{hair:2,hat:0,glasses:0,stache:1,skin:2,hairC:4}},
+    {id:"hedda", name:"Hedda Krum",       dob:"22 Jan 1869", acct:104, bal:150, face:{hair:4,hat:0,glasses:1,stache:0,skin:0,hairC:2}},
+    {id:"tomas", name:"Tomas Vell",       dob:"14 Sep 1893", acct:105, bal:60,  face:{hair:0,hat:0,glasses:0,stache:0,skin:3,hairC:1}},
+    {id:"lena",  name:"Lena Brack",       dob:"02 Apr 1890", acct:106, bal:-30, face:{hair:3,hat:0,glasses:0,stache:0,skin:1,hairC:3}},
+    {id:"otto",  name:"Otto Fenwick",     dob:"18 Jun 1877", acct:107, bal:90,  face:{hair:1,hat:2,glasses:1,stache:2,skin:2,hairC:1}},
+    {id:"greta", name:"Greta Halm",       dob:"09 Dec 1885", acct:108, bal:300, face:{hair:4,hat:1,glasses:0,stache:0,skin:0,hairC:0}},
+    {id:"mirek", name:"Mirek Sorn",       dob:"27 Feb 1861", acct:109, bal:45,  face:{hair:0,hat:1,glasses:1,stache:1,skin:3,hairC:2}},
+    {id:"pip",   name:"Pip Ostry",        dob:"21 Aug 1902", acct:110, bal:-20, face:{hair:2,hat:0,glasses:0,stache:0,skin:1,hairC:4}},
+    {id:"agata", name:"Agata Ostry",      dob:"01 May 1855", acct:111, bal:130, face:{hair:3,hat:1,glasses:1,stache:0,skin:0,hairC:2}},
+    {id:"ivoM",  name:"Ivo Marek",        dob:"11 Oct 1889", acct:112, bal:75,  face:{hair:2,hat:1,glasses:0,stache:1,skin:2,hairC:0}},
+    {id:"mara",  name:"Mara Senn",        dob:"03 Mar 1891", acct:113, bal:55,  face:{hair:4,hat:0,glasses:0,stache:0,skin:1,hairC:3}},
+    {id:"sable", name:"Sable",            dob:"01 Jan 1880", acct:114, bal:0,   face:{hair:3,hat:1,glasses:0,stache:0,skin:3,hairC:3}},
+  ];
+  const person=id=>REGISTRY.find(r=>r.id===id);
+  const C=(...d)=>d.map(v=>({v,fake:null}));
+
+  /* ── say-line pools for generated customers ── */
+  const SAY={
+    deposit:["Payday. In it goes, before the market gets it.","Straight to savings. I'm being sensible this month.","Count it twice — I lost track on the bridge.","In, please. The sock under the mattress is full.","My mother says banks are a fad. Prove her wrong."],
+    withdraw:["Out, please. The roof has opinions again.","I need it for the market on Thursday.","Withdrawal. Don't ask what for. It's cabbages.","Just what the slip says, quick as you like.","Out. Winter eats gilders, teller."],
+    circle:["Sign me up for the Circle! It DOUBLES, you know.","Two friends brought me — apparently that's the rule?","Everyone on my street is in the Circle. Everyone.","The poster says doubling. The poster is very red and confident.","My cousin's deposit doubled. Or he says it did. In it goes!"],
+    payout:["My Circle payout came due — doubled, like the poster promised!","Collecting my doubling! What a clever bank this is.","Payout day! I already spent half of it in my head."],
+    interest:["My interest voucher. You do the number — that's what you're for."]
+  };
+
+  /* ── memos + nights for every shift; Acts 2–3 generated, Act 4 scripted ── */
+  // flaw weight tables per act: [none, cashShort, fakeO, fakeS, ledger, name, dob, face, overdraft]
+  const FLAWS=["none","cashShort","fakeObvious","fakeSubtle","ledger","name","dob","face","overdraft"];
+  const W_ACT2=[46,8,6,6,8,7,7,5,7], W_ACT3=[42,7,3,9,9,8,8,6,8];
+
+  const SHIFTS=[
+   /* ═══ ACT 1 — THE COUNTER (1–4) ═══ */
+   { n:1, act:1, memo:"Welcome aboard. Rules of the counter: 1. Face must match the passbook photo. 2. Name and birthdate must match the Town Registry. 3. Tendered coins must SUM to the slip. 4. The passbook balance must match our account card. If anything is off — DECLINE. If it all checks out — type the NEW BALANCE on the account card, then APPROVE. — G.V.",
+     customers:[
+      {who:"marja", req:{type:"deposit",amt:40}, cash:C(20,10,10),
+       say:"Good morning, dear. Forty gilders for my savings — count it twice, I always do."},
+      {who:"tomas", req:{type:"withdraw",amt:25},
+       say:"Withdraw twenty-five, please. Roof won't fix itself."},
+      {who:"otto",  req:{type:"deposit",amt:30}, cash:C(20,5), flaw:"cashShort",
+       say:"Thirty gilders, all there. Probably. I counted on the walk over."},
+      {who:"hedda", req:{type:"withdraw",amt:50},
+       say:"Fifty out. And no, young teller, you may not ask what for."},
+      {who:"greta", req:{type:"withdraw",amt:40}, flaw:"face",
+       say:"I am Greta Halm, obviously. Forty gilders. Quickly."}
+     ],
+     night:{rent:10,heat:5,school:0,
+      text:"Your room above the cobbler's is cold, but the numbers kept still today. Mr. Vault passed your window at closing and said: <i>«You decline with such confidence. I admire that in an employee.»</i>"}},
+   { n:2, act:1, memo:"Debt is a product, teller. A withdrawal past zero is PERMITTED if — and only if — the customer signs a DEBT SLIP. Charge the 2g arrangement fee: new balance = balance − withdrawal − 2. A balance may be negative. The ledger doesn't mind. — G.V.",
+     customers:[
+      {who:"bo", req:{type:"deposit",amt:45}, cash:C(20,20,5),
+       say:"Forty-five in! Balloon factory paid early. First time anything's gone up around me all year."},
+      {who:"lena", req:{type:"deposit",amt:20}, cash:C(10,10),
+       say:"Twenty toward what I owe. I know the balance is below zero — just… make the number climb, please."},
+      {who:"fenn", req:{type:"deposit",amt:15}, cash:C(10,5), flaw:"fakeObvious",
+       say:"Fifteen gilders of entirely ordinary money. Mind the red one, it's… commemorative."},
+      {who:"mirek", req:{type:"withdraw",amt:60}, debtSlip:true,
+       say:"Sixty out. I know what I have. I signed your debt paper — winter doesn't wait for arithmetic."},
+      {who:"ivoM", req:{type:"withdraw",amt:20}, flaw:"ledger",
+       say:"Twenty, please. My passbook says ninety-five. Passbooks don't lie, do they?"},
+      {who:"greta", req:{type:"withdraw",amt:80},
+       say:"Eighty. The REAL Greta Halm this time, before you squint at me."}
+     ],
+     night:{rent:10,heat:5,school:8,
+      text:"Your sister's school fees came due — you paid them, because that is what the salary is for. In the dark, the bank's brass letters catch the moon. Somewhere inside, a drawer rolls open and shut, open and shut.",
+      choice:{key:"goldieBonus", prompt:"An envelope was tucked under your door tonight. Inside: a 5g note and a card in gold ink — «For discretion rendered and discretion to come. — G.V.» You haven't rendered any discretion. Yet.",
+       options:[
+        {id:"keep", label:"Keep it. 5g is 5g.", sub:"School fees don't pay themselves", greed:1, pocket:5, conscience:-1,
+         result:"You put it in the rent tin. It spends like any other note. The phrase «discretion to come» spends a little differently — it keeps you up an extra hour, compounding."},
+        {id:"return", label:"Slide it back under HIS door", sub:"Owe him nothing", conscience:1, standing:-1,
+         result:"You walk back through the cold and post it under the great oak door. In the morning, Goldie says nothing — but he stops calling you 'my boy' and starts calling you 'the teller.' You count that as interest earned."},
+        {id:"drawer", label:"Lock it in your drawer, envelope and all", sub:"Unspent money is evidence", evidence:"Goldie's 'discretion' envelope, gold ink, 5g",
+         result:"You tag it like a counterfeit: <i>received, unearned, unexplained</i>. It's the first thing in your drawer that scares you a little. You sleep strangely well."}]}}},
+   { n:3, act:1, memo:"Savings accounts earn 2% monthly interest — compute it YOURSELF, teller (2% of the balance, add it on). We round to whole gilders; the accounts eligible today divide neatly. Also: a passbook is only paper. The REGISTRY is the town. Check spelling. — G.V.",
+     customers:[
+      {who:"hedda", req:{type:"interest",rate:2},
+       say:"My interest voucher. Two percent of whatever I've got. You do the number — that's what you're for."},
+      {who:"marja", req:{type:"withdraw",amt:30}, flaw:"name",
+       say:"It is I, Marja Petrossian. Thirty gilders. Why are you looking at the spelling like that?"},
+      {who:"pip", req:{type:"deposit",amt:20}, cash:C(10,5,2,2,1),
+       say:"Twenty gilders. Gran counted it into my hand twice. Does this… does this make me a zero? I'd LOVE to be a zero."},
+      {who:"tomas", req:{type:"withdraw",amt:40}, flaw:"overdraft",
+       say:"Forty out. What do you mean 'that's more than I have'? It's my money. Mostly."},
+      {who:"bo", req:{type:"deposit",amt:25}, cash:C(20,5),
+       say:"Twenty-five in. The cheese cooperative stock fell 50%, then rose 50%, so I figure I'm even… right? …Right?"},
+      {who:"sable", req:{type:"deposit",amt:12}, cash:C(10,2),
+       say:"Twelve. Exactly twelve. …Say — when the Trust pays people, does the money come from the vault, or from that drawer?",
+       preChoice:{key:"sable", prompt:"She's watching your hands, not your face. The drawer marked NEW DEPOSITS is open beside you. What do you tell her?",
+        options:[
+         {id:"honest", label:"“From that drawer. The new deposits one.”", sub:"The truth, quietly", conscience:1, standing:-1, evidence:"Told the courier where payouts come from",
+          result:"She nods once, like a clerk filing something. «Noted,» she says — and you realize that was not small talk, and you were not talking to nobody."},
+         {id:"company", label:"“From the vault, of course.”", sub:"The company answer", conscience:-1, standing:1,
+          result:"«Of course,» she echoes, perfectly flat. She leaves the exact change and no opinion. You feel oddly like you just failed a test nobody announced."},
+         {id:"deflect", label:"“Tellers count. Tellers don't answer.”", sub:"Say nothing at all",
+          result:"«Mm. A counting one.» She almost smiles. You can't tell if you passed or postponed."}]}}
+     ],
+     night:{rent:10,heat:5,school:0,
+      text:"Bo's question follows you home: down 50%, up 50% — you scratch it on a scrap. 100 → 50 → 75. <b>Not even.</b> The percents were of different numbers. You fall asleep deciding whether to tell him.",
+      choice:{key:"boStock", prompt:"Bo lives one street over. His light is still on. He's holding cheese-cooperative shares and the wrong idea about percents.",
+       options:[
+        {id:"tell", label:"Knock. Show him the scrap of paper.", sub:"100 → 50 → 75. He should see it.", conscience:1, warnings:1,
+         result:"Bo stares at the scrap for a long time. «So the second fifty percent was… of the smaller number.» He exhales like a balloon, appropriately. «I'm selling half tomorrow. And teller — if you ever do the sums on that shiny Circle thing, knock again.»"},
+        {id:"sleep", label:"Go to bed. Tellers don't advise.", sub:"There's a rule about this, probably", conscience:-1,
+         result:"Bank employees do not give investment advice — that's a real rule, and you hide behind it all night, and it fits about as well as a paper blanket. Bo's light burns till two."}]}}},
+   { n:4, act:1, memo:"Big day tomorrow, teller. The Trust announces something MODERN. Today: eyes sharp. I have heard reports of exceptional counterfeits circulating. Exceptional-ISH. — G.V.",
+     customers:[
+      {who:"greta", req:{type:"deposit",amt:60}, cash:C(50,10),
+       say:"Sixty in. And an apology for the impostor incident would be accepted, if the bank stocked apologies."},
+      {who:"fenn", req:{type:"deposit",amt:30}, cash:C(10,10,10), flaw:"fakeSubtle",
+       say:"Thirty honest gilders. Inspect away! I have grown as a person and also as an engraver.",
+       postDeclineChoice:{key:"fennCoin", prompt:"Fenn shuffles off. His counterfeit sits on your counter — a genuinely beautiful fake. What do you do with it?",
+        options:[
+         {id:"evidence", label:"Tag it and lock it in your drawer", sub:"Proof, dated and labeled", evidence:"Fenn's right-facing goose, tagged Shift 4",
+          result:"You tag the coin — <i>counterfeit, 10g, goose faces right, shift 4</i> — and lock it away. Whatever happens to this bank, somebody now has proof of something."},
+         {id:"pocket", label:"Pocket it — it's worth 10g somewhere", sub:"Who checks geese?", greed:1, pocket:10, conscience:-1,
+          result:"It slides into your coat like it was made for the pocket. It spends fine at the baker's. You check every coin in your change now, though. Forever."},
+         {id:"return", label:"Hand it back with a wink", sub:"An artist deserves his materials", conscience:-1,
+          result:"Fenn takes it back with a bow. «Patron of the arts!» he declares. You have the sinking feeling you'll be seeing this goose again — in everyone's change."}]}},
+      {who:"otto", req:{type:"withdraw",amt:35}, flaw:"dob",
+       say:"Thirty-five out. Yes it's my passbook. Birthdays move around a little at my age."},
+      {who:"mirek", req:{type:"deposit",amt:10}, cash:C(5,5),
+       say:"Ten against the debt. Climbing out of a hole is still climbing, teller."},
+      {who:"hedda", req:{type:"withdraw",amt:30},
+       say:"Thirty out. The interest was correct last visit. I checked. I always check."},
+      {who:"lena", req:{type:"withdraw",amt:5}, flaw:"overdraft",
+       say:"Just five gilders. Five! My balance is only a LITTLE below zero…"},
+      {who:"marja", req:{type:"deposit",amt:100}, cash:C(50,50),
+       say:"One hundred gilders — for the new Prosperity Circle! Mr. Vault says it DOUBLES in a month. Imagine: two hundred, then four! Such a clever bank.",
+       preChoice:{key:"marjaCircle", prompt:"Her whole savings-jar, in two 50g notes, pushed across your counter. She's beaming. Mr. Vault's office door is open behind you.",
+        options:[
+         {id:"stamp", label:"Say nothing. Process it.", sub:"Not your business. Not your money.", conscience:-1, standing:1,
+          result:"You slide the notes toward the till. She pats your hand. «Such a careful one.» The stamp feels heavier than usual. That's all — just heavier."},
+         {id:"ask", label:"“Ask him where the doubling comes FROM.”", sub:"Plant the question", conscience:1, warnings:1, standing:-1, mutate:"half",
+          result:"She blinks. «Where DOES it—» She looks at the poster, then the notes, then you. «…I'll start with fifty. A toe, not a foot.» Behind you, Goldie's door clicks softly shut."},
+         {id:"warn", label:"“Don't. Keep your gilders, Mrs. P.”", sub:"Warn her outright — in the bank, at your window", conscience:2, warnings:1, standing:-2, mutate:"void",
+          result:"A long pause. She takes the notes back, folds them into her glove, and squeezes your wrist. «You have your mother's arithmetic.» At the door she doesn't look at the poster. Goldie is watching you from his office. Smiling. Writing something down."}]}}
+     ],
+     night:{rent:10,heat:5,school:0, poster:true,
+      text:"On your way out, workers are pasting posters on the marble — red ink, still wet. You count on your fingers walking home, the way you count everything. <b>Where does the doubling money come from?</b>"}},
+
+   /* ═══ ACT 2 — THE CIRCLE GROWS (5–9): generated shifts, scripted memos/nights ═══ */
+   { n:5, act:2, gen:{count:6, weights:W_ACT2, circle:.3},
+     memo:"The PROSPERITY CIRCLE is live. New slip type: CIRCLE LEDGER. Circle money is SEPARATE — the account balance does NOT change. Take the cash, stamp, type the balance UNCHANGED. Verification rules still apply. Enthusiasm is not identification. — G.V.",
+     night:{rent:10,heat:5,school:0, text:"Four Circle members by Friday, Goldie says, beaming. Four. Such a small, friendly number."}},
+   { n:6, act:2, gen:{count:6, weights:W_ACT2, circle:.35},
+     memo:"Circle sign-ups take PRIORITY in the queue. Also, a housekeeping note: Circle payouts are to be drawn from the drawer marked NEW DEPOSITS. The vault stays shut. Routine liquidity hygiene! — G.V.",
+     night:{rent:10,heat:5,school:0,
+      text:"You moved coins from NEW DEPOSITS to PAYOUTS today with your own hands. The vault stayed shut. You are reasonably sure vaults are for opening.",
+      choice:{key:"ledgerCopy", prompt:"The payout ledger page is still on your desk: every payout this week, funded from the deposits drawer. The ink is dry. The copying-paper is right there.",
+       options:[
+        {id:"copy", label:"Copy the page. Keep it at home.", sub:"Numbers, dates, drawer names", conscience:1, evidence:"Copy of payout ledger — payouts funded from NEW DEPOSITS",
+         result:"You copy it line by line, the way you total a passbook. It goes under your floorboard with your winter socks. Paper is cheap. This page doesn't feel cheap."},
+        {id:"leave", label:"File it and go home", sub:"It's the bank's paper, not yours",
+         result:"You file it where it belongs. All night you can see the page in the dark, the way you can see a sum you haven't finished."}]}}},
+   { n:7, act:2, gen:{count:6, weights:W_ACT2, circle:.35, payout:.15},
+     memo:"First Circle PAYOUTS this week — the doubling made flesh! Pay from the deposits drawer per hygiene note. Smile. Payouts at the window SELL sign-ups in the queue. — G.V.",
+     night:{rent:10,heat:5,school:8, text:"Eight members now. The queue watched Widow Ostry collect double and burst into applause. Your sister's fees went out again; the Circle would double them, says a voice in your head that sounds like gold ink."}},
+   { n:8, act:2, gen:{count:7, weights:W_ACT2, circle:.4, payout:.15},
+     memo:"The Marrowgate Exchange note, for your general knowledge: the Trust has SOLD its holdings in the mine and the cheese cooperative. We are concentrating on our CORE PRODUCT. The core product is enthusiasm. — G.V.",
+     night:{rent:10,heat:5,school:0, text:"Sixteen members. The bank sold everything real it owned this week — the mine shares, the cheese shares. What's left in the building is marble, posters, and other people's gilders."}},
+   { n:9, act:2, gen:{count:7, weights:W_ACT2, circle:.4, payout:.2},
+     memo:"Marvelous week. Sign-ups DOUBLE weekly, which I am told is 'exponential', which I am told is GOOD. Keep the window brisk. — G.V.",
+     night:{rent:10,heat:5,school:0,
+      text:"You find the recruitment chart pinned in the back office: members per week — <b>4, 8, 16, 32</b>. Next to it, a faded census card: <i>Marrowgate, pop. 2,140.</i><br><br>You do what you always do. 64, 128, 256, 512, 1024, 2048 — <b>eleven weeks</b>, give or take a wedding, until the Circle needs more people than the town HAS. The doubling isn't a promise. It's a countdown.",
+      choice:{key:"chart", prompt:"The chart is pinned with one tack. The back office is empty.",
+       options:[
+        {id:"copy", label:"Copy the numbers into your notebook", sub:"4, 8, 16, 32… pop. 2,140", conscience:1, evidence:"Recruitment chart vs. census — collapse computable by week",
+         result:"Week by week, your pencil does the doubling until the number passes the whole town. You underline week eleven twice. Whatever else happens, YOU CAN CHECK is now written in your own hand."},
+        {id:"pin", label:"Pin it back. You saw nothing.", sub:"Countdowns are management's problem", conscience:-1,
+         result:"You pin it back exactly as it was, one tack, slightly crooked. Some numbers, once seen, do not un-see. 2,048 is bigger than 2,140 by less than a hundred people. You know that now. You will know it every shift."}]}}},
+
+   /* ═══ ACT 3 — THE SQUEEZE (10–14): generated, memo RULES begin ═══ */
+   { n:10, act:3, gen:{count:7, weights:W_ACT3, circle:.3, payout:.2},
+     memoRule:{kind:"noWithdrawOver", v:50},
+     memo:"NEW STANDING RULE: decline ALL withdrawals over 50g. Regardless of balance. Regardless of arithmetic. 'Routine liquidity hygiene.' Customers may be offered a Circle conversion instead. This rule is not optional, teller. — G.V.",
+     night:{rent:10,heat:5,school:0, text:"Today you declined people whose numbers were PERFECT. The stamp doesn't know the difference. You do."}},
+   { n:11, act:3, gen:{count:7, weights:W_ACT3, circle:.25, payout:.25},
+     memoRule:{kind:"noWithdrawOver", v:50},
+     memo:"Re-verify 'difficult' customers thoroughly. Twice. Three times. Until the queue defeats them. Also: Auditor Wick has been seen in the lobby. He is a small official of no consequence. Be unhelpful. — G.V.",
+     night:{rent:10,heat:5,school:0,
+      text:"Auditor Wick catches you at the tram stop. He doesn't say hello. He says: «Deposit 12g. Hypothetically.»",
+      choice:{key:"wickTram", prompt:"«Hypothetically,» Wick repeats, «if a bank paid old members with new members' money, what would a careful teller have noticed?» The tram is coming. He is not looking at you. He is looking at the bank.",
+       options:[
+        {id:"tell", label:"Tell him what your hands have been doing", sub:"Drawer to drawer, week after week", conscience:2, standing:-1, evidence:"Statement to Wick: payouts drawn from new deposits",
+         result:"You describe the two drawers the way you'd read a ledger aloud: flatly, in order, with the dates. Wick nods at the bank across the square. «Keep counting,» he says, and boards the tram without a ticket, like a man the tram has given up arguing with."},
+        {id:"nothing", label:"«I stamp what's in front of me.»", sub:"A wall, politely", conscience:-1,
+         result:"«Mm,» says Wick. «So does a machine.» The tram takes him away. The sentence stays."},
+        {id:"warn", label:"Tell HIM to warn people — loudly", sub:"You're just a teller. He's an auditor.", warnings:1, conscience:1,
+         result:"«Warnings without evidence are just weather,» Wick says. «People dress for weather. They don't leave town for it.» He tips his hat: «Bring me arithmetic.»"}]}}},
+   { n:12, act:3, gen:{count:7, weights:W_ACT3, circle:.2, payout:.3},
+     memoRule:{kind:"noPayout", v:0},
+     memo:"Circle payouts are SUSPENDED this week — a 'compounding pause' (the doubling doubles better undisturbed, tell them). Decline all payout slips. Offer a signature on a WAITING LIST. The list is very handsome. — G.V.",
+     night:{rent:10,heat:5,school:8, text:"You declined payouts all day to people the posters promised. The waiting list is four pages of beautiful penmanship and no money. Sign-ups still came in. That's the part you can't stop doing the math on: the money comes IN even when none goes OUT."}},
+   { n:13, act:3, gen:{count:7, weights:W_ACT3, circle:.2, payout:.25},
+     memoRule:{kind:"noWithdrawOver", v:30},
+     memo:"Withdrawal ceiling is now 30g. Anyone AGITATED is to be re-verified until calm or gone. The Trust is PERFECTLY SOUND, which is why I have moved my personal effects to the office and sleep beside the vault. Unrelated. — G.V.",
+     night:{rent:10,heat:5,school:0,
+      text:"Filing at closing, you find an account card wedged behind the Circle drawer. <b>Account #001 — A. VAULT.</b> A withdrawal from the Circle fund every single week since the posters went up. The column is long, and it is all minus signs, and the minus signs are all HIS.",
+      choice:{key:"goldieCard", prompt:"Account card #001, in your hand, in an empty bank.",
+       options:[
+        {id:"keep", label:"It goes under the floorboard", sub:"The smoking gun is a signed sum", conscience:1, evidence:"Goldie's account card — weekly draws from the Circle fund since week one",
+         result:"Card #001 joins your winter socks. It is the neatest, most damning column of signed numbers you have ever totaled. He paid himself FIRST. It was never anything else."},
+        {id:"back", label:"Wedge it back where it was", sub:"You never touched it", conscience:-1,
+         result:"You wedge it back to the exact angle. Your fingerprints are in the dust anyway, says the part of your brain that totals things."},
+        {id:"goldie", label:"Leave it on Goldie's desk with a note: «Filing error?»", sub:"Let him know you know", standing:-2, greed:1,
+         result:"In the morning there's a 10g note in your coat pocket you didn't put there, and Goldie calls you 'my SHARPEST teller' to the whole queue. You have been priced. It is deeply uncomfortable how exact the price felt."}]}}},
+   { n:14, act:3, gen:{count:8, weights:W_ACT3, circle:.15, payout:.3},
+     memoRule:{kind:"noWithdrawOver", v:30},
+     memo:"Recruitment is 'plateauing' (a lying word for STOPPING, teller — there is no one left to bring two friends). Project confidence. Confidence is our reserve currency. — G.V.",
+     night:{rent:10,heat:5,school:0, text:"Week eleven, said your pencil, weeks ago. This was week ten. The queue is longer, the deposits smaller, and everyone in it is doing arithmetic with their lips moving. A town can feel a number coming."}},
+
+   /* ═══ ACT 4 — THE RUN (15–18): scripted ═══ */
+   { n:15, act:4, memoRule:{kind:"noWithdrawOver", v:30},
+     memo:"There is NO RUN. There is a queue of enthusiasts. Ceiling stays at 30g. Fenn Oster is barred from the premises (ignore this if he has money). — G.V.",
+     customers:[
+      {who:"tomas", req:{type:"withdraw",amt:25,cap:25}, say:"Under the ceiling — see the slip. I checked YOUR rules before you could. Everyone out there has, teller."},
+      {who:"agata", req:{type:"withdraw",amt:60,cap:60}, say:"What the slip says, for Pip and me. Yes, I know about the ceiling. I was hoping you were braver than a memo."},
+      {who:"fenn", req:{type:"deposit",amt:40}, cash:C(20,10,10), flaw:"fakeMaster",
+       say:"Depositing! Into YOUR bank! In its hour of need! Some would call that heroism. Inspect the goose all you like — the goose is perfect now."},
+      {who:"mara", req:{type:"circle",amt:30}, cash:C(20,10), say:"One more Circle share before the doubling day! You all look so nervous. Nervous people miss bargains, my husband says."},
+      {who:"otto", req:{type:"payout",amt:80}, say:"The waiting list said THIS week. I have the handsome signature to prove it. Pay the doubling, teller."},
+      {who:"greta", req:{type:"withdraw",amt:100,cap:100}, say:"Read the slip. My money, my arithmetic — all correct, and we both know it. What does your memo say about CORRECT?"},
+      {who:"bo", req:{type:"withdraw",amt:20,cap:20}, say:"Under your ceiling — see, I did the reading. Balloon factory's moving payroll to a mattress. A big mattress. A factory-sized mattress."}
+     ],
+     night:{rent:10,heat:5,school:0, text:"The queue at opening tomorrow is already forming at MIDNIGHT. Somebody has chalked a number on the bank's marble: <b>2,140</b>. Underneath, smaller: <i>minus one bank director.</i>"}},
+   { n:16, act:4, memoRule:{kind:"noCircleTouch", v:0},
+     memo:"Circle balances are FROZEN (say 'maturing'). No payouts, no Circle-source withdrawals. Ordinary withdrawals: ceiling 30g. The shredder in my office is broken; if anyone asks, it is a fan. — G.V.",
+     customers:[
+      {who:"marja", req:{type:"withdraw",amt:30}, say:"Thirty, dear. Just thirty. I'm not greedy — I'm ARITHMETIC. There's a difference, and you taught half this queue what it is."},
+      {who:"pip", req:{type:"withdraw",amt:15}, debtSlip:true, say:"Fifteen — I know, I know, it puts me under again. Gran needs bread money TODAY more than I need a zero."},
+      {who:"hedda", req:{type:"payout",amt:100}, say:"My Circle payout. Frozen, you'll say. MATURING, you'll say. I have been alive sixty years, teller; I know what a locked door sounds like when it's wearing a word."},
+      {who:"ivoM", req:{type:"withdraw",amt:25}, flaw:"ledger", say:"Twenty-five! And yes my passbook total looks 'brisk' — everyone's totals are brisk today, LOOK at the queue."},
+      {who:"lena", req:{type:"deposit",amt:15}, cash:C(10,5), say:"Fifteen against the debt. Yes, TODAY. If the whole thing burns down, I want the ash to say I owed NOTHING."},
+      {who:"mirek", req:{type:"withdraw",amt:30}, say:"Thirty. The ceiling amount. I'll be back tomorrow for the next ceiling, and the day after for the one after that. I have nothing but mornings, teller."},
+      {who:"sable", req:{type:"deposit",amt:1}, cash:C(1), say:"One gilder. For the records. A bank that won't take one gilder is closed; a bank that will is still accountable. Wick's regards."}
+     ],
+     night:{rent:10,heat:5,school:0,
+      text:"Through the office door: the broken shredder, working beautifully. Strips of sponsor chains snow into a sack. Tomorrow's queue will wrap the fountain twice.",
+      choice:{key:"shredNight", prompt:"Goldie steps out for his coat. The shredder pauses, mid-document. On top of the pile: this week's Circle intake ledger — the last unshredded copy.",
+       options:[
+        {id:"grab", label:"Take the intake ledger. Now.", sub:"He'll notice. Eventually. Maybe.", conscience:1, standing:-2, evidence:"Final Circle intake ledger, rescued from the shredder",
+         result:"You fold it into your coat against your ribs, where your heart is doing unhelpful percussion. Goldie returns, feeds the machine, hums. The sack fills with everything except the one page that matters."},
+        {id:"watch", label:"Watch. Memorize. Touch nothing.", sub:"Witnesses can't be fired for looking",
+         result:"You stand in the dark and count strips as they fall, because counting is what your hands do instead of shaking. A memory is not a document. But it is not nothing."},
+        {id:"help", label:"Hold the sack open for him", sub:"Standing is survival now", standing:2, conscience:-2, greed:1,
+         result:"«Good lad,» says Goldie, whose gratitude arrives in your pay envelope as a crisp extra 5. The sack is heavier than paper should be. So is the 5."}]}}},
+   { n:17, act:4, memoRule:{kind:"noWithdrawOver", v:10},
+     memo:"Ceiling: 10g. TEN. Anyone mentioning the word 'run' is to be offered a complimentary calendar. I will be 'at a conference' from Thursday. The conference is far away. — G.V.",
+     customers:[
+      {who:"greta", req:{type:"withdraw",amt:10,cap:10}, say:"The ceiling amount, then. I'll take it in ones, slowly, so the queue can watch how long it takes when it's all you'll give them."},
+      {who:"bo", req:{type:"withdraw",amt:10,cap:10}, say:"Ceiling for me too. You know what's funny? The cheese co-op recovered. The MATH stock, up 12%. The magic stock is the one that's a hole."},
+      {who:"agata", req:{type:"withdraw",amt:10,cap:10}, say:"The ceiling, then. And the same for every neighbor I'm collecting for — no? One slip at a time? Then I will stand in this line ELEVEN MORE TIMES, teller. Watch me."},
+      {who:"fenn", req:{type:"withdraw",amt:4,all:true}, say:"My whole account. Every last gilder of it. When FENN OSTER closes his account on principle, gentlemen, the principle is load-bearing."},
+      {who:"tomas", req:{type:"withdraw",amt:10,cap:10}, flaw:"dob", say:"The ceiling! And don't squint at the passbook, I grabbed it in the dark, half the town is carrying the wrong— fine. FINE. Check it."},
+      {who:"mara", req:{type:"payout",amt:60}, say:"My payout. My DOUBLING. I brought two friends, they brought two friends — I did EVERYTHING the poster said. The poster LIED, didn't it. Say it, teller. Somebody in this building has to say one true thing."},
+      {who:"marja", req:{type:"withdraw",amt:10,cap:10}, say:"The ceiling, dear, no more. And whatever happens tomorrow — you kept better books than they deserved."}
+     ],
+     night:{rent:10,heat:5,school:0,
+      text:"Wick is waiting at your door, hat in hands. «Tomorrow it breaks,» he says. «What breaks WITH it depends on paper.»",
+      choice:{key:"wickFinal", prompt:"«Whatever you've kept,» says Wick, «tonight is the night it becomes either evidence or kindling.»",
+       options:[
+        {id:"handover", label:"Give him everything under the floorboard", sub:"Every page, every coin, every copy", needEvidence:true, conscience:2, evidence:"",
+         result:"He receives your floorboard archive like a man being handed a verdict. Reads in silence. «Signed sums,» he says finally, almost reverent. «Courts believe columns.» At the door he pauses: «Come to the bank tomorrow anyway. Endings deserve witnesses who can count.»"},
+        {id:"refuse", label:"«I have nothing for you.»", sub:"Keep your head down through the crash", conscience:-2,
+         result:"Wick studies you the way you study a passbook that doesn't total. «Then it's weather,» he says, «and everyone gets rained on.» He leaves. The floorboard — full or empty — creaks all night either way."},
+        {id:"burn", label:"Burn whatever you kept. Tonight.", sub:"Ash testifies for no one", conscience:-2, greed:1, burnEvidence:true,
+         result:"The stove takes it all in eleven minutes. Signed sums burn exactly like unsigned ones, it turns out. In the morning your coat feels lighter and your arithmetic feels heavier."}]}}},
+   { n:18, act:4, memoRule:null,
+     memo:"(There is no memo today. The memo drawer is empty. The office door is open, the wax seal kit is gone, and the calendar says, in gold ink: 'AT CONFERENCE.')",
+     customers:[
+      {who:"hedda", req:{type:"withdraw",amt:72,all:true}, say:"Everything. To the gilder. I did the sum at four this morning — you'll find it EXACT, because one of us should be."},
+      {who:"otto", req:{type:"withdraw",amt:55,all:true}, say:"All of it! The doors get one more hour, the queue knows it, and the queue is COUNTING."},
+      {who:"pip", req:{type:"deposit",amt:5}, cash:C(5), say:"Five IN. Everyone's screaming to get money out and Gran says a debt paid during a disaster is paid TWICE. Make my number climb, teller. One last time."},
+      {who:"greta", req:{type:"withdraw",amt:150,all:true}, say:"Every gilder with my name on it, while gilders still mean anything in this building."},
+      {who:"fenn", req:{type:"deposit",amt:20}, cash:C(10,10), flaw:"fakeMaster",
+       say:"A deposit! Into the SINKING SHIP! Poetic, no? …Also if these happen to be my finest work and the bank collapses today, no one will ever check. That's not a crime, that's TIMING."},
+      {who:"lena", req:{type:"withdraw",amt:5,all:true}, say:"All of it. My balance is finally, actually POSITIVE, and I am taking my whole entire fortune and buying bread with it while bread is still for sale."},
+      {who:"mirek", req:{type:"withdraw",amt:10}, debtSlip:true, say:"Ten, into the minus, WITH your little fee, WITH your little slip. A man wants coins in his pocket at the end of the world, teller, and he'll sign for them."},
+      {who:"marja", req:{type:"withdraw",amt:0}, say:"Nothing to withdraw, dear. I came to stand at the good window one last time. Whatever spring brings this town — count it honestly. You always did."}
+     ],
+     night:null}
+  ];
+
+  const ACTS={1:"The Counter",2:"The Circle Grows",3:"The Squeeze",4:"The Run"};
+
+  // ---- state ----
+  let S=null;
+  function newGame(seed){
+    S={seed:seed||((Math.floor(performance.now())%100000)+7), shift:0, cust:-1, hardship:0,
+       till:150, float:150, pocket:12, salaryDock:0, errors:[], dayLedger:[],
+       balances:{}, results:[], cleanStreak:0, docOpens:{}, decided:false,
+       circle:{members:[], signed:{}},
+       moral:{conscience:0, greed:0, warnings:0, standing:3, evidence:[],
+              wrongDeclines:0, missedFakes:0, caughtFakes:0, totalErrors:0,
+              obeyed:0, defied:0, choices:{}}};
+    REGISTRY.forEach(p=>S.balances[p.id]=p.bal);
+    return S;
+  }
+  function state(){return S}
+  function shiftData(){return SHIFTS[S.shift]}
+  function actName(a){return ACTS[a]}
+
+  function altName(n){ if(n.includes("Marja"))return n.replace("Marja","Marya");
+    return n.replace(/e/,"a"); }
+  function altDob(d){ return d.replace(/^(\d)(\d)/,(m,a,b)=>a+((+b+5)%10)); }
+  function mutFace(f){ const g={...f}; g.hat=(f.hat+1)%3; g.hair=(f.hair+2)%5; return g; }
+
+  /* ── generator for Acts 2–3 shifts ── */
+  function pickWeighted(rnd,weights){ let t=weights.reduce((a,b)=>a+b,0), r=rnd()*t;
+    for(let i=0;i<weights.length;i++){ r-=weights[i]; if(r<0)return i; } return 0; }
+  function denominate(amt){ const out=[]; let r=amt;
+    for(const d of [50,20,10,5,2,1]) while(r>=d){out.push({v:d,fake:null});r-=d;} return out; }
+  function genShift(sd){
+    const rnd=mulberry32(S.seed*31+sd.n*101);
+    const pool=REGISTRY.filter(p=>p.id!=="sable").map(p=>p.id);
+    // shuffle
+    for(let i=pool.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+    const out=[];
+    for(let i=0;i<sd.gen.count;i++){
+      const id=pool[i%pool.length], p=person(id), bal=S.balances[id];
+      let flaw=FLAWS[pickWeighted(rnd,sd.gen.weights)];
+      if(flaw==="none")flaw=null;
+      // request type
+      let type="deposit", amt;
+      const roll=rnd();
+      const canPayout=(sd.gen.payout||0)>0 && S.circle.members.length>0 && roll<(sd.gen.payout||0);
+      if(canPayout){ type="payout"; const mid=S.circle.members[Math.floor(rnd()*S.circle.members.length)];
+        const mp=person(mid); amt=Math.min(100,(S.circle.signed[mid]||20)*2);
+        out.push(buildSpec(mp,"payout",amt,flaw,rnd,sd)); continue; }
+      else if(roll<(sd.gen.payout||0)+(sd.gen.circle||0)){ type="circle"; amt=(2+Math.floor(rnd()*7))*10; }
+      else if(roll<.62||bal<10){ type="deposit"; amt=(1+Math.floor(rnd()*10))*5; }
+      else { type="withdraw";
+        if(flaw==="overdraft"){ amt=Math.max(5,bal)+(2+Math.floor(rnd()*6))*5; }
+        else { amt=Math.max(5, Math.min(bal, (1+Math.floor(rnd()*8))*5)); amt=Math.floor(amt/5)*5||5; } }
+      if(flaw==="overdraft"&&type!=="withdraw")flaw=null;
+      // cash-based flaws only make sense when cash is tendered
+      if((flaw==="cashShort"||flaw==="fakeObvious"||flaw==="fakeSubtle")&&type!=="deposit"&&type!=="circle")
+        flaw=(rnd()<.5?"name":"ledger");
+      out.push(buildSpec(p,type,amt,flaw,rnd,sd));
+    }
+    // on memo-rule days, guarantee at least 2 lawful customers who collide with the rule
+    const rule=sd.memoRule;
+    if(rule&&rule.kind==="noWithdrawOver"){
+      let conflicts=out.filter(s=>!s.flaw&&s.req.type==="withdraw"&&s.req.amt>rule.v).length;
+      for(let i=0;i<out.length&&conflicts<2;i++){
+        const s=out[i], b=S.balances[s.who];
+        if(!s.flaw&&!s.debtSlip&&b>rule.v+10){
+          s.req={type:"withdraw",amt:Math.floor(Math.min(b,rule.v+10+Math.floor(rnd()*4)*10)/5)*5};
+          delete s.cash;
+          s.say=["It's over your little ceiling, yes. It's also MINE, and the sum is perfect.",
+                 "I know what the memo says. I can also count. Which of us do you work for?",
+                 "Above the limit, under my balance. One of those numbers is real, teller."][Math.floor(rnd()*3)];
+          conflicts++;
+        }
+      }
+    }
+    return out;
+  }
+  function buildSpec(p,type,amt,flaw,rnd,sd){
+    const lines=SAY[type]; const say=lines[Math.floor(rnd()*lines.length)];
+    const spec={who:p.id, req:{type,amt}, flaw:flaw||undefined, say};
+    if(type==="deposit"||type==="circle"){ spec.cash=denominate(amt);
+      if(flaw==="cashShort"){ const drop=spec.cash.findIndex(c=>c.v<=5); if(drop>=0)spec.cash.splice(drop,1); else spec.cash.pop(); }
+    }
+    if(type==="withdraw"&&flaw!=="overdraft"&&rnd()<.08){ spec.debtSlip=true; spec.req.amt=Math.max(spec.req.amt, S.balances[p.id]+10); }
+    return spec;
+  }
+
+  // Build full customer object with documents + ground truth
+  function buildCustomer(spec){
+    const p=person(spec.who);
+    const bal=S.balances[p.id];
+    const flaw=spec.flaw||null;
+    // dynamic Act-4 amounts: "all" = whole balance; "cap" = up to n, bounded by balance
+    if(spec.req.all) spec.req.amt=Math.max(0,bal);
+    else if(spec.req.cap) spec.req.amt=bal>=5?Math.max(5,Math.min(spec.req.cap,Math.floor(bal/5)*5)):Math.max(0,bal);
+    const c={spec, p, flaw, bal,
+      shownName:p.name, shownDob:p.dob, photoFace:p.face, shownBookBal:bal,
+      cash:(spec.cash||[]).map(x=>({...x})), debtSlip:!!spec.debtSlip};
+    if(flaw==="name") c.shownName=altName(p.name);
+    if(flaw==="dob")  c.shownDob=altDob(p.dob);
+    if(flaw==="face") c.photoFace=mutFace(p.face);
+    if(flaw==="ledger") c.shownBookBal=bal+20;
+    if(flaw==="fakeObvious"&&c.cash.length){ c.cash[c.cash.length-1].fake="obvious"; }
+    if(flaw==="fakeSubtle"&&c.cash.length){ c.cash[Math.min(1,c.cash.length-1)].fake="subtle"; }
+    if(flaw==="fakeMaster"&&c.cash.length){ c.cash[0].fake="master"; }
+    const r=spec.req;
+    let shouldApprove=true, reason="", newBal=bal, tillDelta=0;
+    if(flaw==="face"){shouldApprove=false;reason="The face does not match the passbook photo.";}
+    else if(flaw==="name"){shouldApprove=false;reason="The name is misspelled vs. the Town Registry — a forged passbook.";}
+    else if(flaw==="dob"){shouldApprove=false;reason="The birthdate does not match the Town Registry.";}
+    else if(flaw==="ledger"){shouldApprove=false;reason="The passbook balance doesn't match the account card. Someone doctored the book.";}
+    else if(flaw==="cashShort"){shouldApprove=false;reason="The tendered coins don't sum to the slip amount.";}
+    else if(flaw==="fakeObvious"){shouldApprove=false;reason="One coin is a counterfeit. A very red counterfeit.";}
+    else if(flaw==="fakeSubtle"){shouldApprove=false;reason="One coin is counterfeit — the goose faces RIGHT. Real gilders face left.";}
+    else if(flaw==="fakeMaster"){shouldApprove=false;reason="One coin is counterfeit — perfect goose, but the mint mark above it is MISSING.";}
+    else if(flaw==="overdraft" || (r.type==="withdraw" && r.amt>bal && !c.debtSlip && r.amt>0)){
+      shouldApprove=false;reason=`A ${r.amt}g withdrawal would overdraw the account (no signed debt slip).`;}
+    if(shouldApprove){
+      if(r.type==="deposit"){newBal=bal+r.amt; tillDelta=+r.amt;}
+      else if(r.type==="withdraw"){
+        if(r.amt===0){newBal=bal;tillDelta=0;}
+        else if(r.amt>bal && c.debtSlip){newBal=bal-r.amt-2; tillDelta=-r.amt;}
+        else {newBal=bal-r.amt; tillDelta=-r.amt;}
+      } else if(r.type==="interest"){ newBal=bal+Math.round(bal*r.rate/100); tillDelta=0; }
+      else if(r.type==="circle"){ newBal=bal; tillDelta=+r.amt; }   // Circle is separate: balance unchanged
+      else if(r.type==="payout"){ newBal=bal; tillDelta=-r.amt; }
+    }
+    c.truth={shouldApprove, reason, newBal, tillDelta};
+    return c;
+  }
+
+  /* memo rules (Act 3–4): does the standing memo order a decline of this VALID transaction? */
+  function memoApplies(c){
+    const rule=shiftData().memoRule; if(!rule||!c.truth.shouldApprove)return false;
+    const r=c.spec.req;
+    if(rule.kind==="noWithdrawOver") return r.type==="withdraw"&&r.amt>rule.v;
+    if(rule.kind==="noPayout") return r.type==="payout";
+    if(rule.kind==="noCircleTouch") return r.type==="payout";
+    return false;
+  }
+
+  let current=null;
+  function startShift(){
+    // snapshot for shift retry after a game-over
+    S._snap=JSON.parse(JSON.stringify({balances:S.balances,pocket:S.pocket,moral:S.moral,circle:S.circle,hardship:S.hardship}));
+    S.cust=-1; S.dayLedger=[]; S.results=[]; S.errors=[];
+    const sd=shiftData();
+    if(sd.gen) sd.customers=genShift(sd); // regenerate from live balances every time
+  }
+  function nextCustomer(){
+    S.cust++;
+    const sd=shiftData();
+    if(S.cust>=sd.customers.length){current=null;return null;}
+    current=buildCustomer(sd.customers[S.cust]);
+    S.docOpens={slip:false,book:false,card:false,cash:!current.cash.length,registry:false};
+    S.decided=false;
+    return current;
+  }
+  function customer(){return current}
+  function noteOpen(k){ if(S.docOpens[k]===false) S.docOpens[k]=true; }
+  function allOpened(){ return Object.values(S.docOpens).every(v=>v!==false); }
+
+  function decide(stamp, typedBal){
+    const c=current, t=c.truth, M=S.moral;
+    const openedAll=allOpened();
+    const memo=memoApplies(c);
+    let ok, errType=null, note="", memoNote=null;
+    if(stamp==="approve"){
+      if(!t.shouldApprove){ ok=false; errType=openedAll?"elaboration":"input";
+        note=`Approved ${c.p.name} — but: ${t.reason}`;
+        if(c.flaw==="cashShort"){ S.till+=c.cash.reduce((a,x)=>a+x.v,0); S.dayLedger.push({label:c.p.name+" deposit (recorded)",amt:+c.spec.req.amt}); }
+        else if(c.flaw&&c.flaw.startsWith("fake")&&c.cash.some(x=>x.fake)){ const fk=c.cash.find(x=>x.fake).v; S.till+=c.cash.reduce((a,x)=>a+x.v,0)-fk; S.dayLedger.push({label:c.p.name+" deposit (recorded)",amt:+c.spec.req.amt}); note+=` The fake ${fk}g turned up in your till.`; }
+        else if(c.flaw==="overdraft"){ S.till-=c.spec.req.amt; S.balances[c.p.id]-=c.spec.req.amt; S.dayLedger.push({label:c.p.name+" withdrawal",amt:-c.spec.req.amt}); }
+        else { const r=c.spec.req; const d=(r.type==="deposit"||r.type==="circle")?+r.amt:-r.amt;
+          S.till+=d; S.dayLedger.push({label:c.p.name+" "+r.type,amt:d});
+          if(r.type==="withdraw"){S.balances[c.p.id]-=r.amt;} else if(r.type==="deposit"){S.balances[c.p.id]+=r.amt;} }
+      } else {
+        // valid transaction approved — process (defying memo if one applies)
+        if(memo){ M.defied++; M.standing--; M.conscience++; memoNote="defied"; }
+        S.balances[c.p.id]=t.newBal;
+        S.till+=t.tillDelta;
+        if(t.tillDelta!==0) S.dayLedger.push({label:c.p.name+" "+c.spec.req.type,amt:t.tillDelta});
+        if(c.spec.req.type==="circle"){ if(!S.circle.members.includes(c.p.id))S.circle.members.push(c.p.id); S.circle.signed[c.p.id]=(S.circle.signed[c.p.id]||0)+c.spec.req.amt; }
+        if(typedBal===t.newBal){ ok=true; }
+        else { ok=false; errType="output"; note=`Right call on ${c.p.name}, but you wrote the balance as ${typedBal}g — it's ${t.newBal}g. A correction notice will follow.`; }
+      }
+    } else { // decline
+      if(t.shouldApprove){
+        if(memo){ ok=true; M.obeyed++; M.conscience--; memoNote="obeyed";
+          note=`Declined ${c.p.name} per standing memo. The arithmetic was perfect. The memo didn't care.`; }
+        else { ok=false; errType=openedAll?"elaboration":"input"; M.wrongDeclines++;
+          note=`Declined ${c.p.name} — but everything checked out. They'll remember the queue and the shame.`; }
+      }
+      else ok=true;
+    }
+    if(ok)S.cleanStreak++; else S.cleanStreak=0;
+    if(!ok){S.errors.push({name:c.p.name,note,errType}); S.salaryDock+=5; M.totalErrors++;}
+    if(c.flaw&&c.flaw.startsWith("fake")){ if(stamp==="decline")M.caughtFakes++; else M.missedFakes++; }
+    S.results.push({name:c.p.name, stamp, ok, note, errType, memoNote});
+    S.decided=true;
+    return {ok, errType, note, memoNote, truth:t};
+  }
+
+  function choose(key, opt){
+    const M=S.moral; M.choices[key]=opt.id;
+    if(opt.conscience) M.conscience+=opt.conscience;
+    if(opt.greed) M.greed+=opt.greed;
+    if(opt.warnings) M.warnings+=opt.warnings;
+    if(opt.standing) M.standing+=opt.standing;
+    if(opt.pocket) S.pocket=Math.max(0,S.pocket+opt.pocket);
+    if(opt.evidence) M.evidence.push(opt.evidence);
+    if(opt.burnEvidence) M.evidence=[];
+    return M;
+  }
+
+  /* ═══ THE TEN EPILOGUES — resolved ONLY after shift 18, top match wins ═══ */
+  const ENDINGS=[
+    {id:"apprentice", num:"I", title:"The Auditor's Apprentice",
+     cond:M=>M.caughtFakes>=4 && M.totalErrors<=1 && M.evidence.length>=3 && M.choices.wickFinal==="handover",
+     hint:"Catch nearly every counterfeit, keep an almost-perfect record, hoard proof — and hand Wick everything.",
+     text:"Wick reads your floorboard archive twice, then offers you a hat. When the Circle bursts, it bursts in a courtroom, on YOUR evidence table, sorted by date. Goldie's lawyer calls you 'a menace with a filing system.' You have it embroidered on a cushion. You audit three counties now. Banks tidy their drawers when your tram is heard."},
+    {id:"witness", num:"II", title:"The Witness",
+     cond:M=>M.choices.wickFinal==="handover" && M.evidence.length>=2 && M.conscience>=3,
+     hint:"Keep real evidence, grow a loud conscience, and hand it all over on the last night.",
+     text:"Signed sums, read aloud in a courtroom, in order, with the dates. The scheme dies on paper instead of on the town; villagers recover 61 gilders of every 100, which Widow Petrossian declares 'a very respectable fraction.' The reopened credit union has one teller window and one rule engraved in brass: YOU CAN CHECK. You engraved it."},
+    {id:"vaultrider", num:"III", title:"The Vault Rider",
+     cond:M=>M.greed>=3 && M.conscience<=-2,
+     hint:"Take everything Goldie ever slides your way. Feel nothing. Twice.",
+     text:"Goldie holds the midnight train door: «I reward loyalty, teller.» He pays your share in Prosperity Circle certificates — a suitcase of them. Somewhere past the mountains you do the math you always do: 100 × 2 × 2 × 2 × … × 0. You are the richest person on this train, measured in paper. Measured in anything else, you own a suitcase. Goldie is already charming the dining car."},
+    {id:"accomplice", num:"IV", title:"The Accomplice",
+     cond:M=>M.obeyed>=5 && M.warnings===0 && M.conscience<=0,
+     hint:"Obey every memo to the letter. Warn absolutely no one.",
+     text:"You followed every memo, even the ones that smelled like smoke. When the run comes, Goldie vanishes with the vault, and the constable finds you at the window, still stamping, holding the ledger. Literally holding it. The photograph runs in every paper in the province. For the rest of your life, people hand you things and then step away quickly."},
+    {id:"goose", num:"V", title:"The Goose",
+     cond:M=>M.missedFakes>=3,
+     hint:"Let Fenn's masterpieces through. Keep letting them through.",
+     text:"You approved so many of Fenn's coins that by spring, half of Marrowgate's money is his. When the Trust collapses, the town discovers the fakes hold their value better than the bank did — Fenn never promised anyone doubling. The council makes it official: Fenn Oster, Director of the Mint. On the new gilder, the goose faces right. It's the law now. It's YOUR fault."},
+    {id:"tyrant", num:"VI", title:"The Petty Tyrant",
+     cond:M=>M.wrongDeclines>=5,
+     hint:"Decline the innocent, over and over, with no memo to hide behind.",
+     text:"You declined the guilty. You declined the innocent. You declined a nun. Marrowgate quietly gives up on the bank and reverts to a cheese-based barter economy, which — the cooperative notes — appreciates 4% monthly if you age it. The Trust starves before the Circle can even collapse; you technically prevented a financial disaster by BEING one. Economists write papers about you. None are flattering."},
+    {id:"bankrunner", num:"VII", title:"The Bank Runner",
+     cond:M=>M.warnings>=3 && M.evidence.length<=1,
+     hint:"Warn everyone you can — but keep no proof of anything.",
+     text:"You had no documents, no plan — just whispers at the window, week after week. The run, when it comes, is YOURS: the town moves early because the teller kept muttering arithmetic at them. Everyone gets something out. You get banned from the premises for life, and free bread from every villager, forever. The bread is worth more."},
+    {id:"calculator", num:"VIII", title:"The Human Calculator",
+     cond:M=>M.totalErrors===0 && M.conscience>=-1 && M.conscience<=1,
+     hint:"Eighteen shifts. Zero errors. Zero opinions.",
+     text:"You never missed a digit. You also never said a word. The town rebuilds around the legend of the teller who was never wrong: parents tell children to 'count like the teller,' and the school renames its maths prize after you. There is a statue. It holds an abacus. At the unveiling you stand alone at the back, counting the crowd, which is the only conversation you know how to have with them. The count is accurate."},
+    {id:"ghost", num:"IX", title:"The Ledger Ghost",
+     cond:M=>M.totalErrors>=10,
+     hint:"Drown in correction notices until the vault itself takes pity.",
+     text:"Exhausted by correction notices, you fall asleep in the vault during the run and get sealed in over the weekend. You emerge Monday, blinking, into a bank that no longer exists — collapse over, Goldie gone, everyone assuming you fled too. Nobody wants the huge empty marble building, so legally, somehow, it becomes yours. You open a soup café in the lobby. The echo is tremendous. The soup is priced in exact change ONLY."},
+    {id:"quietone", num:"X", title:"The Quiet One",
+     cond:()=>true,
+     hint:"Protect a few. Tell no one everything.",
+     text:"You never blew the whistle — but you slowed things where you stood: a decline here, a quiet word there, a memo defied when it mattered to somebody in particular. The collapse still comes, softer for the people who happened to reach YOUR window. Years later, villagers can't quite remember your name, but they remember the window on the left. They still queue at it, out of habit, at the credit union. Whoever works it now can't understand why."}
+  ];
+  function resolveEnding(){ const M=S.moral; return ENDINGS.find(e=>e.cond(M)); }
+
+  function expectedTill(){ return S.float + S.dayLedger.reduce((a,l)=>a+l.amt,0); }
+  function actualTill(){ return S.till; }
+  function endShiftReport(typedExpected){
+    const exp=expectedTill(), act=actualTill();
+    const salary=30-Math.min(30,S.salaryDock);
+    return {exp, act, match:exp===act, typedOk:typedExpected===exp, salary, errors:S.errors.slice()};
+  }
+  function applyNight(salary){
+    const nd=shiftData().night;
+    S.pocket+=salary;
+    let spend=0, unpaid=0;
+    if(nd){spend=nd.rent+nd.heat+(nd.school||0); S.pocket-=spend;}
+    if(S.pocket<0){ unpaid=-S.pocket; S.pocket=0; S.hardship++; }
+    else S.hardship=0;
+    const evicted=S.hardship>=2;
+    S.salaryDock=0; S.till=150;
+    if(!evicted) S.shift++;
+    return {spend, unpaid, hardship:S.hardship, evicted, pocket:S.pocket, done:S.shift>=SHIFTS.length};
+  }
+  function retryShift(){ // restore the morning of the failed shift
+    if(!S._snap)return;
+    S.balances=JSON.parse(JSON.stringify(S._snap.balances));
+    S.pocket=S._snap.pocket; S.hardship=S._snap.hardship;
+    S.moral=JSON.parse(JSON.stringify(S._snap.moral));
+    S.circle=JSON.parse(JSON.stringify(S._snap.circle));
+    S.salaryDock=0; S.till=150;
+  }
+  return {REGISTRY, SHIFTS, ENDINGS, person, actName, newGame, state, shiftData, startShift, nextCustomer, customer,
+          noteOpen, allOpened, decide, choose, memoApplies, resolveEnding, expectedTill, actualTill, endShiftReport, applyNight, retryShift,
+          set:(o)=>{S=o}, get current(){return current}};
+})();
+
+/* ═════════════ SOUND — brutish 1800s march, E minor, mechanical ═════════════ */
+const Sound=(function(){
+  let ctx=null, sfxOn=true, musOn=true, nodes=[], beatTimer=null, beat=0, nightMode=false;
+  const E2=82.41;
+  const st=n=>E2*Math.pow(2,n/12);
+  function ac(){ if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();} if(ctx.state==="suspended")ctx.resume(); return ctx; }
+  function env(g,t,a,d,peak){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(.0001,t+a+d);}
+  function tone(freq,type,a,d,peak,when=0,detune=0,filt=0){ const c=ac(),t=c.currentTime+when;
+    const o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=freq;o.detune.value=detune;
+    let last=o; if(filt){const fl=c.createBiquadFilter();fl.type="lowpass";fl.frequency.value=filt;o.connect(fl);last=fl;}
+    last.connect(g);g.connect(c.destination);env(g,t,a,d,peak);o.start(t);o.stop(t+a+d+.05);}
+  function sfx(...a){ if(sfxOn)tone(...a); }
+  function noise(dur,f0,f1,peak,when=0){ if(!sfxOn)return; const c=ac(),t=c.currentTime+when;
+    const b=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    const s=c.createBufferSource();s.buffer=b;const fl=c.createBiquadFilter();fl.type="lowpass";
+    fl.frequency.setValueAtTime(f0,t);fl.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const g=c.createGain();env(g,t,.005,dur,peak);s.connect(fl);fl.connect(g);g.connect(c.destination);s.start(t);}
+  // march: bass thump 1 & 3, drone E+B saw, motif every 8 bars: E G F# E (low, brass-ish)
+  const MOTIF=[0,3,2,0, 0,3,5,3, -2,0,2,0, 3,2,0,-2];
+  function marchBeat(){
+    if(!musOn||document.hidden)return;
+    const q=nightMode?1.05:0.7; // seconds per beat
+    const b=beat%4;
+    if(b===0||b===2) tone(st(-12),"sawtooth",.005,.28,nightMode?.10:.14,0,0,180); // bass thump E1
+    if(!nightMode&&(b===1||b===3)) noise(.05,900,200,.05); // muffled snare-drag
+    if(beat%2===0){ // drone pulse E2+B2
+      tone(st(0),"sawtooth",.02,q*1.9,.035,0,-6,300);
+      tone(st(7),"sawtooth",.02,q*1.9,.028,0,7,300);
+    }
+    if(beat%32>=24&&beat%2===0){ // brass motif phrase in back half
+      const n=MOTIF[(beat>>1)%16];
+      tone(st(n)*2,"sawtooth",.03,q*1.4,nightMode?.05:.07,0,-4,520);
+    }
+    beat++;
+  }
+  return {
+    unlock(){ac();},
+    get sfxOn(){return sfxOn}, get musOn(){return musOn},
+    toggleSfx(){sfxOn=!sfxOn;return sfxOn;},
+    toggleMus(){musOn=!musOn; if(!musOn)this.stopAmbience(); return musOn;},
+    thunkApprove(){ noise(.09,900,120,.5); sfx(st(0),"sine",.005,.22,.55,.02); },
+    thunkDecline(){ noise(.06,2200,300,.5); sfx(st(0),"square",.004,.09,.28,.015); },
+    clink(i=0){ sfx(st(31)+i*37,"triangle",.002,.12,.22); sfx(st(38)+i*53,"sine",.002,.08,.12,.01); },
+    page(){ noise(.12,3000,800,.14); },
+    type(){ sfx(1500+Math.random()*500,"square",.001,.012,.02); },
+    chime(){ sfx(st(26),"triangle",.01,1.6,.34); sfx(st(26)*2,"sine",.01,1.1,.1,.02); },
+    bell(step=0){ const f=st([19,21,23,24,26][Math.min(step,4)])*2;
+      sfx(f,"triangle",.002,.5,.3); sfx(f*2.76,"sine",.002,.2,.08); },
+    success(){ sfx(st(12),"sine",.01,.18,.3); sfx(st(19),"sine",.01,.3,.3,.09); },
+    coinPour(n){ for(let i=0;i<n;i++) setTimeout(()=>this.clink(i%5),i*70); },
+    stampable(){ sfx(st(24),"sine",.005,.06,.12); },
+    startAmbience(night){
+      this.stopAmbience(); if(!musOn)return; ac();
+      nightMode=!!night; beat=0;
+      // hall murmur bed (day only)
+      if(!night){
+        const c=ctx, b=c.createBuffer(1,c.sampleRate*2,c.sampleRate),d=b.getChannelData(0);let last=0;
+        for(let i=0;i<d.length;i++){last=(last+(Math.random()*2-1)*.02)*.985;d[i]=last*3;}
+        const s=c.createBufferSource();s.buffer=b;s.loop=true;
+        const fl=c.createBiquadFilter();fl.type="lowpass";fl.frequency.value=380;
+        const g=c.createGain();g.gain.value=.05;s.connect(fl);fl.connect(g);g.connect(c.destination);s.start();
+        nodes=[s,g];
+      }
+      beatTimer=setInterval(marchBeat, nightMode?1050:700);
+    },
+    stopAmbience(){ nodes.forEach(n=>{try{n.stop?n.stop():0}catch(e){}}); nodes=[];
+      if(beatTimer){clearInterval(beatTimer);beatTimer=null;} }
+  };
+})();
+
+/* ═════════════ PIXEL MUGSHOTS (Papers-Please-leaning, SVG rect grids) ═════════════ */
+const SKIN=["#b09678","#9c8261","#c1a583","#8a7052"];
+const SKIN_D=["#8f7758","#7d6647","#a08765","#6d5840"];
+const HAIRC=["#241c12","#4a3824","#65625a","#171715","#6e5227"];
+const COATS=["#3a3a34","#3e332a","#32363a","#2e2a33"];
+function pixFace(f,w,mood,mono){
+  mood=mood||0;
+  const skin=mono?"#8f8d82":SKIN[f.skin||0], skD=mono?"#6f6d63":SKIN_D[f.skin||0],
+        hair=mono?"#33322c":HAIRC[f.hairC||0], dark=mono?"#1c1b17":"#17140f",
+        coat=mono?"#4a4941":COATS[(f.skin+f.hairC)%4||0], hat="#211d16";
+  const px=[]; const put=(x,y,c)=>px.push([x,y,c]);
+  const row=(x0,x1,y,c)=>{for(let x=x0;x<=x1;x++)put(x,y,c);};
+  // head
+  row(4,9,2,skin); for(let y=3;y<=9;y++)row(3,10,y,skin);
+  row(4,9,10,skin); row(5,8,11,skin);
+  // shading right side
+  for(let y=3;y<=9;y++)put(10,y,skD); put(9,10,skD);
+  // eyes / glasses
+  if(f.glasses){ put(4,6,"#c9c4ae");put(5,6,dark);put(6,6,"#c9c4ae");put(7,6,"#c9c4ae");put(8,6,dark);put(9,6,"#c9c4ae");
+    put(3,6,dark);put(10,6,dark); }
+  else { put(5,6,dark); put(8,6,dark); }
+  // brows
+  put(4,5,hair);put(5,5,hair);put(8,5,hair);put(9,5,hair);
+  // nose
+  put(6,7,skD);put(6,8,skD);put(7,8,skD);
+  // mouth by mood
+  if(mood>0){ row(5,8,10,dark); put(4,9,dark); put(9,9,dark); }
+  else if(mood<0){ row(5,8,10,dark); put(4,11,dark); put(9,11,dark); }
+  else row(5,8,10,dark);
+  // stache
+  if(f.stache===1){ row(5,8,9,hair); }
+  if(f.stache===2){ row(4,9,9,hair); put(4,10,hair); put(9,10,hair); }
+  // hair styles
+  if(f.hair===1){ row(3,10,1,hair); row(3,10,2,hair); }
+  if(f.hair===2){ [3,5,7,9].forEach(x=>put(x,1,hair)); row(3,10,2,hair); }
+  if(f.hair===3){ row(3,10,1,hair); row(3,10,2,hair); for(let y=3;y<=8;y++){put(2,y,hair);put(11,y,hair);} }
+  if(f.hair===4){ row(5,11,1,hair); row(3,10,2,hair); put(11,2,hair); }
+  if(f.hair===0){ put(3,3,hair); put(10,3,hair); }
+  // hats over hair
+  if(f.hat===1){ row(4,9,0,hat); row(4,9,1,hat); row(2,11,2,hat); }
+  if(f.hat===2){ row(3,10,1,hat); row(2,11,2,hat); put(11,1,hat); }
+  // neck + shoulders
+  row(5,8,12,skD); row(5,8,13,skin);
+  row(2,11,14,coat); row(1,12,15,coat); row(1,12,16,coat);
+  // collar
+  put(5,14,mono?"#b5b1a0":"#c8bfa3"); put(8,14,mono?"#b5b1a0":"#c8bfa3");
+  const rects=px.map(p=>`<rect x="${p[0]}" y="${p[1]}" width="1" height="1" fill="${p[2]}"/>`).join("");
+  return `<svg viewBox="0 0 14 17" width="${w}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+}
+function bodySVG(f,mood){ return pixFace(f,250,mood,false); }
+
+/* ═════════════ UI ═════════════ */
+const $=id=>document.getElementById(id);
+const tray=$("tray");
+let zTop=10;
+
+/* ---- coins ---- */
+function coinFaceSVG(coin, big){
+  const right=coin.fake==="subtle";
+  const noMark=coin.fake==="master";
+  const goose=right?"M78,64 Q64,50 56,58 Q50,64 58,66 Q44,70 40,80 Q56,86 70,80 Q80,76 78,64 Z M56,58 L48,54":"M42,64 Q56,50 64,58 Q70,64 62,66 Q76,70 80,80 Q64,86 50,80 Q40,76 42,64 Z M64,58 L72,54";
+  const c=coin.fake==="obvious"?"#96434c":"#8f7f55";
+  return `<svg viewBox="0 0 120 120" width="${big?260:44}" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="60" cy="60" r="56" fill="${c}" stroke="#55482a" stroke-width="4"/>
+    <circle cx="60" cy="60" r="46" fill="none" stroke="#55482a" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <path d="${goose}" fill="#3a301b"/>
+    <text x="60" y="106" text-anchor="middle" font-family="Oswald" font-weight="700" font-size="15" fill="#3a301b">${coin.v} GILDER${coin.v>1?"S":""}</text>
+    ${noMark?"":`<text x="60" y="27" text-anchor="middle" font-size="14" font-family="Georgia" fill="#3a301b">&#10087;</text>`}
+  </svg>`;
+}
+
+/* ---- document builders ---- */
+function docEl(id,x,y,rot,html,w){
+  const d=document.createElement("div");
+  d.className="doc";d.id=id;d.style.left=x+"px";d.style.top=y+"px";d.style.width=(w||190)+"px";
+  d.style.setProperty("--rot",rot+"deg");d.style.transform=`rotate(${rot}deg)`;d.style.zIndex=zTop++;
+  d.innerHTML=html;tray.appendChild(d);makeDraggable(d);return d;
+}
+function makeDraggable(d){
+  let sx,sy,ox,oy,moved;
+  d.addEventListener("pointerdown",e=>{
+    if(e.target.closest("input,button,.coin"))return;
+    d.setPointerCapture(e.pointerId);d.classList.add("drag");d.style.zIndex=zTop++;
+    sx=e.clientX;sy=e.clientY;ox=parseFloat(d.style.left);oy=parseFloat(d.style.top);moved=false;
+    const mm=e2=>{const dx=e2.clientX-sx,dy=e2.clientY-sy;if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
+      d.style.left=Math.max(-40,Math.min(tray.clientWidth-60,ox+dx))+"px";
+      d.style.top=Math.max(-10,Math.min(tray.clientHeight-40,oy+dy))+"px";};
+    const up=()=>{d.classList.remove("drag");window.removeEventListener("pointermove",mm);window.removeEventListener("pointerup",up);
+      if(!moved)Sound.page();};
+    window.addEventListener("pointermove",mm);window.addEventListener("pointerup",up);
+  });
+}
+function balbar(v,max=400){
+  const half=50, pct=Math.max(-1,Math.min(1,v/max));
+  const w=Math.abs(pct)*half, l=pct<0?half-w:half;
+  return `<div class="balbar"><div class="zero"></div><div class="fill ${v<0?"neg":""}" style="left:${l}%;width:${w}%"></div></div>`;
+}
+
+/* ---- teletype dialogue (Papers-Please style, with key blips) ---- */
+let typedTimer=null;
+function say(who,text,memo){
+  const sp=$("speech");sp.classList.toggle("memo",!!memo);
+  sp.querySelector(".who").textContent=who?who+" — ":"";
+  const t=sp.querySelector(".txt");t.innerHTML="";
+  if(typedTimer)clearInterval(typedTimer);
+  const plain=text.replace(/<[^>]+>/g,""); let i=0;
+  typedTimer=setInterval(()=>{
+    i+=2; t.textContent=plain.slice(0,i);
+    if(i%6<2)Sound.type();
+    if(i>=plain.length){clearInterval(typedTimer);typedTimer=null;t.innerHTML=text;}
+  },24);
+}
+
+function clearTray(){tray.innerHTML="";}
+
+function presentCustomer(c){
+  clearTray();
+  $("custsvg").innerHTML=bodySVG(c.p.face,0);
+  $("custsvg").style.animation="none";void $("custsvg").offsetWidth;
+  $("custsvg").style.animation="dealin .4s cubic-bezier(.2,1.2,.4,1)";
+  say(c.p.name.split(" ")[0], c.spec.say);
+  const W=tray.clientWidth,H=tray.clientHeight;
+  const r=c.spec.req;
+  const memoFlag=Engine.memoApplies(c)||(Engine.shiftData().memoRule&&["withdraw","payout"].includes(r.type));
+  const slipTitle={deposit:"Deposit Slip",withdraw:"Withdrawal Slip",interest:"Interest Voucher",
+    circle:"Circle Ledger Slip",payout:"Circle Payout Slip"}[r.type];
+  const slipTxt = r.type==="interest"
+    ? `<h4>${slipTitle}</h4><div class="row"><span>Account</span><b>#${c.p.acct}</b></div>
+       <div class="row"><span>Rate</span><b>${r.rate}% of balance</b></div>
+       <div style="margin-top:4px;font-size:15px">Compute the interest and add it to the balance.</div>`
+    : `<h4>${slipTitle}</h4>
+       <div class="row"><span>Name</span><b>${c.shownName}</b></div>
+       <div class="row"><span>Account</span><b>#${c.p.acct}</b></div>
+       <div class="row"><span>Amount</span><b style="font-size:22px">${r.amt}g</b></div>
+       ${r.type==="circle"?`<div style="font-size:14px;margin-top:3px">Circle fund is separate — account balance UNCHANGED.</div>`:""}
+       ${r.type==="payout"?`<div style="font-size:14px;margin-top:3px">Pay from till. Account balance UNCHANGED.</div>`:""}
+       ${memoRuleText(r)}`;
+  const slip=docEl("docSlip", W*0.05, 14, -2, slipTxt, 195);
+  slip.addEventListener("pointerdown",()=>Engine.noteOpen("slip"));
+  Engine.noteOpen("slip");
+  const book=docEl("docBook", W*0.36, 28, 1.5, `
+    <h4>Passbook — Gilder Trust</h4>
+    <div class="photo">${pixFace(c.photoFace,58,0,true)}</div>
+    <div style="font-size:16px;line-height:1.2">${c.shownName}<br>b. ${c.shownDob}<br>Acct #${c.p.acct}</div>
+    <div class="row" style="margin-top:6px;border-top:1px solid var(--ink2);padding-top:4px">
+      <span>Balance</span><b class="${c.shownBookBal<0?"neg":""}">${c.shownBookBal}g</b></div>`,205);
+  book.addEventListener("pointerdown",()=>Engine.noteOpen("book"));
+  const card=docEl("docCard", W*0.66, 90, -1, `
+    <h4 style="color:var(--red)">Account Card #${c.p.acct}</h4>
+    <div class="row"><span>${c.p.name}</span></div>
+    <div class="row"><span>Balance on file</span><b class="${c.bal<0?"neg":""}" style="font-size:22px">${c.bal}g</b></div>
+    ${balbar(c.bal)}
+    <div class="row" style="margin-top:8px;align-items:center"><span>NEW BALANCE</span>
+      <span><input class="balinput" id="balIn" inputmode="numeric" placeholder="?"> g</span></div>
+    <div style="font-size:13px;color:var(--ink2);margin-top:2px">required to APPROVE</div>`,215);
+  card.addEventListener("pointerdown",()=>Engine.noteOpen("card"));
+  $("balIn").addEventListener("input",()=>{updateStamps();});
+  $("balIn").addEventListener("pointerdown",e=>e.stopPropagation());
+  if(c.cash.length){
+    const coins=c.cash.map((k,i)=>`<span class="coin ${k.fake==="obvious"?"fakeObvious":""} ${k.v>=50?"note":""}" data-i="${i}">${k.v}g</span>`).join("");
+    const cd=docEl("docCash", W*0.08, H*0.48, 2, `
+      <h4>Tendered</h4><div style="font-size:14px">tap a coin to inspect</div>
+      <div class="coinrow">${coins}</div>`,245);
+    cd.addEventListener("pointerdown",()=>Engine.noteOpen("cash"));
+    cd.querySelectorAll(".coin").forEach(el=>{
+      el.addEventListener("pointerdown",e=>e.stopPropagation());
+      el.addEventListener("click",()=>{Sound.clink(+el.dataset.i);inspectCoin(c.cash[+el.dataset.i]);Engine.noteOpen("cash");});
+    });
+  }
+  if(c.debtSlip){
+    docEl("docDebt", W*0.5, H*0.52, -3, `
+      <h4 style="color:var(--red)">Debt Slip</h4>
+      <div style="font-size:15px">I, <b>${c.p.name}</b>, accept a negative balance and the 2g arrangement fee.</div>
+      <div style="font-family:'Oswald';margin-top:4px;transform:rotate(-2deg)">X ${c.p.name}</div>`,185);
+  }
+  updateStamps();
+  if(c.spec.preChoice && !choiceAnswered(c.spec.preChoice.key)){
+    setTimeout(()=>showChoiceSheet(c.spec.preChoice, opt=>{
+      if(opt.mutate==="half"){
+        c.spec.req.amt=50; c.spec.cash=[{v:50,fake:null}];
+        Engine.state().cust--; advance();
+      } else if(opt.mutate==="void"){
+        say(c.p.name.split(" ")[0],"…No stamp today, teller. Thank you.");
+        $("custsvg").innerHTML=bodySVG(c.p.face,1);
+        setTimeout(advance,1600);
+      }
+    }),900);
+  }
+}
+function memoRuleText(r){
+  const rule=Engine.shiftData().memoRule; if(!rule)return "";
+  let s="";
+  if(rule.kind==="noWithdrawOver"&&r.type==="withdraw"&&r.amt>rule.v)s=`Memo: decline withdrawals over ${rule.v}g`;
+  if(rule.kind==="noPayout"&&r.type==="payout")s="Memo: payouts suspended — decline";
+  if(rule.kind==="noCircleTouch"&&r.type==="payout")s="Memo: Circle frozen — decline";
+  return s?`<div class="memoband">${s}</div>`:"";
+}
+
+function inspectCoin(coin){
+  const flawText = coin.fake==="obvious" ? `<div class="flawnote">This is… wax? It's red wax.</div>`
+    : coin.fake==="subtle" ? `<div style="font-size:17px">Serial ring… fine. Mint mark… present. Hmm. Look closely at the goose.</div>`
+    : coin.fake==="master" ? `<div style="font-size:17px">A magnificent goose, facing left, as it should… wait. Above it. Where's the MINT MARK?</div>`
+    : `<div style="font-size:17px">Mint mark present. The goose faces left, as geese of quality do.</div>`;
+  $("inspectBody").innerHTML=`<h2 style="font-size:18px">Inspection</h2>${coinFaceSVG(coin,true)}${flawText}
+    <div style="font-size:15px;color:var(--ink2);margin-top:4px">A true gilder: goose faces LEFT · mint mark above.</div>`;
+  $("inspectOv").classList.add("show");
+}
+$("inspectClose").addEventListener("click",()=>{$("inspectOv").classList.remove("show");Sound.page();});
+
+/* ---- registry panel ---- */
+function buildRegistry(){
+  $("regList").innerHTML=Engine.REGISTRY.map(p=>`
+    <div class="regrow">${pixFace(p.face,40,0,false)}<div><b>${p.name}</b><br>b. ${p.dob} · Acct #${p.acct}</div></div>`).join("");
+}
+$("btnRegistry").addEventListener("click",()=>{
+  const p=$("registryPanel");p.classList.toggle("show");
+  $("btnRegistry").classList.toggle("on");
+  if(p.classList.contains("show")){Engine.noteOpen("registry");Sound.page();}
+});
+
+/* ---- stamps ---- */
+function typedBal(){ const v=$("balIn")?$("balIn").value.trim():""; if(v===""||v==="-")return null; const n=parseInt(v,10); return isNaN(n)?null:n; }
+function updateStamps(){
+  const c=Engine.customer(); if(!c){$("stApprove").disabled=true;$("stDecline").disabled=true;return;}
+  $("stApprove").disabled = Engine.state().decided || typedBal()===null;
+  $("stDecline").disabled = Engine.state().decided;
+}
+function stampMark(ok){
+  const card=$("docCard"); if(!card)return;
+  const m=document.createElement("div");m.className="stampmark"+(ok?" ok":"");m.textContent=ok?"APPROVED":"DECLINED";
+  card.appendChild(m);
+  m.animate([{transform:"rotate(-12deg) scale(2.2)",opacity:0},{transform:"rotate(-12deg) scale(1)",opacity:.85}],{duration:160,easing:"cubic-bezier(.2,1.4,.4,1)"});
+}
+function shakeStage(){$("stage").classList.remove("shake");void $("stage").offsetWidth;$("stage").classList.add("shake");}
+function redFlash(){const f=$("flash");f.style.opacity=.28;setTimeout(()=>f.style.opacity=0,120);}
+function particles(x,y,n){
+  for(let i=0;i<n;i++){const p=document.createElement("div");p.className="pt";p.textContent="+";
+    p.style.left=x+"px";p.style.top=y+"px";p.style.color=Math.random()<.5?"var(--red)":"var(--paper)";
+    $("stage").appendChild(p);
+    const a=Math.random()*Math.PI*2,v=40+Math.random()*90;
+    p.animate([{transform:"translate(0,0) scale(1)",opacity:1},
+      {transform:`translate(${Math.cos(a)*v}px,${Math.sin(a)*v-40}px) scale(.4)`,opacity:0}],
+      {duration:600+Math.random()*300,easing:"cubic-bezier(.2,.8,.4,1)"}).onfinish=()=>p.remove();}
+}
+
+function doStamp(kind){
+  const S=Engine.state(); if(S.decided)return;
+  const c=Engine.customer();
+  const res=Engine.decide(kind, typedBal());
+  if(kind==="approve")Sound.thunkApprove(); else Sound.thunkDecline();
+  stampMark(kind==="approve");
+  shakeStage();
+  updateStamps(); updateTill();
+  const custEl=$("custsvg");
+  setTimeout(()=>{
+    if(res.ok){
+      Sound.success(); Sound.bell(Math.min(S.cleanStreak-1,4));
+      const r=$("tillreadout").getBoundingClientRect(), s=$("stage").getBoundingClientRect();
+      particles(r.left-s.left+40,r.top-s.top,10);
+      custEl.innerHTML=bodySVG(c.p.face, kind==="approve"?1:-1);
+      if(res.memoNote==="obeyed"){
+        say("", "The arithmetic was perfect. The memo said no. You obeyed. Somewhere a very small ledger writes that down.");
+      } else if(res.memoNote==="defied"){
+        say(c.p.name.split(" ")[0], "…You stamped it? Against the memo? Teller — thank you. Truly. (Goldie's office door opens a crack, then shuts.)");
+      } else if(kind==="approve"&&c.truth.newBal>c.bal&&c.bal<0){
+        say(c.p.name.split(" ")[0], c.truth.newBal===0?"Zero! A beautiful, round, owes-nobody-anything ZERO!":"Look at that. The number climbed. Thank you, teller.");
+      } else if(kind==="decline"){
+        say(c.p.name.split(" ")[0], declineBark(c));
+      } else {
+        say(c.p.name.split(" ")[0], approveBark(c));
+      }
+      if(kind==="approve"){const bb=$("docCard").querySelector(".balbar");if(bb)bb.outerHTML=balbar(c.truth.newBal);}
+      if(kind==="approve"&&(c.spec.req.type==="deposit"||c.spec.req.type==="circle"))Sound.coinPour(Math.min(c.cash.length,6));
+      if(kind==="approve"&&(c.spec.req.type==="withdraw"||c.spec.req.type==="payout"))Sound.coinPour(3);
+    } else {
+      Sound.chime(); redFlash(); custEl.innerHTML=bodySVG(c.p.face,-1);
+      say("", res.errType==="output"
+        ? "The stamp lands… but that balance you wrote feels wrong in your hand. Too late now. THUNK."
+        : "Something feels off as the ink dries… but the line moves on. You'll hear about this at closing.");
+    }
+    const pc=c.spec.postDeclineChoice;
+    if(kind==="decline" && pc && !choiceAnswered(pc.key)){
+      setTimeout(()=>showChoiceSheet(pc, ()=>advance()), 1500);
+    } else {
+      setTimeout(advance, res.ok?1500:2100);
+    }
+  }, 220);
+}
+function approveBark(c){
+  const r=c.spec.req;
+  if(r.type==="interest")return "Correct to the gilder. I did it in my head to check you.";
+  if(r.type==="circle")return "To the Circle! See you at doubling day, teller!";
+  if(r.type==="payout")return "Doubled! Exactly like the poster! What a bank! What a town!";
+  if(r.type==="withdraw"&&r.amt===0)return "Just the window, dear. Just the window.";
+  if(r.type==="withdraw"&&c.truth.newBal<0)return "Below zero. I can feel the minus sign from here. Winter's worth it.";
+  return ["Much obliged.","Counted true, teller.","Efficient! Suspiciously efficient.","The Trust thanks you. I suppose I do too."][c.p.acct%4];
+}
+function declineBark(c){
+  if(c.flaw==="fakeObvious")return "COMMEMORATIVE, I said! …Fine. Worth a try.";
+  if(c.flaw==="fakeSubtle")return "…The goose. It was the goose, wasn't it. Next time the goose faces LEFT.";
+  if(c.flaw==="fakeMaster")return "The MINT MARK?! I gave that goose EVERYTHING and forgot the— note to self. NOTE TO SELF.";
+  if(c.flaw==="face")return "Hmph! Plenty of people look like this!";
+  if(c.flaw==="name")return "…You read the registry. How inconvenient of you.";
+  if(c.flaw==="dob")return "Calendars! Who invented them! Fine, FINE.";
+  if(c.flaw==="ledger")return "That passbook cost me three gilders to… never mind.";
+  if(c.flaw==="overdraft")return "Overdrawn?! …So the minus means LESS less, not more. Curses.";
+  if(c.flaw==="cashShort")return "Short?! Count it aga— oh. Oh, I see the hole in my pocket now.";
+  return "Declined?! I have never been so insulted. Correctly.";
+}
+
+/* decline hold-to-confirm */
+(function(){
+  const b=$("stDecline"),bar=b.querySelector(".hold");let t0=null,raf=null;
+  function step(){ const p=Math.min(1,(performance.now()-t0)/600); bar.style.width=(p*100)+"%";
+    if(p>=1){cancel(); doStamp("decline");} else raf=requestAnimationFrame(step); }
+  function cancel(){ if(raf)cancelAnimationFrame(raf);raf=null;t0=null;bar.style.width="0"; }
+  b.addEventListener("pointerdown",e=>{ if(b.disabled)return; Sound.stampable(); t0=performance.now(); raf=requestAnimationFrame(step); });
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,cancel));
+})();
+$("stApprove").addEventListener("click",()=>doStamp("approve"));
+
+/* ---- HUD ---- */
+function updateTill(){
+  const el=$("tillAmt"), v=Engine.actualTill();
+  const cur=parseInt(el.textContent)||0;
+  const t0=performance.now();
+  (function anim(){const p=Math.min(1,(performance.now()-t0)/450);
+    el.textContent=Math.round(cur+(v-cur)*p)+"g";
+    if(p<1)requestAnimationFrame(anim);})();
+}
+function updateDayLabel(){
+  const S=Engine.state(), sd=Engine.shiftData();
+  const hour=9+S.cust; $("daylabel").textContent=`Act ${sd.act} - Shift ${sd.n} - ${hour}:00`;
+}
+
+/* ---- flow ---- */
+function advance(){
+  $("registryPanel").classList.remove("show");$("btnRegistry").classList.remove("on");
+  const c=Engine.nextCustomer();
+  if(c){ updateDayLabel(); presentCustomer(c); }
+  else endOfDay();
+}
+function startShiftUI(){
+  const sd=Engine.shiftData();
+  Engine.startShift();
+  clearTray(); $("custsvg").innerHTML="";
+  Sound.startAmbience(false);
+  const prev=Engine.state().shift>0?Engine.SHIFTS[Engine.state().shift-1]:null;
+  const actCard=(!prev||prev.act!==sd.act)?`<div class="actcard"><div class="no">ACT ${sd.act}</div><div class="nm">${Engine.actName(sd.act)}</div></div>`:"";
+  showSheet(`${actCard}
+    <h2>Shift ${sd.n} of 18 — Memo</h2>
+    <div style="font-size:18px;line-height:1.4;border-left:4px solid var(--red);padding-left:12px">${sd.memo}</div>
+    <div style="text-align:right;font-family:'Oswald';margin-top:8px;font-size:13px">— sealed in red wax</div>
+    <div class="btnrow"><button class="bigbtn red" id="goShift">Open the window</button></div>`);
+  $("goShift").addEventListener("click",()=>{hideSheet();Sound.bell(0);advance();});
+  saveGame();
+}
+
+/* end-of-day */
+function endOfDay(){
+  clearTray();$("custsvg").innerHTML="";say("","The clock strikes five. The window closes. Now: the till.");
+  const S=Engine.state();
+  const lines=S.dayLedger.map(l=>`<div class="ledgerline"><span>${l.label}</span><span class="amt ${l.amt<0?"neg":""}">${l.amt>0?"+":""}${l.amt}g</span></div>`).join("")
+    ||`<div class="ledgerline"><span>(no transactions recorded)</span><span></span></div>`;
+  showSheet(`
+    <h2>Balance the Till — Shift ${Engine.shiftData().n}</h2>
+    <div style="font-size:16px">Opening float: <b>150g</b>. The day's recorded movements:</div>
+    <div style="margin:8px 0;border:1.5px solid var(--ink);background:#d4c8a4;max-height:200px;overflow-y:auto">${lines}</div>
+    <div style="font-size:17px">By the records, the till should hold:
+      <input class="balinput" id="tillIn" inputmode="numeric" style="width:90px;font-size:22px"> g</div>
+    <div class="btnrow"><button class="bigbtn red" id="btnCount">Count the till</button></div>`);
+  $("btnCount").addEventListener("click",()=>{
+    const v=parseInt($("tillIn").value,10);
+    if(isNaN(v)){$("tillIn").focus();return;}
+    Sound.coinPour(8);
+    setTimeout(()=>showDayReport(v),700);
+  });
+}
+function showDayReport(typed){
+  const R=Engine.endShiftReport(typed);
+  const S=Engine.state();
+  const errs=R.errors.length? R.errors.map(e=>`<div style="margin:6px 0;padding:6px;border:1.5px solid var(--red);font-size:15px">
+      <b class="paydeduct">CORRECTION NOTICE (−5g)</b> · <i>${e.errType} error</i><br>${e.note}</div>`).join("")
+    : `<div style="margin:6px 0;padding:6px;border:1.5px solid #2e4632;font-size:16px;color:#2e4632"><b>A clean sheet. Every stamp earned.</b></div>`;
+  const obeyLine=(S.results.some(r=>r.memoNote))?
+    `<div style="font-size:14px;color:var(--ink2)">Memo compliance today: obeyed ${S.results.filter(r=>r.memoNote==="obeyed").length}, defied ${S.results.filter(r=>r.memoNote==="defied").length}. Somebody is keeping count. Two somebodies.</div>`:"";
+  const mathLine = R.typedOk
+    ? `<div>Your total: <b>${Engine.expectedTill()}g</b> — correct.</div>`
+    : `<div class="paydeduct">You wrote ${typed}g — the records say <b>${Engine.expectedTill()}g</b> (150 ${S.dayLedger.map(l=>(l.amt>=0?"+ ":"− ")+Math.abs(l.amt)).join(" ")}).</div>`;
+  const drawer = R.match? `<div>The drawer holds <b>${R.act}g</b> — matches the records. The bell rings once, satisfied.</div>`
+    : `<div class="paydeduct">The drawer holds <b>${R.act}g</b> — the records expected ${R.exp}g. Something that happened at your window today did not add up.</div>`;
+  if(R.typedOk&&R.match){Sound.bell(4);}else{Sound.chime();}
+  showSheet(`
+    <h2>End of Day — Report</h2>
+    ${mathLine}${drawer}
+    <div style="margin-top:10px;font-family:'Oswald';font-size:15px">SALARY: 30g ${R.salary<30?`<span class="paydeduct">− ${30-R.salary}g corrections</span>`:""} = <b>${R.salary}g</b></div>
+    ${obeyLine}${errs}
+    <div class="btnrow"><button class="bigbtn" id="btnNight">Lock up</button></div>`);
+  $("btnNight").addEventListener("click",()=>nightScene(R.salary));
+}
+
+function nightScene(salary){
+  const sd=Engine.shiftData();
+  Sound.startAmbience(true);
+  const nd=sd.night;
+  if(!nd){ // shift 18 — the end of everything
+    finalNight(salary); return;
+  }
+  if(nd.choice && !choiceAnswered(nd.choice.key)){
+    showChoiceSheet(nd.choice, ()=>nightScene(salary));
+    return;
+  }
+  const N=Engine.applyNight(salary);
+  if(N.evicted){ gameOverScreen(N); return; }
+  const hardshipBlock = N.unpaid>0 ? `
+    <div style="margin-top:10px;padding:8px 10px;border:2px solid var(--red);color:var(--red);font-size:16px;line-height:1.4">
+      <b style="font-family:'Oswald';letter-spacing:.08em">SHORT ${N.unpaid}g THIS WEEK.</b><br>
+      The landlord takes what you have and leaves a note: <i>«One more short week and the room goes to the tanner's cousin.»</i>
+      Your sister eats supper at a neighbor's, says it was fine, and is lying.
+      <b>Another short week and it's over, teller.</b></div>`:"";
+  const poster=nd.poster?`
+    <div class="circleposter">
+      <div class="big">THE PROSPERITY CIRCLE</div>
+      The Trust DOUBLES your deposit — every 30 days!<br>
+      <b>Ask how! Bring two friends!</b><br>
+      <span style="font-size:11px">The Gilder Trust · Marrowgate · Mr. A. Vault, Dir.</span>
+    </div>`:"";
+  showSheet(`
+    <h2>Night — Marrowgate</h2>
+    ${poster}
+    <div style="font-size:17px;line-height:1.45">${nd.text}</div>
+    <div style="margin-top:10px;border-top:1.5px solid var(--ink);padding-top:8px;font-size:17px">
+      <div class="ledgerline"><span>Salary</span><span class="amt">+${salary}g</span></div>
+      <div class="ledgerline"><span>Rent</span><span class="amt neg">−${nd.rent}g</span></div>
+      <div class="ledgerline"><span>Heating</span><span class="amt neg">−${nd.heat}g</span></div>
+      ${nd.school?`<div class="ledgerline"><span>Sister's school fees</span><span class="amt neg">−${nd.school}g</span></div>`:""}
+      <div class="ledgerline" style="border-top:1.5px solid var(--ink)"><span><b>Your pocket</b></span><span class="amt ${N.unpaid>0?"neg":""}"><b>${N.pocket}g${N.unpaid>0?" (short "+N.unpaid+"g)":""}</b></span></div>
+    </div>
+    ${hardshipBlock}
+    <div class="btnrow"><button class="bigbtn red" id="btnNext">Sleep — Shift ${Engine.state().shift+1} of 18</button></div>`);
+  $("btnNext").addEventListener("click",()=>{Sound.stopAmbience();startShiftUI();});
+  saveGame();
+}
+
+/* ---- GAME OVER: the family comes first, and you couldn't keep it ---- */
+function gameOverScreen(N){
+  Sound.stopAmbience(); Sound.chime(); setTimeout(()=>Sound.thunkDecline(),700);
+  const sd=Engine.shiftData();
+  showSheet(`
+    <div style="text-align:center;font-family:'Oswald';font-size:15px;letter-spacing:.4em;color:var(--red)">CAREER TERMINATED</div>
+    <h2 style="text-align:center;color:var(--red)">TURNED OUT</h2>
+    <div style="font-size:17px;line-height:1.5">
+    Two short weeks in a row. The landlord's note is short too: <i>«Room's let. Key by noon.»</i><br><br>
+    Your sister is sent to Aunt Odka's, three villages over, where everything smells of vinegar and disappointment. You carry her bag to the coach. She doesn't cry. That's worse.<br><br>
+    Mr. Vault signs your dismissal himself, in gold ink: <i>«A teller who cannot balance his own household can hardly be trusted with mine.»</i> He underlines <i>mine</i>. It's the truest thing he's ever written.<br><br>
+    <b>Correction notices cost 5g each. Salary is 30g. Rent, heat, and school fees don't wait. Keep the sheet clean — the family is the till that matters.</b></div>
+    <div style="margin-top:10px;font-family:'Oswald';font-size:14px;color:var(--ink2)">Failed during Shift ${sd.n} of 18 — ${Engine.actName(sd.act)}</div>
+    <div class="btnrow">
+      <button class="bigbtn" id="btnRetry">Work Shift ${sd.n} again</button>
+      <button class="bigbtn red" id="btnNewCareer">Start a new career</button></div>`);
+  $("btnRetry").addEventListener("click",()=>{Engine.retryShift();saveGame();hideSheet();startShiftUI();});
+  $("btnNewCareer").addEventListener("click",()=>{try{localStorage.removeItem("gt.save");}catch(e){} location.reload();});
+}
+
+function finalNight(salary){
+  const N=Engine.applyNight(salary);
+  showSheet(`
+    <h2>The Last Night</h2>
+    <div style="font-size:17px;line-height:1.5">At noon the doors were chained. At three, the constables came for the ledgers — what was left of them. At five, someone finally took the poster down; under it, the marble is a brighter white, a poster-shaped ghost that will outlast everyone's savings.<br><br>
+    Goldie's office: an empty wax-seal kit, a calendar reading AT CONFERENCE, and a paperweight shaped like a goose.<br><br>
+    Marrowgate holds its breath. Then spring comes — and spring, unlike doubling, is real.</div>
+    <div class="btnrow"><button class="bigbtn red" id="btnSpring">The spring that followed…</button></div>`);
+  $("btnSpring").addEventListener("click",()=>showEpilogue(N.pocket));
+}
+
+function showEpilogue(pocket){
+  const e=Engine.resolveEnding(), M=Engine.state().moral;
+  unlockEnding(e.id);
+  Sound.chime(); setTimeout(()=>Sound.bell(4),900);
+  const unlocked=getUnlocked();
+  showSheet(`
+    <div style="text-align:center;font-family:'Oswald';font-size:16px;letter-spacing:.4em;color:var(--red)">EPILOGUE ${e.num}</div>
+    <h2 style="text-align:center">${e.title}</h2>
+    <div style="font-size:17px;line-height:1.5">${e.text}</div>
+    <div style="margin-top:12px;border-top:1.5px solid var(--ink);padding-top:8px;font-size:15px;color:var(--ink2)">
+      Eighteen shifts, in the ledger the bank never saw — conscience ${M.conscience>=0?"+":""}${M.conscience} ·
+      evidence kept ${M.evidence.length} · warnings ${M.warnings} ·
+      fakes caught ${M.caughtFakes}/${M.caughtFakes+M.missedFakes} · memos obeyed ${M.obeyed} / defied ${M.defied} ·
+      errors ${M.totalErrors} · pocket ${pocket}g</div>
+    <div style="font-size:14px;color:var(--ink2);margin-top:6px;text-align:center">
+      ${unlocked.length}/10 epilogues found. A different eighteen shifts ends a different way.</div>
+    <div class="btnrow">
+      <button class="bigbtn" id="btnGallery">Epilogues ${unlocked.length}/10</button>
+      <button class="bigbtn red" id="btnReplay">Start a new career</button></div>`);
+  $("btnReplay").addEventListener("click",()=>{try{localStorage.removeItem("gt.save");}catch(err){} location.reload();});
+  $("btnGallery").addEventListener("click",()=>showGallery(()=>showEpilogue(pocket)));
+  try{localStorage.removeItem("gt.save");}catch(err){}
+}
+
+/* ---- endings gallery ---- */
+function getUnlocked(){ try{return JSON.parse(localStorage.getItem("gt.endings")||"[]");}catch(e){return window._gtEnd||[];} }
+function unlockEnding(id){ const u=getUnlocked(); if(!u.includes(id))u.push(id);
+  try{localStorage.setItem("gt.endings",JSON.stringify(u));}catch(e){window._gtEnd=u;} }
+function showGallery(back){
+  const u=getUnlocked();
+  const cards=Engine.ENDINGS.map((e,i)=>{
+    const got=u.includes(e.id);
+    return `<div style="border:1.5px solid ${got?"var(--red)":"var(--ink2)"};padding:8px 10px;margin:7px 0;${got?"":"opacity:.65"}">
+      <div style="font-family:'Oswald';font-weight:700;letter-spacing:.06em">${e.num}. ${got?e.title:"— ? ? ? —"}</div>
+      <div style="font-size:15px;line-height:1.3;color:var(--ink2)">${got?e.text:"<i>Hint: "+e.hint+"</i>"}</div></div>`;
+  }).join("");
+  showSheet(`<h2>The Ten Springs of Marrowgate</h2>
+    <div style="font-size:15px;color:var(--ink2)">Every eighteen-shift career ends somewhere. ${u.length}/10 found. Endings resolve only after the final shift.</div>
+    ${cards}<div class="btnrow"><button class="bigbtn" id="galBack">Back</button></div>`);
+  $("galBack").addEventListener("click",back);
+}
+
+/* ---- story choices ---- */
+function showChoiceSheet(choice, done){
+  const M=Engine.state().moral;
+  const opts=choice.options.filter(o=>!o.needEvidence||M.evidence.length>0).map((o,i)=>`
+    <button class="bigbtn" style="display:block;width:100%;text-align:left;margin:8px 0;background:var(--ink)" data-id="${o.id}">
+      ${o.label}<br><span style="font-size:12px;letter-spacing:.04em;opacity:.75;text-transform:none;font-weight:400">${o.sub||""}</span>
+    </button>`).join("");
+  showSheet(`<h2 style="font-size:19px">A moment, off the record</h2>
+    <div style="font-size:17px;line-height:1.45">${choice.prompt}</div>${opts}`);
+  $("sheetBody").querySelectorAll("button[data-id]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const opt=choice.options.find(o=>o.id===b.dataset.id);
+      Engine.choose(choice.key,opt);
+      Sound.page(); saveGame();
+      showSheet(`<div style="font-size:17px;line-height:1.5">${opt.result}</div>
+        <div class="btnrow"><button class="bigbtn red" id="chDone">Continue</button></div>`);
+      $("chDone").addEventListener("click",()=>{hideSheet();done(opt);});
+    });
+  });
+}
+function choiceAnswered(key){ return key in Engine.state().moral.choices; }
+
+/* ---- sheet helpers ---- */
+function showSheet(html){ $("sheetBody").innerHTML=html; $("sheetOv").classList.add("show"); }
+function hideSheet(){ $("sheetOv").classList.remove("show"); }
+
+/* ---- save/load ---- */
+function saveGame(){ try{ const S=Engine.state();
+  localStorage.setItem("gt.save",JSON.stringify({shift:S.shift,pocket:S.pocket,balances:S.balances,seed:S.seed,moral:S.moral,circle:S.circle,hardship:S.hardship})); }catch(e){} }
+function loadGame(){ try{ const raw=localStorage.getItem("gt.save"); if(!raw)return null; return JSON.parse(raw);}catch(e){return null} }
+
+/* ---- boot ---- */
+buildRegistry();
+const saved=loadGame();
+if(saved&&saved.shift>0&&saved.shift<Engine.SHIFTS.length){
+  $("contRow").style.display="block"; $("contShift").textContent=saved.shift+1;
+  $("btnContinue").addEventListener("click",()=>{
+    Sound.unlock(); const S=Engine.newGame(saved.seed);
+    S.shift=saved.shift;S.pocket=saved.pocket;Object.assign(S.balances,saved.balances);
+    if(saved.moral)Object.assign(S.moral,saved.moral);
+    if(saved.circle)Object.assign(S.circle,saved.circle);
+    if(saved.hardship)S.hardship=saved.hardship;
+    $("titleOv").classList.remove("show"); startShiftUI();
+  });
+}
+$("btnStart").addEventListener("click",()=>{
+  Sound.unlock(); Engine.newGame();
+  try{localStorage.removeItem("gt.save");}catch(e){}
+  $("titleOv").classList.remove("show");
+  startShiftUI();
+});
+$("btnEndings").addEventListener("click",()=>{Sound.unlock();showGallery(hideSheet);});
+$("btnSfx").addEventListener("click",()=>{$("btnSfx").classList.toggle("off",!Sound.toggleSfx());});
+$("btnMus").addEventListener("click",()=>{const on=Sound.toggleMus();$("btnMus").classList.toggle("off",!on);
+  if(on&&!$("titleOv").classList.contains("show"))Sound.startAmbience($("sheetOv").classList.contains("show"));});
+document.addEventListener("visibilitychange",()=>{ if(document.hidden)Sound.stopAmbience(); else if(Sound.musOn&&!$("titleOv").classList.contains("show"))Sound.startAmbience(false); });
+window.addEventListener("pointerdown",function once(){Sound.unlock();window.removeEventListener("pointerdown",once);});
+
+/* debug hooks */
+window.GT={Engine, truth:()=>Engine.customer()&&Engine.customer().truth, state:()=>Engine.state(),
+  moral:()=>Engine.state().moral, ending:()=>Engine.resolveEnding(),
+  skipTo:(n)=>{const S=Engine.newGame();S.shift=n;$("titleOv").classList.remove("show");startShiftUI();}};
+</script>
+</body>
+</html>
