@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Odds Shop</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  THE ODDS SHOP — carnival probability tycoon (MVP vertical slice)
+  ═══════════════════════════════════════════════════════════════════
+  Standards: 7.SP.5-8 (probability models, compound events, experimental
+  vs theoretical), 7.RP.3 (percent margins), expected value by necessity.
+  Super-idea: probability is a PRODUCT the player manufactures. You are
+  the house. price − Σ(prize cost × prize probability) = profit per play.
+  Misconceptions ambushed:
+   · "big prize displayed = winnable" — the player ENGINEERS the illusion
+   · "due for a win" — patron thought-bubbles think it; the dice don't
+   · expected ≠ guaranteed — small-sample stands swing wildly; the ledger
+     compares expected vs actual and says "Math right, luck wrong."
+  Slice scope: one town (Millbrook), one 3-day stand, Wheel + Duck Dice
+  designers with live EV readouts + 6×6 sample-space grid, prize
+  inventory, ticket pricing, Allure/Heat crowd sim, expected-vs-actual
+  ledger, pack-early option, Alderman audit at high Heat.
+  Audio identity: chip-square carnival organ, B♭ major. Signature sound:
+  the wheel's decelerating ratchet. Patron-win calliope 1-3-5 ≠ your
+  profit chime (two economies, two sounds). Music thins as Heat rises.
+  ═══════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rye&family=Nunito:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#1a1523;      /* deep charcoal night */
+  --night2:#241d31;
+  --panel:#2d2440;
+  --crimson:#a83250;
+  --teal:#1d5c63;
+  --brass:#d4a24e;
+  --amber:#ffbf69;      /* bulb glow */
+  --ticket:#ff2e4d;     /* accent: money moments ONLY */
+  --ink:#f3ead9;        /* off-white paper */
+  --dim:#9c8fb0;
+  --good:#7ec97e;
+  --bad:#e0607a;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:radial-gradient(ellipse at 50% -20%, #2c2140 0%, var(--night) 60%);
+  color:var(--ink);
+  font-family:'Nunito',sans-serif;
+  font-size:16px;
+  overflow-x:hidden;
+  min-height:100%;
+}
+h1,h2,h3,.rye{font-family:'Rye',serif;font-weight:400;letter-spacing:.5px}
+button{font-family:'Nunito',sans-serif;cursor:pointer;border:none;border-radius:10px;font-weight:700}
+button:disabled{opacity:.4;cursor:default}
+.btn{background:var(--teal);color:var(--ink);padding:10px 20px;font-size:16px;box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.btn.gold{background:linear-gradient(180deg,var(--amber),var(--brass));color:#3a2a10}
+.btn.red{background:var(--crimson)}
+.btn.big{font-size:20px;padding:14px 30px}
+
+#app{max-width:980px;margin:0 auto;padding:10px 12px 40px}
+
+/* ── header ── */
+#hdr{display:flex;align-items:center;gap:12px;padding:8px 4px;flex-wrap:wrap}
+#hdr h1{font-size:26px;color:var(--amber);text-shadow:0 0 18px rgba(255,191,105,.35);flex:1;white-space:nowrap}
+.flipCounter{display:flex;gap:3px;background:#151020;padding:6px 10px;border-radius:8px;border:1px solid #443a5c;align-items:center}
+.flipCounter .lbl{font-size:11px;color:var(--dim);font-weight:700;margin-right:4px}
+.flipCounter .digits{font-family:'Nunito';font-weight:900;font-size:22px;color:var(--ticket);min-width:70px;text-align:right;letter-spacing:2px}
+.iconBtn{background:var(--panel);color:var(--ink);width:38px;height:38px;font-size:18px;border:1px solid #443a5c}
+.iconBtn.off{opacity:.45}
+#dayBadge{background:var(--panel);border:1px solid #443a5c;padding:6px 14px;border-radius:8px;font-weight:900;color:var(--amber)}
+
+/* ── bulbs string ── */
+#bulbs{display:flex;justify-content:space-between;padding:0 6px;margin:2px 0 8px}
+#bulbs span{width:8px;height:8px;border-radius:50%;background:var(--amber);opacity:.5;animation:twinkle 2.4s infinite}
+@keyframes twinkle{0%,100%{opacity:.35;box-shadow:none}50%{opacity:1;box-shadow:0 0 8px var(--amber)}}
+
+.screen{display:none;animation:fadeIn .35s ease}
+.screen.on{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── title ── */
+#scrTitle{text-align:center;padding-top:24px}
+#scrTitle .marquee{font-size:52px;color:var(--amber);text-shadow:0 0 30px rgba(255,191,105,.5),0 4px 0 #6b4d1e;animation:marquee 3s ease-in-out infinite}
+@keyframes marquee{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+#scrTitle .sub{color:var(--dim);margin:6px 0 20px;font-style:italic}
+.letter{background:linear-gradient(180deg,#efe4c8,#e4d5b2);color:#4a3620;max-width:560px;margin:0 auto 24px;padding:22px 26px;border-radius:4px;text-align:left;font-size:15.5px;line-height:1.55;box-shadow:0 8px 30px rgba(0,0,0,.5);transform:rotate(-.6deg)}
+.letter .sig{font-family:'Rye';text-align:right;margin-top:10px;color:#7a2f3f}
+
+/* ── design screen layout ── */
+.cols{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.col{flex:1 1 440px;min-width:320px}
+.card{background:var(--panel);border:1px solid #443a5c;border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.card h2{color:var(--amber);font-size:20px;margin-bottom:10px}
+.card h3{color:var(--brass);font-size:15px;margin:10px 0 6px}
+.awning{height:14px;border-radius:12px 12px 0 0;margin:-14px -16px 12px;background:
+ repeating-linear-gradient(90deg,var(--crimson) 0 26px,var(--ink) 26px 52px)}
+.awning.teal{background:repeating-linear-gradient(90deg,var(--teal) 0 26px,var(--ink) 26px 52px)}
+
+/* EV readout */
+.evBar{display:flex;align-items:center;gap:10px;background:#151020;border-radius:10px;padding:10px 12px;margin-top:10px;border:1px solid #443a5c}
+.evBar .math{font-size:13px;color:var(--dim);flex:1;line-height:1.4}
+.evBar .val{font-weight:900;font-size:26px;min-width:96px;text-align:right;transition:color .3s}
+.evBar .val.pos{color:var(--good)} .evBar .val.neg{color:var(--bad)}
+.evBar .per{font-size:11px;color:var(--dim);text-align:right}
+
+/* wheel designer */
+#wheelWrap{display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:center}
+#wheelSvg{touch-action:none;user-select:none}
+.wedgeHandle{cursor:grab;}
+.wedgeHandle:active{cursor:grabbing}
+#wedgeList{flex:1;min-width:200px}
+.wRow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;margin-bottom:4px;background:#151020;border:1px solid transparent;cursor:pointer}
+.wRow.sel{border-color:var(--amber)}
+.wRow .sw{width:16px;height:16px;border-radius:4px;flex:none}
+.wRow .nm{flex:1;font-weight:700;font-size:14px}
+.wRow .pct{font-weight:900;color:var(--dim);font-size:13px;min-width:52px;text-align:right}
+.prizePal{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.prizePal button{background:#151020;border:1px solid #443a5c;color:var(--ink);padding:6px 10px;font-size:13px;border-radius:8px}
+.prizePal button.sel{border-color:var(--amber);background:#2a2038}
+
+/* dice designer */
+#grid66{display:grid;grid-template-columns:repeat(7,30px);grid-auto-rows:30px;gap:2px;justify-content:center;margin:8px 0}
+#grid66 .hd{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;font-weight:900}
+#grid66 .cell{border-radius:5px;background:#151020;border:1px solid #362c4c;transition:background .25s, box-shadow .25s}
+#grid66 .cell.win{background:var(--teal);box-shadow:inset 0 0 6px rgba(255,191,105,.5);border-color:var(--brass)}
+.ruleBtns{display:flex;gap:6px;flex-wrap:wrap}
+.ruleBtns button{background:#151020;border:1px solid #443a5c;color:var(--ink);padding:7px 11px;font-size:13px;border-radius:8px}
+.ruleBtns button.sel{border-color:var(--amber);background:#2a2038;color:var(--amber)}
+
+/* steppers */
+.stepper{display:inline-flex;align-items:center;gap:8px;background:#151020;border-radius:10px;padding:4px 6px;border:1px solid #443a5c}
+.stepper button{width:32px;height:32px;border-radius:8px;background:var(--teal);color:var(--ink);font-size:18px;font-weight:900}
+.stepper .v{font-weight:900;font-size:20px;min-width:44px;text-align:center}
+.rowFlex{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0}
+.rowFlex .lbl{font-weight:700;color:var(--dim);font-size:14px}
+
+/* inventory */
+.invRow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#151020;margin-bottom:5px}
+.invRow .em{font-size:20px;width:28px;text-align:center}
+.invRow .nm{flex:1;font-weight:700;font-size:14px}
+.invRow .cost{color:var(--dim);font-size:12px;min-width:84px}
+.invRow .stk{font-weight:900;font-size:17px;min-width:34px;text-align:center}
+.invRow .stk.low{color:var(--bad)}
+.invRow button{width:30px;height:30px;border-radius:8px;background:var(--teal);color:var(--ink);font-weight:900}
+
+/* ── showtime ── */
+#midway{position:relative;height:340px;background:linear-gradient(180deg,#241d31 0%,#1a1523 70%,#141019 100%);border-radius:var(--radius);border:1px solid #443a5c;overflow:hidden;margin-bottom:12px}
+#midway .ground{position:absolute;left:0;right:0;bottom:0;height:110px;background:linear-gradient(180deg,#2a2136,#211a2c)}
+.boothViz{position:absolute;bottom:96px;width:150px;text-align:center;transition:filter .3s}
+.boothViz .tent{font-size:13px;font-family:'Rye';color:var(--ink);background:var(--crimson);border-radius:10px 10px 0 0;padding:6px 4px 4px;border:2px solid var(--brass);border-bottom:none}
+.boothViz.teal .tent{background:var(--teal)}
+.boothViz .counter{background:#3a2f52;border:2px solid var(--brass);border-top:none;border-radius:0 0 8px 8px;padding:4px;font-size:20px;min-height:36px}
+.boothViz .oddsTag{position:absolute;top:-14px;right:-8px;background:var(--ink);color:#3a2a10;font-size:10px;font-weight:900;padding:2px 7px;border-radius:10px;transform:rotate(6deg)}
+.patron{position:absolute;font-size:22px;transition:left 1.1s linear, bottom 1.1s linear;will-change:left;z-index:3}
+.patron .bub{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:#33284a;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;animation:bubPop .3s ease;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+@keyframes bubPop{from{transform:translateX(-50%) scale(.5);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+.floaty{position:absolute;font-weight:900;font-size:15px;pointer-events:none;animation:floatUp 1.2s ease-out forwards;z-index:5;text-shadow:0 2px 4px rgba(0,0,0,.6)}
+@keyframes floatUp{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-46px)}}
+.spark{position:absolute;width:7px;height:7px;border-radius:50%;pointer-events:none;z-index:6;animation:sparkFly .7s ease-out forwards}
+@keyframes sparkFly{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+#midway.shake{animation:shk .25s}
+@keyframes shk{0%,100%{transform:none}25%{transform:translate(-5px,2px)}50%{transform:translate(4px,-3px)}75%{transform:translate(-3px,-2px)}}
+#dayClock{position:absolute;top:10px;left:12px;font-family:'Rye';color:var(--amber);font-size:15px;z-index:4;text-shadow:0 2px 4px #000}
+#moon{position:absolute;top:14px;right:16px;font-size:24px;opacity:.8}
+
+/* meters */
+.meters{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.meter{flex:1;min-width:220px;background:var(--panel);border:1px solid #443a5c;border-radius:10px;padding:8px 12px}
+.meter .lbl{display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin-bottom:4px}
+.meter .track{height:14px;background:#151020;border-radius:8px;overflow:hidden}
+.meter .fill{height:100%;border-radius:8px;transition:width .5s ease}
+#allureFill{background:linear-gradient(90deg,var(--brass),var(--amber))}
+#heatFill{background:linear-gradient(90deg,#8a4a5e,var(--ticket))}
+
+#ticker{background:#151020;border:1px solid #443a5c;border-radius:10px;padding:8px 12px;height:120px;overflow-y:auto;font-size:13px;line-height:1.55;margin-bottom:12px}
+#ticker .win{color:var(--good)} #ticker .loss{color:var(--dim)} #ticker .bad{color:var(--bad)} #ticker .money{color:var(--amber)}
+
+.showCtrl{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+/* ── ledger ── */
+.ledger{background:linear-gradient(180deg,#efe4c8,#e4d5b2);color:#41301c;border-radius:6px;padding:20px 24px;max-width:640px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.ledger h2{color:#7a2f3f;border-bottom:2px solid #b89e72;padding-bottom:6px;margin-bottom:10px}
+.ledger table{width:100%;border-collapse:collapse;font-size:14.5px}
+.ledger td,.ledger th{padding:5px 6px;text-align:right;border-bottom:1px dashed #c4ab7c}
+.ledger td:first-child,.ledger th:first-child{text-align:left}
+.ledger .tot{font-weight:900;font-size:17px}
+.ledger .neg{color:#a12744} .ledger .pos{color:#2c6b3f}
+.ledger .verdict{margin-top:12px;font-style:italic;background:rgba(122,47,63,.08);border-left:4px solid #7a2f3f;padding:8px 12px;font-size:14px;line-height:1.5}
+.ledger .row-anim{opacity:0;animation:ledgerIn .4s ease forwards}
+@keyframes ledgerIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+
+/* modal */
+#modal{position:fixed;inset:0;background:rgba(10,7,16,.8);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+#modal.on{display:flex}
+#modalBox{background:var(--panel);border:2px solid var(--brass);border-radius:var(--radius);max-width:520px;width:100%;padding:20px 22px;animation:fadeIn .3s ease;max-height:88vh;overflow-y:auto}
+#modalBox h2{color:var(--amber);margin-bottom:10px}
+.auditRow{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.auditRow .chip{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;background:#151020;border:1px solid #443a5c;opacity:0;animation:chipIn .25s ease forwards}
+@keyframes chipIn{from{transform:scale(.3)}to{opacity:1;transform:scale(1)}}
+.dimNote{color:var(--dim);font-size:13px;line-height:1.5;margin-top:6px}
+
+@media(max-width:640px){
+  #hdr h1{font-size:20px}
+  #scrTitle .marquee{font-size:34px}
+  #grid66{grid-template-columns:repeat(7,26px);grid-auto-rows:26px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <h1>The Odds Shop</h1>
+    <div id="dayBadge">Design</div>
+    <div class="flipCounter"><span class="lbl">TICKETS</span><span class="digits" id="cashD">0</span></div>
+    <button class="iconBtn" id="sndBtn" title="sound">🔊</button>
+    <button class="iconBtn" id="musBtn" title="music">🎵</button>
+  </div>
+  <div id="bulbs"></div>
+
+  <!-- TITLE -->
+  <div class="screen on" id="scrTitle">
+    <div class="marquee">Fortuna's<br>Marvelous Midway</div>
+    <div class="sub">a probability tycoon · you are the house</div>
+    <div class="letter">
+      <p><b>Darling,</b></p>
+      <p>The wagon is yours now — the wheel, the ducks, the debts. Three days in Millbrook to prove you've got the gift.</p>
+      <p>The secret? <b>The games are honest. The MATH is crooked.</b> Never lie about the rules — just <i>write</i> the rules. Every prize you hang costs you tickets; every wedge you shave earns them back. Charge more than you give away, on average, and the average always comes home… eventually.</p>
+      <p>Feed the wagon. Watch the Heat. And smile, darling. Always smile.</p>
+      <p class="sig">— Great-Aunt Fortuna</p>
+    </div>
+    <button class="btn gold big" id="startBtn">🎪 Open the Midway</button>
+    <p class="dimNote" style="text-align:center;margin-top:14px">Goal: end the 3-day stand with <b>+250 tickets</b> after wagon costs.<br>Design your booths so each play earns you more than it pays out — on average.</p>
+  </div>
+
+  <!-- DESIGN -->
+  <div class="screen" id="scrDesign">
+    <div class="cols">
+      <div class="col">
+        <div class="card">
+          <div class="awning"></div>
+          <h2>🎡 The Wheel of Wonders</h2>
+          <div id="wheelWrap">
+            <svg id="wheelSvg" width="220" height="220" viewBox="-110 -110 220 220"></svg>
+            <div id="wedgeList"></div>
+          </div>
+          <div class="prizePal" id="wheelPrizePal"></div>
+          <div class="rowFlex"><span class="lbl">Price per spin</span>
+            <div class="stepper"><button data-p="wheel" data-d="-1">−</button><span class="v" id="wheelPrice">3</span><button data-p="wheel" data-d="1">+</button></div>
+            <span class="lbl">tickets</span></div>
+          <div class="evBar"><div class="math" id="wheelMath"></div>
+            <div><div class="val" id="wheelEV"></div><div class="per">you keep per spin, on average</div></div></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="awning teal"></div>
+          <h2>🦆 Duck Pond Dice</h2>
+          <p class="dimNote">Patrons roll two dice. You pick the winning rule — the pond grid shows every possible roll. Shaded squares win.</p>
+          <div class="ruleBtns" id="ruleBtns"></div>
+          <div id="grid66"></div>
+          <div class="rowFlex"><span class="lbl">Winner's prize</span><span class="prizePal" id="dicePrizePal" style="margin:0"></span></div>
+          <div class="rowFlex"><span class="lbl">Price per roll</span>
+            <div class="stepper"><button data-p="dice" data-d="-1">−</button><span class="v" id="dicePrice">2</span><button data-p="dice" data-d="1">+</button></div>
+            <span class="lbl">tickets</span></div>
+          <div class="evBar"><div class="math" id="diceMath"></div>
+            <div><div class="val" id="diceEV"></div><div class="per">you keep per roll, on average</div></div></div>
+        </div>
+        <div class="card">
+          <h2>📦 Prize Shelf</h2>
+          <p class="dimNote">Buy stock at cost. A patron who wins an <b>empty-shelf</b> prize leaves furious — Heat spikes.</p>
+          <div id="invList"></div>
+        </div>
+        <div class="card">
+          <h2 id="openHdr">🌆 Millbrook, Day 1 of 3</h2>
+          <p class="dimNote" id="openNote">A friendly little town. Small crowds — expect the dice gods to be moody with so few plays.</p>
+          <div style="text-align:center;margin-top:10px">
+            <button class="btn gold big" id="openDayBtn">🔔 Ring the Bell — Open for Business</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHOWTIME -->
+  <div class="screen" id="scrShow">
+    <div class="meters">
+      <div class="meter"><div class="lbl"><span>✨ ALLURE <small style="color:var(--dim)">(will they play?)</small></span><span id="allureV">50</span></div>
+        <div class="track"><div class="fill" id="allureFill" style="width:50%"></div></div></div>
+      <div class="meter"><div class="lbl"><span>🔥 HEAT <small style="color:var(--dim)">(have they figured you out?)</small></span><span id="heatV">0</span></div>
+        <div class="track"><div class="fill" id="heatFill" style="width:0%"></div></div></div>
+    </div>
+    <div id="midway">
+      <div id="dayClock">Day 1 · Morning</div>
+      <div id="moon">🌙</div>
+      <div class="ground"></div>
+      <div class="boothViz" id="vizWheel" style="left:18%"><span class="oddsTag" id="tagWheel"></span>
+        <div class="tent">WHEEL OF WONDERS</div><div class="counter">🎡</div></div>
+      <div class="boothViz teal" id="vizDice" style="left:62%"><span class="oddsTag" id="tagDice"></span>
+        <div class="tent">DUCK POND DICE</div><div class="counter">🦆🎲</div></div>
+    </div>
+    <div id="ticker"></div>
+    <div class="showCtrl">
+      <button class="btn" id="speedBtn">⏩ Speed ×1</button>
+      <button class="btn red" id="packBtn">🐎 Pack the Wagon Early</button>
+    </div>
+  </div>
+
+  <!-- LEDGER -->
+  <div class="screen" id="scrLedger">
+    <div class="ledger" id="ledgerBox"></div>
+    <div style="text-align:center;margin-top:18px">
+      <button class="btn gold big" id="ledgerBtn"></button>
+    </div>
+  </div>
+
+  <div id="modal"><div id="modalBox"></div></div>
+</div>
+
+<script>
+"use strict";
+/* ════════════════ ENGINE (pure, no DOM — window.OS.Engine) ════════════════ */
+const Engine = (() => {
+  // seeded RNG (mulberry32) so stands are reproducible for testing
+  let seed = (Date.now() >>> 0);
+  function srand(s){ seed = s >>> 0; }
+  function rnd(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+
+  const PRIZES = [
+    {id:'plush', name:'Giant Plush', emoji:'🧸', cost:40},
+    {id:'fish',  name:'Goldfish',    emoji:'🐠', cost:12},
+    {id:'comb',  name:'Novelty Comb',emoji:'🪮', cost:4},
+    {id:'hat',   name:'Paper Hat',   emoji:'🎩', cost:1},
+    {id:'none',  name:'Try Again',   emoji:'💨', cost:0},
+  ];
+  const prize = id => PRIZES.find(p=>p.id===id);
+
+  // dice rules: name + predicate over (a,b)
+  const DICE_RULES = [
+    {id:'doubles', name:'Win on doubles',        f:(a,b)=>a===b},
+    {id:'sum10',   name:'Win on sum ≥ 10',       f:(a,b)=>a+b>=10},
+    {id:'sum8',    name:'Win on sum ≥ 8',        f:(a,b)=>a+b>=8},
+    {id:'sum4',    name:'Win on sum ≤ 4',        f:(a,b)=>a+b<=4},
+    {id:'six',     name:'Win if either die is 6',f:(a,b)=>a===6||b===6},
+    {id:'both4',   name:'Win if both dice ≥ 4',  f:(a,b)=>a>=4&&b>=4},
+  ];
+  function ruleWins(rule){ // enumerate 6×6 sample space
+    const cells=[]; let n=0;
+    for(let a=1;a<=6;a++)for(let b=1;b<=6;b++){ const w=rule.f(a,b); if(w)n++; cells.push(w); }
+    return {n, p:n/36, cells};
+  }
+
+  /* ── mutable stand state ── */
+  const TOWN = {name:'Millbrook', days:3, baseCrowd:26, wiseUp:14, priceTolerance:4};
+  let S;
+  function newStand(){
+    S = {
+      cash: 200, day: 1, packed:false,
+      wheel: { // wedges sum to 360; sizes in degrees
+        wedges: [
+          {size:10,  prizeId:'plush'},
+          {size:40,  prizeId:'fish'},
+          {size:60,  prizeId:'comb'},
+          {size:110, prizeId:'hat'},
+          {size:140, prizeId:'none'},
+        ],
+        price: 3,
+      },
+      dice: { ruleId:'sum10', prizeId:'fish', price: 3 },
+      stock: {plush:1, fish:5, comb:12, hat:26},
+      allure: 55, heat: 0,
+      lossStreak: {wheel:0, dice:0},
+      // per-day + total tallies for the ledger
+      days: [], today: null,
+      auditDone:false,
+    };
+    return S;
+  }
+
+  function wheelEV(){
+    const w=S.wheel;
+    let payout=0, parts=[];
+    for(const wd of w.wedges){ const p=wd.size/360, c=prize(wd.prizeId).cost;
+      payout+=p*c; if(c>0&&wd.size>0) parts.push({p, c, id:wd.prizeId}); }
+    return {price:w.price, payout, ev:w.price-payout, parts};
+  }
+  function diceEV(){
+    const d=S.dice, rule=DICE_RULES.find(r=>r.id===d.ruleId), win=ruleWins(rule);
+    const c=prize(d.prizeId).cost, payout=win.p*c;
+    return {price:d.price, payout, ev:d.price-payout, p:win.p, n:win.n, cost:c, rule};
+  }
+
+  /* ── Allure / Heat models (documented for teachers) ──
+     ALLURE (0–100): perceived winnability.
+       +win: 3 + prizeCost/8 (a plush hoisted overhead is worth a parade)
+       +near-miss on wheel (stopped 1 wedge from the plush): +2.5
+       −loss: 0.8 · pricePressure   where pricePressure = price/priceTolerance
+       drifts toward 50 by 0.15/tick (novelty fades)
+     HEAT (0–100): the town wising up.
+       +loss beyond a 4-streak at a booth: +1.1 each
+       +empty-shelf win: +(4 + prizeCost/4) (fury scales with the promise)
+       +daily seep: day# · wiseUp/10 applied across the day
+       −visible win: 0.8
+       Heat ≥ 65 thins the crowd; ≥ 85 summons the Alderman audit. */
+  function bumpAllure(d){ S.allure=Math.max(0,Math.min(100,S.allure+d)); }
+  function bumpHeat(d){ S.heat=Math.max(0,Math.min(100,S.heat+d)); }
+
+  function startDay(){
+    S.today={ day:S.day, plays:{wheel:0,dice:0}, revenue:{wheel:0,dice:0},
+      payout:{wheel:0,dice:0}, wins:{wheel:0,dice:0}, evAtOpen:{wheel:wheelEV().ev, dice:diceEV().ev},
+      furious:0 };
+  }
+
+  // one patron plays one booth → resolves everything, returns result for UI
+  function play(booth){
+    const t=S.today; t.plays[booth]++;
+    let price, win=false, prizeWon=null, nearMiss=false, detail={};
+    if(booth==='wheel'){
+      price=S.wheel.price;
+      const spin=rnd()*360; let acc=0, idx=0;
+      for(let i=0;i<S.wheel.wedges.length;i++){ acc+=S.wheel.wedges[i].size;
+        if(spin<acc){ idx=i; break; } }
+      const wd=S.wheel.wedges[idx]; prizeWon=prize(wd.prizeId);
+      win = prizeWon.cost>0;
+      // near-miss: landed adjacent to the biggest-cost wedge
+      let bigIdx=0; S.wheel.wedges.forEach((w,i)=>{ if(prize(w.prizeId).cost>prize(S.wheel.wedges[bigIdx].prizeId).cost) bigIdx=i; });
+      const n=S.wheel.wedges.length;
+      nearMiss = !win && (idx===(bigIdx+1)%n || idx===(bigIdx-1+n)%n);
+      detail={idx, spin};
+    } else {
+      price=S.dice.price;
+      const a=1+Math.floor(rnd()*6), b=1+Math.floor(rnd()*6);
+      const rule=DICE_RULES.find(r=>r.id===S.dice.ruleId);
+      win=rule.f(a,b); prizeWon = win?prize(S.dice.prizeId):prize('none');
+      detail={a,b};
+    }
+    S.cash+=price; t.revenue[booth]+=price;
+    let furious=false;
+    if(win && prizeWon.cost>0){
+      if(S.stock[prizeWon.id]>0){
+        S.stock[prizeWon.id]--; S.cash-=prizeWon.cost; t.payout[booth]+=prizeWon.cost; t.wins[booth]++;
+        S.lossStreak[booth]=0;
+        bumpAllure(3+prizeWon.cost/8); bumpHeat(-0.8);
+      } else { // empty shelf! fury scales with how big the promised prize was
+        furious=true; t.furious++;
+        bumpHeat(4+prizeWon.cost/4); bumpAllure(-4-prizeWon.cost/10);
+        win=false; prizeWon=prize('none');
+      }
+    } else {
+      S.lossStreak[booth]++;
+      const pressure = price/TOWN.priceTolerance;
+      bumpAllure(-(0.8*pressure));
+      if(S.lossStreak[booth]>4) bumpHeat(1.1);
+      if(nearMiss) bumpAllure(2.5);
+    }
+    return {booth, price, win, prize:prizeWon, nearMiss, furious, detail};
+  }
+
+  // crowd: chance a patron arrives this tick
+  function spawnChance(){
+    const crowd = TOWN.baseCrowd/26;                 // town size factor
+    const a = 0.22 + 0.5*(S.allure/100);             // allure drives the queue
+    const h = S.heat>=65 ? 1-(S.heat-65)/60 : 1;     // heat thins it
+    return Math.max(0.05, crowd*a*h);
+  }
+  function daySeep(){ bumpHeat(S.day*TOWN.wiseUp/10/60); } // spread across ~60 ticks
+
+  function endDay(){
+    S.days.push(S.today);
+    const audit = (!S.auditDone && S.heat>=85);
+    return {summary:S.today, audit};
+  }
+  // Alderman audit: 10 free plays of the WORST-p booth, public results
+  function runAudit(){
+    S.auditDone=true;
+    const dv=diceEV();
+    // wheel's win prob = P(any prize with cost>0)
+    let wp=0; for(const wd of S.wheel.wedges) if(prize(wd.prizeId).cost>0) wp+=wd.size/360;
+    const target = (wp<=dv.p) ? 'wheel':'dice';
+    const theo = target==='wheel'?wp:dv.p;
+    const results=[];
+    for(let i=0;i<10;i++){
+      let win;
+      if(target==='wheel'){ const spin=rnd()*360; let acc=0; win=false;
+        for(const wd of S.wheel.wedges){ acc+=wd.size; if(spin<acc){ win=prize(wd.prizeId).cost>0; break; } } }
+      else { const a=1+Math.floor(rnd()*6), b=1+Math.floor(rnd()*6);
+        win=DICE_RULES.find(r=>r.id===S.dice.ruleId).f(a,b); }
+      results.push(win);
+    }
+    const wins=results.filter(Boolean).length;
+    let fine=0, verdict;
+    if(theo<0.10){ fine=150; bumpHeat(10); verdict='stingy'; }
+    else if(wins===0 && theo<0.2){ fine=80; bumpHeat(6); verdict='suspicious'; }
+    else { bumpHeat(-18); verdict='cleared'; }
+    S.cash-=fine;
+    return {target, theo, results, wins, fine, verdict};
+  }
+
+  function ledger(){
+    const rows=[];
+    let expTot=0, actTot=0;
+    for(const booth of ['wheel','dice']){
+      let plays=0, exp=0, act=0;
+      for(const d of S.days){ plays+=d.plays[booth];
+        exp+=d.plays[booth]*d.evAtOpen[booth];
+        act+=d.revenue[booth]-d.payout[booth]; }
+      rows.push({booth, plays, exp, act}); expTot+=exp; actTot+=act;
+    }
+    const daysRun=S.days.length;
+    const costs = daysRun*50 + 50; // feed 50/day + road toll 50
+    return {rows, expTot, actTot, costs, net:actTot-costs, daysRun, goal:250};
+  }
+
+  return {PRIZES, DICE_RULES, TOWN, prize, ruleWins, newStand, wheelEV, diceEV,
+    startDay, play, spawnChance, daySeep, endDay, runAudit, ledger,
+    get state(){return S;}, srand, rnd};
+})();
+
+/* ════════════════ SOUND — chip-square carnival organ, B♭ major ════════════════ */
+const Sound = (() => {
+  let ctx=null, on=true, musicOn=true, musicNodes=null, musicTimer=null;
+  const BB=[233.08, 261.63, 293.66, 311.13, 349.23, 392.00, 440.00, 466.16]; // Bb C D Eb F G A Bb
+  function ac(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); if(ctx.state==='suspended')ctx.resume(); return ctx; }
+  function blip(f, t=0.12, type='square', vol=0.12, when=0, slide=0){
+    if(!on) return; const c=ac(), o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(f, c.currentTime+when);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide), c.currentTime+when+t);
+    g.gain.setValueAtTime(vol, c.currentTime+when);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+when+t);
+    o.connect(g).connect(c.destination); o.start(c.currentTime+when); o.stop(c.currentTime+when+t+.02);
+  }
+  function noise(t=0.04, vol=0.09, when=0){ // ratchet click
+    if(!on) return; const c=ac(), n=Math.floor(c.sampleRate*t), buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=c.createBufferSource(), g=c.createGain(), f=c.createBiquadFilter();
+    f.type='highpass'; f.frequency.value=1800;
+    s.buffer=buf; g.gain.value=vol; s.connect(f).connect(g).connect(c.destination); s.start(c.currentTime+when);
+  }
+  return {
+    get on(){return on;}, get musicOn(){return musicOn;},
+    toggle(){ on=!on; return on; },
+    toggleMusic(){ musicOn=!musicOn; this.updateMusic(); return musicOn; },
+    ratchet(rate=1){ noise(0.035, 0.08); },
+    tick(){ blip(BB[7]*2, .03, 'square', .04); },
+    patronWin(big){ // calliope 1-3-5 — the PATRON's fanfare
+      blip(BB[0]*2,.11,'square',.1); blip(BB[2]*2,.11,'square',.1,.09); blip(BB[4]*2,.16,'square',.11,.18);
+      if(big){ blip(BB[7]*2,.3,'square',.12,.3); blip(BB[4]*4,.3,'triangle',.08,.3); } },
+    profit(){ blip(BB[7]*2,.06,'triangle',.09); blip(BB[7]*4,.08,'triangle',.07,.05); }, // YOUR chime
+    heatUp(){ blip(BB[2]*2*Math.pow(2,-1/12),.22,'square',.1,0,-40); }, // flat 3rd hiccup
+    furious(){ blip(140,.3,'sawtooth',.13,0,-70); noise(.12,.12,.05); },
+    bell(){ blip(BB[7]*2,.5,'triangle',.14); blip(BB[7]*3,.5,'triangle',.08,.02); },
+    uiTap(){ blip(BB[5]*2,.04,'square',.05); },
+    /* sparse calliope loop; gain thins as Heat rises (the party dying down) */
+    startMusic(){ if(musicNodes) return; const c=ac();
+      const g=c.createGain(); g.gain.value=0; g.connect(c.destination); musicNodes={g};
+      const line=[0,2,4,2, 5,4,2,0, 4,5,7,5, 4,2,1,0];
+      let i=0;
+      musicTimer=setInterval(()=>{
+        if(!musicNodes) return;
+        const heat = (window.OS&&OS.Engine.state)?OS.Engine.state.heat:0;
+        const vol = musicOn && !document.hidden ? 0.05*(1-Math.min(1,heat/120)) : 0;
+        g.gain.setTargetAtTime(vol, c.currentTime, .3);
+        if(vol>0.004 && i%2===0){ const o=c.createOscillator(), og=c.createGain();
+          o.type='square'; o.frequency.value=BB[line[(i/2)%16|0]%8]*2;
+          og.gain.setValueAtTime(.9,c.currentTime); og.gain.exponentialRampToValueAtTime(.001,c.currentTime+.26);
+          o.connect(og).connect(g); o.start(); o.stop(c.currentTime+.3); }
+        i++;
+      }, 220);
+    },
+    updateMusic(){},
+  };
+})();
+
+/* ════════════════ UI ════════════════ */
+const $ = id => document.getElementById(id);
+const E = Engine;
+let S = E.newStand();
+window.OS = {Engine:E, Sound, get state(){return E.state;}}; // debug hooks
+
+/* palette per prize for wheel wedges */
+const WCOL = {plush:'#a83250', fish:'#d4a24e', comb:'#1d5c63', hat:'#6b5b8f', none:'#3a3350'};
+
+/* ── header/cash ── */
+let shownCash = S.cash;
+function renderCash(){
+  const target=S.cash;
+  const step=()=>{ if(Math.abs(shownCash-target)<1){shownCash=target;}
+    else shownCash+=(target-shownCash)*0.25;
+    $('cashD').textContent=Math.round(shownCash);
+    if(shownCash!==target) requestAnimationFrame(step); };
+  step();
+}
+for(let i=0;i<22;i++){const s=document.createElement('span');s.style.animationDelay=(Math.random()*2)+'s';$('bulbs').appendChild(s);}
+
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); }
+
+/* ── WHEEL DESIGNER ── */
+let selWedge = 0;
+function wheelPath(startDeg, sizeDeg, r=100){
+  const a0=(startDeg-90)*Math.PI/180, a1=(startDeg+sizeDeg-90)*Math.PI/180;
+  const large=sizeDeg>180?1:0;
+  return `M0,0 L${r*Math.cos(a0)},${r*Math.sin(a0)} A${r},${r} 0 ${large} 1 ${r*Math.cos(a1)},${r*Math.sin(a1)} Z`;
+}
+function renderWheel(){
+  const svg=$('wheelSvg'); svg.innerHTML='';
+  const ws=S.wheel.wedges; let acc=0;
+  const bounds=[];
+  ws.forEach((w,i)=>{
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', wheelPath(acc, w.size));
+    p.setAttribute('fill', WCOL[w.prizeId]);
+    p.setAttribute('stroke', '#151020'); p.setAttribute('stroke-width','2');
+    if(i===selWedge){ p.setAttribute('stroke','#ffbf69'); p.setAttribute('stroke-width','3'); }
+    p.style.cursor='pointer';
+    p.addEventListener('pointerdown',()=>{selWedge=i;renderWheel();renderWedgeList();Sound.uiTap();});
+    svg.appendChild(p);
+    // emoji label
+    if(w.size>=18){ const mid=(acc+w.size/2-90)*Math.PI/180;
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',65*Math.cos(mid)); t.setAttribute('y',65*Math.sin(mid)+6);
+      t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','17');
+      t.textContent=E.prize(w.prizeId).emoji; svg.appendChild(t); }
+    acc+=w.size; bounds.push(acc);
+  });
+  // drag handles at each boundary
+  bounds.forEach((deg,i)=>{
+    const a=(deg-90)*Math.PI/180;
+    const h=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    h.setAttribute('cx',100*Math.cos(a)); h.setAttribute('cy',100*Math.sin(a));
+    h.setAttribute('r','9'); h.setAttribute('fill','#f3ead9'); h.setAttribute('stroke','#d4a24e'); h.setAttribute('stroke-width','2.5');
+    h.classList.add('wedgeHandle'); h.dataset.b=i;
+    h.addEventListener('pointerdown', startDrag);
+    svg.appendChild(h);
+  });
+  // center hub + pointer
+  const hub=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  hub.setAttribute('r','14'); hub.setAttribute('fill','#d4a24e'); svg.appendChild(hub);
+  renderWheelEV();
+}
+let drag=null;
+function startDrag(e){
+  e.preventDefault(); drag={b:+e.target.dataset.b};
+  const svg=$('wheelSvg');
+  const move=ev=>{
+    const r=svg.getBoundingClientRect();
+    const x=ev.clientX-(r.left+r.width/2), y=ev.clientY-(r.top+r.height/2);
+    let deg=(Math.atan2(y,x)*180/Math.PI+90+360)%360;
+    const ws=S.wheel.wedges, n=ws.length, b=drag.b;
+    // boundary b sits after wedge b; clamp between previous & next boundary (min 4°)
+    let accPrev=0; for(let i=0;i<b;i++)accPrev+=ws[i].size;
+    let accNext=accPrev+ws[b].size+(ws[(b+1)%n]===ws[b]?0:(b+1<n?ws[b+1].size:360-accPrev-ws[b].size));
+    if(b===n-1) return; // last boundary is fixed at 360 (12 o'clock)
+    const lo=accPrev+4, hi=accPrev+ws[b].size+ws[b+1].size-4;
+    deg=Math.max(lo,Math.min(hi,deg));
+    const total=ws[b].size+ws[b+1].size;
+    ws[b].size=Math.round(deg-accPrev); ws[b+1].size=total-ws[b].size;
+    renderWheel(); renderWedgeList();
+  };
+  const up=()=>{ drag=null; window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); Sound.uiTap(); };
+  window.addEventListener('pointermove',move); window.addEventListener('pointerup',up);
+}
+function renderWedgeList(){
+  const el=$('wedgeList'); el.innerHTML='';
+  S.wheel.wedges.forEach((w,i)=>{
+    const d=document.createElement('div'); d.className='wRow'+(i===selWedge?' sel':'');
+    const pr=E.prize(w.prizeId);
+    d.innerHTML=`<span class="sw" style="background:${WCOL[w.prizeId]}"></span>
+      <span class="nm">${pr.emoji} ${pr.name}</span>
+      <span class="pct">${(w.size/360*100).toFixed(1)}%</span>`;
+    d.onclick=()=>{selWedge=i;renderWheel();renderWedgeList();Sound.uiTap();};
+    el.appendChild(d);
+  });
+  // prize palette for selected wedge
+  const pal=$('wheelPrizePal'); pal.innerHTML='';
+  E.PRIZES.forEach(p=>{
+    const b=document.createElement('button');
+    b.textContent=`${p.emoji} ${p.name} (${p.cost})`;
+    if(S.wheel.wedges[selWedge].prizeId===p.id) b.classList.add('sel');
+    b.onclick=()=>{S.wheel.wedges[selWedge].prizeId=p.id;renderWheel();renderWedgeList();Sound.uiTap();};
+    pal.appendChild(b);
+  });
+}
+function renderWheelEV(){
+  const ev=E.wheelEV();
+  $('wheelPrice').textContent=S.wheel.price;
+  const parts=ev.parts.map(x=>`${(x.p*100).toFixed(0)}%×${x.c}`).join(' + ');
+  $('wheelMath').innerHTML=`price <b>${ev.price}</b> − expected payout <b>${ev.payout.toFixed(2)}</b><br><small>(${parts||'no prizes!'})</small>`;
+  const v=$('wheelEV'); v.textContent=(ev.ev>=0?'+':'')+ev.ev.toFixed(2);
+  v.className='val '+(ev.ev>=0?'pos':'neg');
+}
+
+/* ── DICE DESIGNER ── */
+function renderDice(){
+  const rb=$('ruleBtns'); rb.innerHTML='';
+  E.DICE_RULES.forEach(r=>{
+    const w=E.ruleWins(r);
+    const b=document.createElement('button');
+    b.textContent=`${r.name} — ${w.n}/36`;
+    if(S.dice.ruleId===r.id) b.classList.add('sel');
+    b.onclick=()=>{S.dice.ruleId=r.id;renderDice();Sound.uiTap();};
+    rb.appendChild(b);
+  });
+  // 6×6 grid with headers
+  const g=$('grid66'); g.innerHTML='';
+  const hd=t=>{const d=document.createElement('div');d.className='hd';d.textContent=t;g.appendChild(d);};
+  hd('🎲');
+  for(let b=1;b<=6;b++)hd(b);
+  const rule=E.DICE_RULES.find(r=>r.id===S.dice.ruleId), wins=E.ruleWins(rule);
+  for(let a=1;a<=6;a++){ hd(a);
+    for(let b=1;b<=6;b++){ const c=document.createElement('div');
+      c.className='cell'+(wins.cells[(a-1)*6+(b-1)]?' win':''); g.appendChild(c); } }
+  // prize palette
+  const pal=$('dicePrizePal'); pal.innerHTML='';
+  E.PRIZES.filter(p=>p.cost>0).forEach(p=>{
+    const b=document.createElement('button');
+    b.textContent=`${p.emoji} (${p.cost})`;
+    if(S.dice.prizeId===p.id) b.classList.add('sel');
+    b.onclick=()=>{S.dice.prizeId=p.id;renderDice();Sound.uiTap();};
+    pal.appendChild(b);
+  });
+  const ev=E.diceEV();
+  $('dicePrice').textContent=S.dice.price;
+  $('diceMath').innerHTML=`price <b>${ev.price}</b> − expected payout <b>${ev.payout.toFixed(2)}</b><br><small>(${ev.n}/36 = ${(ev.p*100).toFixed(1)}% × ${ev.cost} tickets)</small>`;
+  const v=$('diceEV'); v.textContent=(ev.ev>=0?'+':'')+ev.ev.toFixed(2);
+  v.className='val '+(ev.ev>=0?'pos':'neg');
+}
+
+/* price steppers */
+document.querySelectorAll('.stepper button').forEach(b=>{
+  b.onclick=()=>{
+    const booth=b.dataset.p, d=+b.dataset.d;
+    const o=S[booth]; o.price=Math.max(1,Math.min(8,o.price+d));
+    booth==='wheel'?renderWheelEV():renderDice(); Sound.uiTap();
+  };
+});
+
+/* ── INVENTORY ── */
+function renderInv(){
+  const el=$('invList'); el.innerHTML='';
+  E.PRIZES.filter(p=>p.cost>0).forEach(p=>{
+    const d=document.createElement('div'); d.className='invRow';
+    const stk=S.stock[p.id];
+    d.innerHTML=`<span class="em">${p.emoji}</span><span class="nm">${p.name}</span>
+      <span class="cost">${p.cost} tickets each</span>
+      <span class="stk${stk<=1?' low':''}">${stk}</span>`;
+    const buy=document.createElement('button'); buy.textContent='+';
+    buy.onclick=()=>{ if(S.cash>=p.cost){ S.cash-=p.cost; S.stock[p.id]++; renderCash(); renderInv(); Sound.profit(); } };
+    d.appendChild(buy); el.appendChild(d);
+  });
+}
+
+/* ── SHOWTIME ── */
+let tickN=0, speed=1, tickTimer=null, patrons=[], dayOver=false;
+const DAY_TICKS=110;
+const NAMES=['🧑‍🌾','👩','🧔','👵','🧒','👨‍🦰','👧','🧑'];
+const BOOTH_X={wheel:22, dice:66}; // % positions
+
+function logT(msg, cls=''){
+  const t=$('ticker');
+  const d=document.createElement('div'); if(cls)d.className=cls; d.innerHTML=msg;
+  t.appendChild(d); t.scrollTop=t.scrollHeight;
+  while(t.children.length>60) t.removeChild(t.firstChild);
+}
+function renderMeters(){
+  $('allureV').textContent=Math.round(S.allure); $('allureFill').style.width=S.allure+'%';
+  $('heatV').textContent=Math.round(S.heat); $('heatFill').style.width=S.heat+'%';
+}
+function floaty(x, y, txt, color){
+  const f=document.createElement('div'); f.className='floaty'; f.textContent=txt;
+  f.style.left=x+'%'; f.style.bottom=y+'px'; f.style.color=color;
+  $('midway').appendChild(f); setTimeout(()=>f.remove(),1250);
+}
+function sparks(xPct, yBot, color, n=10){
+  const m=$('midway'), r=m.getBoundingClientRect();
+  for(let i=0;i<n;i++){ const s=document.createElement('div'); s.className='spark';
+    s.style.background=color; s.style.left=`calc(${xPct}% + ${Math.random()*40-20}px)`;
+    s.style.bottom=yBot+'px';
+    s.style.setProperty('--dx',(Math.random()*90-45)+'px');
+    s.style.setProperty('--dy',(-30-Math.random()*70)+'px');
+    m.appendChild(s); setTimeout(()=>s.remove(),750); }
+}
+function spawnPatron(){
+  if(patrons.length>=11) return;
+  const el=document.createElement('div'); el.className='patron';
+  el.textContent=NAMES[Math.floor(Math.random()*NAMES.length)];
+  const fromLeft=Math.random()<.5;
+  el.style.left=fromLeft?'-4%':'102%'; el.style.bottom=(20+Math.random()*46)+'px';
+  $('midway').appendChild(el);
+  // pick booth: weighted by displayed prize value (the ILLUSION) + a dash of random
+  const wPlushy = Math.max(...S.wheel.wedges.map(w=>E.prize(w.prizeId).cost));
+  const dPlushy = E.prize(S.dice.prizeId).cost;
+  const booth = Math.random() < wPlushy/(wPlushy+dPlushy+0.01) ? 'wheel':'dice';
+  const p={el, booth, plays:1+Math.floor(Math.random()*2), state:'walk'};
+  patrons.push(p);
+  requestAnimationFrame(()=>{ el.style.left=(BOOTH_X[booth]+3+Math.random()*7)+'%'; });
+  setTimeout(()=>{ p.state='queue'; }, 1150/speed);
+  // misconception running gag
+  if(Math.random()<.13) setTimeout(()=>bubble(p, ['I\'m DUE for a win!','It has to land plush eventually…','Lucky day, I can feel it','That wheel owes me'][Math.floor(Math.random()*4)]), 600);
+}
+function bubble(p, txt, ms=1900){
+  if(!p.el.isConnected) return;
+  const b=document.createElement('div'); b.className='bub'; b.textContent=txt;
+  p.el.appendChild(b); setTimeout(()=>b.remove(), ms);
+}
+function patronLeave(p, happy){
+  p.state='leave';
+  p.el.style.left = Math.random()<.5?'-6%':'104%';
+  setTimeout(()=>{ p.el.remove(); patrons=patrons.filter(q=>q!==p); }, 1300/speed);
+  if(!happy && Math.random()<.25) bubble(p,['Rigged, I tell ya','Hmph.','Never again','My tickets…'][Math.floor(Math.random()*4)],1200);
+}
+function resolvePlay(p){
+  const res=E.play(p.booth);
+  renderCash(); renderMeters();
+  const x=BOOTH_X[p.booth]+6, viz=$(p.booth==='wheel'?'vizWheel':'vizDice');
+  if(p.booth==='wheel'){ // ratchet burst
+    for(let i=0;i<6;i++) setTimeout(()=>Sound.ratchet(), i*i*14);
+  } else Sound.tick();
+  setTimeout(()=>{
+    if(res.furious){
+      Sound.furious(); $('midway').classList.add('shake');
+      setTimeout(()=>$('midway').classList.remove('shake'),260);
+      floaty(x, 190, 'EMPTY SHELF!', 'var(--ticket)');
+      logT(`😡 A patron WON ${'the '+({wheel:'wheel',dice:'ducks'})[p.booth]} — but the shelf was <b>empty</b>! Heat rises`, 'bad');
+      bubble(p,'WHERE\'S MY PRIZE?!');
+      patronLeave(p,false); return;
+    }
+    if(res.win){
+      Sound.patronWin(res.prize.cost>=20);
+      sparks(x, 200, res.prize.cost>=20?'#ffbf69':'#d4a24e', res.prize.cost>=20?18:9);
+      floaty(x, 195, res.prize.emoji+' WIN!', 'var(--good)');
+      viz.style.filter='brightness(1.5)'; setTimeout(()=>viz.style.filter='',300);
+      logT(`🎉 Patron wins the <b>${res.prize.name}</b> at ${p.booth==='wheel'?'the Wheel':'Duck Dice'}! <span class="money">+${res.price}</span>, prize −${res.prize.cost}`, 'win');
+      p.el.textContent=p.el.textContent+res.prize.emoji;
+    } else {
+      Sound.profit();
+      floaty(x, 195, '+'+res.price, 'var(--amber)');
+      if(res.nearMiss){ floaty(x+4, 215, 'SO close!', 'var(--ink)');
+        logT(`😮 <i>One click from the plush!</i> The crowd leans in. <span class="money">+${res.price}</span>`, 'loss'); }
+      else logT(`${p.booth==='wheel'?'🎡':'🎲'} ${p.booth==='wheel'?'Wheel spins… no prize':'Dice roll '+res.detail.a+'+'+res.detail.b+'… no win'}. <span class="money">+${res.price}</span>`, 'loss');
+    }
+    p.plays--;
+    if(p.plays>0 && Math.random()<.65){ p.state='queue'; }
+    else patronLeave(p, res.win);
+  }, 700/speed);
+  p.state='playing';
+}
+function dayLabel(){
+  const t=tickN/DAY_TICKS;
+  return t<.33?'Morning':t<.66?'Afternoon':'Evening';
+}
+function tick(){
+  tickN++;
+  E.daySeep();
+  $('dayClock').textContent=`Day ${S.day} · ${dayLabel()}  ${'▮'.repeat(Math.ceil(tickN/DAY_TICKS*10)).padEnd(10,'▯')}`;
+  if(Math.random()<E.spawnChance()) spawnPatron();
+  for(const p of patrons){ if(p.state==='queue'){ resolvePlay(p); break; } }
+  renderMeters();
+  if(tickN>=DAY_TICKS){ closeDay(); return; }
+  tickTimer=setTimeout(tick, 420/speed);
+}
+function startShow(){
+  tickN=0; dayOver=false; patrons.forEach(p=>p.el.remove()); patrons=[];
+  $('ticker').innerHTML='';
+  const wev=E.wheelEV(), dev=E.diceEV();
+  $('tagWheel').textContent=S.wheel.price+'🎟';
+  $('tagDice').textContent=S.dice.price+'🎟';
+  E.startDay();
+  $('dayBadge').textContent=`Day ${S.day}/3`;
+  show('scrShow'); Sound.bell();
+  logT(`🔔 <b>Day ${S.day} in Millbrook.</b> Wheel keeps <b>${wev.ev>=0?'+':''}${wev.ev.toFixed(2)}</b>/spin, Dice keep <b>${dev.ev>=0?'+':''}${dev.ev.toFixed(2)}</b>/roll — <i>on average. The dice gods decide the rest.</i>`);
+  if(wev.ev<0||dev.ev<0) logT(`⚠️ One of your booths <b>pays out more than it charges</b>. Fortuna spins in her grave.`, 'bad');
+  tickTimer=setTimeout(tick, 600);
+}
+function closeDay(early=false){
+  clearTimeout(tickTimer); dayOver=true;
+  patrons.forEach(p=>patronLeave(p,true));
+  const {summary, audit}=E.endDay();
+  const t=summary;
+  const profit=(t.revenue.wheel+t.revenue.dice)-(t.payout.wheel+t.payout.dice);
+  const expected=t.plays.wheel*t.evAtOpen.wheel + t.plays.dice*t.evAtOpen.dice;
+  const html=`<h2>🌙 Day ${S.day} closes</h2>
+    <table style="width:100%;font-size:14.5px;line-height:1.8">
+    <tr><td>Plays</td><td style="text-align:right"><b>${t.plays.wheel+t.plays.dice}</b> (🎡${t.plays.wheel} · 🎲${t.plays.dice})</td></tr>
+    <tr><td>Ticket revenue</td><td style="text-align:right;color:var(--amber)"><b>+${t.revenue.wheel+t.revenue.dice}</b></td></tr>
+    <tr><td>Prizes paid out</td><td style="text-align:right;color:var(--bad)"><b>−${t.payout.wheel+t.payout.dice}</b></td></tr>
+    <tr><td>Wagon feed</td><td style="text-align:right;color:var(--bad)"><b>−50</b></td></tr>
+    <tr><td><b>Day profit</b></td><td style="text-align:right"><b style="font-size:20px;color:${profit-50>=0?'var(--good)':'var(--bad)'}">${profit-50>=0?'+':''}${profit-50}</b></td></tr>
+    <tr><td>Your math predicted</td><td style="text-align:right;color:var(--dim)">${expected>=0?'+':''}${expected.toFixed(0)} before feed</td></tr>
+    </table>
+    <p class="dimNote">${Math.abs(profit-expected)>Math.max(25,Math.abs(expected)*.5)?
+      (profit>expected?'The dice gods smiled — you beat your own math today.':'Math right, luck wrong. Small crowds swing hard. Roll on.'):'Actual landed close to expected — that\'s the average showing up.'}</p>`;
+  S.cash-=50; renderCash();
+  openModal(html, audit ? [['⚖️ The Alderman approaches…', ()=>{closeModal(); runAuditScene();}]]
+    : (S.day>=3 || early&&S.day>=3 ? [['📜 Open the Ledger', ()=>{closeModal(); showLedger();}]]
+      : [['🔧 Tweak booths overnight', ()=>{closeModal(); nextDayDesign();}],
+         ['🐎 Pack the wagon now', ()=>{closeModal(); showLedger();}]]));
+  Sound.heatUp();
+}
+function nextDayDesign(){
+  S.day++;
+  $('dayBadge').textContent='Design';
+  $('openHdr').textContent=`🌆 Millbrook, Day ${S.day} of 3`;
+  $('openNote').innerHTML = S.heat>=55
+    ? `<b style="color:var(--bad)">The town is talking.</b> Heat is ${Math.round(S.heat)} — crowds will thin unless they see some wins.`
+    : `Heat ${Math.round(S.heat)}, Allure ${Math.round(S.allure)}. Word of yesterday travels overnight.`;
+  renderWheel(); renderWedgeList(); renderDice(); renderInv(); renderCash();
+  show('scrDesign');
+}
+function runAuditScene(){
+  const a=E.runAudit();
+  renderCash();
+  const boothName=a.target==='wheel'?'the Wheel of Wonders':'Duck Pond Dice';
+  let chips=a.results.map((w,i)=>`<span class="chip" style="animation-delay:${i*.18}s">${w?'🎉':'✖️'}</span>`).join('');
+  const verdictTxt={
+    stingy:`"<b>${(a.theo*100).toFixed(1)}%?!</b> That's not a game, that's a donation box. <b>Fine: ${a.fine} tickets.</b> The town will hear of this."`,
+    suspicious:`"Zero wins in ten. Your sign says ${(a.theo*100).toFixed(0)}%… the town's patience says less. <b>Fine: ${a.fine} tickets.</b>"`,
+    cleared:`"Hm. ${a.wins} wins in ten — about what your odds promise. Carry on… <i>for now.</i>" <b style="color:var(--good)">Heat −18.</b>`,
+  }[a.verdict];
+  openModal(`<h2>⚖️ The Alderman's Audit</h2>
+    <p>Word reached the Alderman. He marches to <b>${boothName}</b> and plays <b>10 times, on the house</b>, in front of everyone.</p>
+    <div class="auditRow">${chips}</div>
+    <p><b>Experimental:</b> ${a.wins}/10 wins (${a.wins*10}%) &nbsp;·&nbsp; <b>Theoretical:</b> ${(a.theo*100).toFixed(1)}%</p>
+    <p class="dimNote">Ten plays is a tiny sample — but the town believes what it SEES.</p>
+    <p style="margin-top:8px">${verdictTxt}</p>`,
+    S.day>=3 ? [['📜 Open the Ledger',()=>{closeModal();showLedger();}]]
+      : [['🔧 Tweak booths overnight',()=>{closeModal();nextDayDesign();}],
+         ['🐎 Pack the wagon now',()=>{closeModal();showLedger();}]]);
+  if(a.fine>0) Sound.furious(); else Sound.patronWin(true);
+}
+
+/* ── LEDGER ── */
+function showLedger(){
+  $('dayBadge').textContent='Ledger';
+  S.cash-=50; renderCash(); // road toll comes due when the wagon rolls
+  const L=E.ledger();
+  const rows=L.rows.map((r,i)=>`<tr class="row-anim" style="animation-delay:${.15+i*.25}s">
+    <td>${r.booth==='wheel'?'🎡 Wheel of Wonders':'🦆 Duck Pond Dice'}</td>
+    <td>${r.plays}</td>
+    <td>${r.exp>=0?'+':''}${r.exp.toFixed(0)}</td>
+    <td class="${r.act>=0?'pos':'neg'}"><b>${r.act>=0?'+':''}${r.act.toFixed(0)}</b></td></tr>`).join('');
+  const gap=L.actTot-L.expTot;
+  const made=L.net>=L.goal;
+  let verdict;
+  if(Math.abs(gap)>Math.max(40,Math.abs(L.expTot)*.35))
+    verdict = gap<0 ? `Your math said <b>+${L.expTot.toFixed(0)}</b>; the dice delivered <b>${L.actTot>=0?'+':''}${L.actTot.toFixed(0)}</b>. Math right, luck wrong — small towns mean few plays, and few plays swing wild. With bigger crowds, the average comes home. <i>Roll on.</i>`
+      : `The dice gods overpaid you — expected <b>+${L.expTot.toFixed(0)}</b>, got <b>+${L.actTot.toFixed(0)}</b>. Don't get used to it; luck borrows, never gives.`;
+  else verdict = `Expected <b>${L.expTot>=0?'+':''}${L.expTot.toFixed(0)}</b>, actual <b>${L.actTot>=0?'+':''}${L.actTot.toFixed(0)}</b> — with ${L.rows[0].plays+L.rows[1].plays} plays, your average showed up almost exactly. That's the house's whole secret.`;
+  $('ledgerBox').innerHTML=`<h2>The Stand Ledger — Millbrook, ${L.daysRun} day${L.daysRun>1?'s':''}</h2>
+    <table>
+    <tr><th>Booth</th><th>Plays</th><th>Expected</th><th>Actual</th></tr>
+    ${rows}
+    <tr class="row-anim" style="animation-delay:.7s"><td>Wagon feed & road toll</td><td></td><td></td><td class="neg">−${L.costs}</td></tr>
+    <tr class="tot row-anim" style="animation-delay:.95s"><td>Net for the stand</td><td></td><td></td>
+      <td class="${L.net>=0?'pos':'neg'}">${L.net>=0?'+':''}${L.net.toFixed(0)}</td></tr>
+    </table>
+    <p class="verdict row-anim" style="animation-delay:1.2s">${verdict}</p>
+    <p class="verdict row-anim" style="animation-delay:1.45s">${made
+      ? `🏆 <b>+${L.net.toFixed(0)} against a goal of +${L.goal}.</b> Fortuna's voice, from somewhere: "Knew you had the gift, darling."`
+      : `Goal was <b>+${L.goal}</b>. You banked <b>${L.net>=0?'+':''}${L.net.toFixed(0)}</b>. Fortuna's letter rustles: "Check your wedges, darling. Cost times chance. Every prize, every play."`}</p>`;
+  $('ledgerBtn').textContent = made ? '🎪 Run It Back (new stand)' : '🎪 Try Millbrook Again';
+  show('scrLedger');
+  setTimeout(()=>made?Sound.patronWin(true):Sound.heatUp(), 1300);
+}
+
+/* ── modal ── */
+function openModal(html, buttons){
+  const bx=$('modalBox'); bx.innerHTML=html;
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap';
+  buttons.forEach(([txt,fn],i)=>{ const b=document.createElement('button');
+    b.className='btn'+(i===0?' gold':''); b.textContent=txt; b.onclick=fn; wrap.appendChild(b); });
+  bx.appendChild(wrap); $('modal').classList.add('on');
+}
+function closeModal(){ $('modal').classList.remove('on'); }
+
+/* ── wiring ── */
+$('startBtn').onclick=()=>{ Sound.startMusic(); Sound.bell();
+  renderWheel(); renderWedgeList(); renderDice(); renderInv(); renderCash();
+  $('dayBadge').textContent='Design'; show('scrDesign'); };
+$('openDayBtn').onclick=()=>{ Sound.startMusic(); startShow(); };
+$('speedBtn').onclick=()=>{ speed=speed===1?2.5:1; $('speedBtn').textContent=speed===1?'⏩ Speed ×1':'⏩ Speed ×2.5'; Sound.uiTap(); };
+$('packBtn').onclick=()=>{ if(!dayOver) closeDay(true); };
+$('ledgerBtn').onclick=()=>{ S=E.newStand(); shownCash=S.cash;
+  selWedge=0; renderWheel(); renderWedgeList(); renderDice(); renderInv(); renderCash();
+  $('openHdr').textContent='🌆 Millbrook, Day 1 of 3';
+  $('openNote').textContent='A friendly little town. Small crowds — expect the dice gods to be moody with so few plays.';
+  $('dayBadge').textContent='Design'; show('scrDesign'); Sound.bell(); };
+$('sndBtn').onclick=()=>{ const on=Sound.toggle(); $('sndBtn').textContent=on?'🔊':'🔇'; $('sndBtn').classList.toggle('off',!on); };
+$('musBtn').onclick=()=>{ const on=Sound.toggleMusic(); $('musBtn').classList.toggle('off',!on); };
+document.addEventListener('pointerdown', function boot(){ Sound.startMusic(); document.removeEventListener('pointerdown', boot); }, {once:true});
+
+renderCash();
+</script>
+</body>
+</html>
