@@ -1,0 +1,2060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf5ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1917" media="(prefers-color-scheme: dark)">
+<meta name="description" content="A first-year scrapbook and development tracker for Leo and Josie — photos, videos, notes, milestones by adjusted age, growth, visits and a month-by-month guide.">
+<title>Leo &amp; Josie's Excellent Adventure</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  LEO & JOSIE'S EXCELLENT ADVENTURE — first-year scrapbook (phone app)
+  ═══════════════════════════════════════════════════════════════════
+  For parents and grandparents. A scrapbook (photos, videos, a caption
+  per photo/video, a story per memory) wrapped around a development
+  tracker for the first year, built for multiples born early.
+
+  Preemie rule baked in everywhere: Leo & Josie were born at 29 weeks
+  (11 weeks early). Development is tracked by ADJUSTED (corrected) age
+  = actual age − weeks born early, until age 2. Well visits and vaccines
+  go by ACTUAL age. Each baby is tracked on their own.
+
+  Tabs: Home (ages, the adventure trail, this month, next check-up)
+        Scrapbook (memories with photos/videos + notes)
+        Milestones (CDC 2022 checklists at 2/4/6/9/12 mo + emerging
+                    skills in between + NICU firsts + your own)
+        Health (growth chart, visits, foods & allergens, first-year
+                checklist, questions for the doctor)
+        Guide (month-by-month development, cues, feeding, sleep,
+               check-ups, red flags, safety)
+  Content source: "Your Baby's First Year, Month by Month" (Oct 2026),
+  which cites CDC LTSAE checklists, AAP/HealthyChildren, AASM, NIAID.
+
+  Storage: everything lives on the phone in IndexedDB (photos and
+  videos as Blobs). Nothing is uploaded. Backups export a single
+  .ljadv file (JSON manifest + raw media bytes) that can be imported on
+  another phone — that's how grandparents get a copy.
+  Single file, no build step. Fredoka + Nunito + Caveat.
+  ═══════════════════════════════════════════════════════════════════
+-->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F9ED;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#fbf5ec; --paper2:#f3eadb; --card:#fffdf9; --ink:#3a312c; --muted:#857869; --line:#e8dccb;
+  --accent:#dd8a2e; --accent2:#f6c26b; --accent-ink:#8a4d0f; --sage:#5f9b6b; --danger:#c0473f;
+  --polaroid:#fffdf8; --polaroid-ink:#3a312c;
+  --shadow:0 8px 22px rgba(90,60,30,.13); --shadow-sm:0 2px 7px rgba(90,60,30,.11);
+  --r:18px; --tabh:66px; --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#1c1917; --paper2:#25211e; --card:#2b2623; --ink:#f3eadf; --muted:#ab9d8f; --line:#3e3631;
+    --accent:#f0a24c; --accent2:#c98a3a; --accent-ink:#ffd9a8; --sage:#7fbf8a; --danger:#e57066;
+    --polaroid:#f4efe6; --polaroid-ink:#3a312c;
+    --shadow:0 8px 22px rgba(0,0,0,.45); --shadow-sm:0 2px 7px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{
+  background-color:var(--paper);
+  background-image:radial-gradient(rgba(140,110,70,.09) 1px,transparent 1.2px);
+  background-size:18px 18px;
+  color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:16px;line-height:1.45;
+  overscroll-behavior-y:none;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent-ink)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:10px}
+.ico{display:inline-flex;width:22px;height:22px;flex:none}
+.ico svg{width:100%;height:100%}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+#view{max-width:680px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(var(--tabh) + var(--safe-b) + 90px)}
+h1,h2,h3{font-family:Fredoka,Nunito,sans-serif;font-weight:600;margin:0;line-height:1.15}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:6px 0 14px}
+.pagehead h1{font-size:30px}
+.pagehead p{margin:2px 0 0;color:var(--muted);font-size:14px;font-weight:700}
+.section-title{font-family:Fredoka;font-size:19px;font-weight:600;margin:26px 0 10px;display:flex;align-items:center;gap:10px}
+.section-title::after{content:'';flex:1;height:1.5px;background:var(--line);border-radius:2px}
+.muted{color:var(--muted)}
+.fine{color:var(--muted);font-size:13px;line-height:1.5}
+
+/* ---------- hero ---------- */
+.hero{position:relative;padding:8px 0 4px}
+.hero .kicker{font-size:12px;font-weight:800;letter-spacing:2.2px;text-transform:uppercase;color:var(--accent-ink)}
+.hero h1{font-size:31px;margin-top:4px;max-width:15ch}
+.hero h1 em{font-style:normal;display:block;color:var(--accent);font-size:36px;position:relative;width:max-content;max-width:100%}
+.hero h1 em::after{content:'';position:absolute;left:2px;right:6px;bottom:-5px;height:7px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 7'%3E%3Cpath d='M1 4.5c5-4 9 3 14 0s9-4 14 0 7 1 10-1' fill='none' stroke='%23f6c26b' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x 0 0/40px 7px}
+.iconbtn{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);box-shadow:var(--shadow-sm)}
+.hero .iconbtn{position:absolute;right:0;top:6px}
+
+/* ---------- cards ---------- */
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow-sm);margin:12px 0}
+.card h2{font-size:20px}
+.card .sub{color:var(--muted);font-size:13.5px;font-weight:700;margin-top:2px}
+.card p{margin:8px 0}
+.row{display:flex;gap:10px;align-items:center}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.wrap{flex-wrap:wrap}
+.stack>*+*{margin-top:8px}
+
+.babies{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+.baby{position:relative;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;box-shadow:var(--shadow-sm);overflow:hidden}
+.baby::before{content:'';position:absolute;inset:0 0 auto 0;height:5px;background:var(--c)}
+.baby .name{font-family:Fredoka;font-size:22px;font-weight:600}
+.baby .day{font-size:12.5px;font-weight:800;color:var(--muted)}
+.baby .ages{display:grid;gap:6px;margin-top:10px}
+.age{background:var(--paper2);border-radius:12px;padding:7px 10px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.age small{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.age b{font-family:Fredoka;font-weight:600;font-size:16px;line-height:1.15;white-space:nowrap}
+.age.adj{background:color-mix(in srgb,var(--c) 16%,var(--card))}
+.avatar{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:Fredoka;font-weight:600;font-size:22px;color:#fff;background:var(--c);object-fit:cover;border:3px solid var(--card);box-shadow:0 0 0 2px var(--c)}
+.avatar.sm{width:30px;height:30px;font-size:13px;border-width:2px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+
+/* ---------- trail ---------- */
+.trail{overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:4px 16px 2px}
+.trail::-webkit-scrollbar{display:none}
+.trail-inner{display:flex;align-items:flex-end;gap:0;min-width:max-content;position:relative;padding-top:38px}
+.stop{position:relative;width:52px;display:flex;flex-direction:column;align-items:center;gap:5px}
+.stop::before{content:'';position:absolute;top:15px;left:-50%;width:100%;border-top:3px dashed var(--line);z-index:0}
+.stop:first-child::before{display:none}
+.stop.past::before{border-top-style:solid;border-color:var(--accent2)}
+.stop .pin{position:relative;z-index:1;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--card);border:2.5px solid var(--line);font-family:Fredoka;font-weight:600;font-size:14px}
+.stop.past .pin{background:var(--accent2);border-color:var(--accent2);color:#4a2c08}
+.stop.now .pin{background:var(--accent);border-color:var(--accent);color:#fff;transform:scale(1.15)}
+.stop label{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.stop .who{position:absolute;bottom:52px;display:flex}
+.stop .who .avatar{margin-left:-8px}
+.stop .who .avatar:first-child{margin-left:0}
+
+/* ---------- chips & buttons ---------- */
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px 6px}
+.chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible;margin:0;padding:0}
+.chip{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:7px 14px;font-weight:800;font-size:14px;display:inline-flex;align-items:center;gap:6px;min-height:38px}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chip.baby-chip.on{background:var(--c);border-color:var(--c);color:#fff}
+.chip small{font-weight:700;opacity:.75;font-size:11.5px}
+.chip.cdc:not(.on){border-color:color-mix(in srgb,var(--sage) 60%,var(--line))}
+.tagchip{display:inline-block;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--paper2);color:var(--muted)}
+.tagchip.cdc{background:color-mix(in srgb,var(--sage) 20%,var(--card));color:var(--sage)}
+.tagchip.warm{background:color-mix(in srgb,var(--accent) 18%,var(--card));color:var(--accent-ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:11px 16px;font-weight:800;font-size:15px;min-height:46px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.btn.block{width:100%}
+.btn.sm{min-height:36px;padding:7px 12px;font-size:13.5px;border-radius:11px}
+.btn:disabled{opacity:.5}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.linkbtn{background:none;border:0;padding:4px 0;font-weight:800;color:var(--accent-ink);display:inline-flex;align-items:center;gap:4px}
+.seg{display:flex;background:var(--paper2);border-radius:14px;padding:4px;gap:4px;overflow-x:auto;scrollbar-width:none}
+.seg button{flex:1 0 auto;border:0;background:none;border-radius:11px;padding:9px 12px;font-weight:800;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm)}
+
+/* ---------- polaroids ---------- */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+.polaroid{position:relative;display:block;width:100%;text-align:left;border:0;background:var(--polaroid);color:var(--polaroid-ink);padding:8px 8px 10px;border-radius:4px;box-shadow:var(--shadow);transform:rotate(var(--rot,0deg));transition:transform .15s}
+.polaroid:active{transform:rotate(0) scale(.98)}
+.polaroid .ph{position:relative;aspect-ratio:1;background:#e9e1d4;overflow:hidden;border-radius:2px}
+.polaroid .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.polaroid .ph.note{display:flex;align-items:center;justify-content:center;padding:12px;background:repeating-linear-gradient(#fdf8ec 0 23px,#e9dcc4 23px 24px);font-family:Caveat;font-size:21px;line-height:24px;color:#5b4a3c;text-align:center;overflow:hidden}
+.polaroid .cap{font-family:Caveat;font-weight:700;font-size:21px;line-height:1.05;margin:7px 2px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.polaroid .meta{display:flex;align-items:center;gap:5px;margin:3px 2px 0;font-size:11.5px;font-weight:800;color:#8a7b6c}
+.polaroid::before{content:'';position:absolute;top:-9px;left:50%;width:62px;height:20px;transform:translateX(-50%) rotate(-3deg);background:color-mix(in srgb,var(--tape,#f6c26b) 70%,transparent);opacity:.8;z-index:2;border-radius:2px}
+.badge{position:absolute;display:inline-flex;align-items:center;gap:4px;background:rgba(20,15,10,.66);color:#fff;font-size:12px;font-weight:800;border-radius:999px;padding:3px 8px}
+.badge .ico{width:13px;height:13px}
+.badge.tl{left:6px;bottom:6px}.badge.tr{right:6px;bottom:6px}
+.strip{display:flex;gap:16px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:14px 16px 12px}
+.strip::-webkit-scrollbar{display:none}
+.strip .polaroid{width:138px;flex:none}
+.addtile{width:138px;flex:none;border:2px dashed var(--line);border-radius:10px;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-weight:800;color:var(--muted);min-height:170px}
+.monthhead{font-family:Fredoka;font-size:20px;font-weight:600;margin:28px 0 2px}
+.monthhead+.fine{margin:0 0 14px}
+
+/* ---------- milestones ---------- */
+.banner{border-radius:14px;padding:11px 13px;font-size:14px;line-height:1.45;margin:12px 0;background:var(--paper2)}
+.banner.cdc{background:color-mix(in srgb,var(--sage) 14%,var(--card));border:1.5px solid color-mix(in srgb,var(--sage) 35%,var(--line))}
+.banner.warn{background:color-mix(in srgb,var(--accent) 13%,var(--card));border:1.5px solid color-mix(in srgb,var(--accent) 35%,var(--line))}
+.domain{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:18px 0 6px}
+.ms-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:8px 8px 8px 12px;margin:7px 0}
+.ms-text{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px 0;font-weight:700;font-size:15px;line-height:1.35}
+.ms-text small{display:block;font-weight:700;font-size:12px;color:var(--muted);margin-top:2px}
+.ms-checks{display:flex;gap:6px;flex:none}
+.bcheck{width:40px;height:40px;border-radius:12px;border:2px solid color-mix(in srgb,var(--c) 55%,var(--line));background:var(--card);color:var(--c);font-family:Fredoka;font-weight:600;font-size:16px;display:grid;place-items:center;padding:0}
+.bcheck.done{background:var(--c);border-color:var(--c);color:#fff}
+.bcheck.working{background:color-mix(in srgb,var(--c) 18%,var(--card));border-style:dashed}
+.bcheck .ico{width:22px;height:22px}
+.prog{height:8px;border-radius:99px;background:var(--paper2);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--c,var(--accent));border-radius:99px}
+
+/* ---------- lists ---------- */
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:11px 13px;text-align:left;width:100%}
+.item .grow{flex:1;min-width:0}
+.item b{display:block;font-size:15px}
+.item small{display:block;color:var(--muted);font-size:13px;font-weight:700}
+.item p{margin:4px 0 0;font-size:14px;white-space:pre-wrap}
+.item.past{opacity:.6}
+.when{flex:none;text-align:center;min-width:50px;font-family:Fredoka;line-height:1.05}
+.when b{font-size:20px}
+.when small{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+ul.tight{margin:6px 0;padding-left:20px}
+ul.tight li{margin:4px 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{font-weight:800;color:var(--muted)}
+.kv dd{margin:0}
+details.acc{background:var(--card);border:1.5px solid var(--line);border-radius:14px;margin:8px 0;overflow:hidden}
+details.acc summary{list-style:none;padding:13px 14px;font-weight:800;display:flex;align-items:center;gap:10px;cursor:pointer}
+details.acc summary::-webkit-details-marker{display:none}
+details.acc summary::after{content:'+';margin-left:auto;font-family:Fredoka;font-size:22px;color:var(--muted);line-height:1}
+details.acc[open] summary::after{content:'–'}
+details.acc .body{padding:0 14px 12px;font-size:14.5px}
+details.acc .body p{margin:6px 0}
+.gsec{margin-top:14px}
+.gsec h3{font-size:16px;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.gsec h3 .em{font-size:18px}
+.gsec ul{margin:4px 0;padding-left:20px}
+.gsec li{margin:5px 0;font-size:14.5px}
+table.mini{width:100%;border-collapse:collapse;font-size:13.5px}
+table.mini td,table.mini th{text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+table.mini th{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+
+/* ---------- chart ---------- */
+.chart{width:100%;height:auto;display:block;margin-top:6px}
+.chart text{font-family:Nunito;font-size:10px;fill:var(--muted);font-weight:700}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:800;margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- tabs & fab ---------- */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1.5px solid var(--line);padding-bottom:var(--safe-b)}
+.tabs-inner{display:flex;width:100%;max-width:680px}
+.tabs button{flex:1;border:0;background:none;height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:800;color:var(--muted)}
+.tabs button.on{color:var(--accent-ink)}
+.tabs button.on .ico{color:var(--accent);transform:translateY(-1px)}
+.fab{position:fixed;z-index:21;right:max(18px,calc(50vw - 322px));bottom:calc(var(--tabh) + var(--safe-b) + 16px);height:58px;padding:0 20px 0 16px;border-radius:20px;border:0;background:var(--accent);color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 24px color-mix(in srgb,var(--accent) 45%,transparent)}
+.fab .ico{width:26px;height:26px}
+.fab.hide{display:none}
+
+/* ---------- sheets ---------- */
+.sheet-wrap{position:fixed;inset:0;z-index:50}
+.sheet-wrap .backdrop{position:absolute;inset:0;background:rgba(25,18,12,.45);animation:fade .2s}
+.sheet{position:absolute;left:0;right:0;bottom:0;margin:0 auto;max-width:680px;max-height:93vh;max-height:93dvh;display:flex;flex-direction:column;background:var(--paper);border-radius:24px 24px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.25);animation:up .26s cubic-bezier(.2,.9,.3,1)}
+.sheet.full{top:0;max-height:none;border-radius:0}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:14px 14px 10px 18px;border-bottom:1.5px solid var(--line)}
+.sheet.full .sheet-head{padding-top:calc(env(safe-area-inset-top,0px) + 10px)}
+.sheet-head h2{flex:1;font-size:20px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-body{flex:1;overflow-y:auto;padding:12px 18px 18px;-webkit-overflow-scrolling:touch}
+.sheet-foot{display:flex;gap:10px;padding:12px 18px calc(12px + var(--safe-b));border-top:1.5px solid var(--line);background:var(--paper)}
+.sheet-foot .btn{flex:1}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* ---------- forms ---------- */
+.field{display:block;margin:14px 0}
+.field>span{display:block;font-size:13px;font-weight:800;color:var(--muted);margin-bottom:5px;letter-spacing:.3px}
+input[type=text],input[type=date],input[type=number],input[type=search],textarea,select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:13px;padding:11px 12px;min-height:46px}
+textarea{min-height:90px;resize:vertical;line-height:1.45}
+textarea.hand{font-family:Caveat;font-size:21px;line-height:1.2;min-height:70px}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.unit{position:relative}
+.unit input{padding-right:38px}
+.unit em{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;font-weight:800;color:var(--muted);font-size:13px;pointer-events:none}
+.media-edit{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:start;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:8px;margin:8px 0}
+.media-edit .th{position:relative;width:96px;height:96px;border-radius:9px;overflow:hidden;background:var(--paper2);display:grid;place-items:center}
+.media-edit .th img{width:100%;height:100%;object-fit:cover}
+.media-edit textarea{min-height:96px}
+.media-edit .x{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(20,15,10,.7);color:#fff;display:grid;place-items:center;padding:0}
+.media-edit .x .ico{width:16px;height:16px}
+.addmedia{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.addmedia label{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:2px dashed var(--line);border-radius:14px;font-weight:800;font-size:13px;color:var(--muted);text-align:center;cursor:pointer;background:var(--card)}
+.addmedia label .ico{color:var(--accent)}
+.addmedia input{display:none}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:34px;height:34px;border-radius:50%;border:3px solid var(--card);box-shadow:0 0 0 1.5px var(--line);background:var(--c);padding:0}
+.swatch.on{box-shadow:0 0 0 3px var(--ink)}
+.babyedit{background:var(--card);border:1.5px solid var(--line);border-left:6px solid var(--c);border-radius:14px;padding:4px 14px 12px;margin:12px 0}
+
+/* ---------- memory viewer ---------- */
+.carousel{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:-12px -18px 0;background:#15110e}
+.carousel::-webkit-scrollbar{display:none}
+.slide{flex:0 0 100%;scroll-snap-align:center;display:grid;place-items:center;height:min(62vh,560px);position:relative}
+.slide img,.slide video{max-width:100%;max-height:100%;display:block}
+.slide video{width:100%;height:100%;background:#000}
+.slide .dl{position:absolute;right:10px;top:10px;width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;padding:0}
+.dots{display:flex;justify-content:center;gap:6px;padding:10px 0 0}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--accent);width:18px;border-radius:9px}
+.handcap{font-family:Caveat;font-size:25px;line-height:1.15;margin:10px 2px 0;min-height:1.2em;white-space:pre-wrap}
+.handcap.empty{color:var(--muted);font-size:20px}
+.story{white-space:pre-wrap;font-size:15.5px;line-height:1.55;margin:10px 0}
+
+#toast{position:fixed;left:50%;bottom:calc(var(--tabh) + var(--safe-b) + 86px);transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;z-index:80;background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:14px;font-weight:800;font-size:14px;box-shadow:var(--shadow);transition:.22s;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px)}
+#toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+#toast button{border:0;background:none;color:var(--accent2);font-weight:800;padding:4px}
+.empty-state{text-align:center;padding:34px 18px;color:var(--muted)}
+.empty-state .big{font-size:46px}
+.empty-state h3{color:var(--ink);font-size:19px;margin:8px 0 4px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main id="view" aria-live="polite"></main>
+<button class="fab hide" id="fab" type="button" aria-label="Add a memory"></button>
+<nav class="tabs" aria-label="Sections"><div class="tabs-inner" id="tabs"></div></nav>
+<div id="sheets"></div>
+<div id="toast" role="status"></div>
+<script>
+'use strict';
+/* =====================================================================
+   CONTENT — from "Your Baby's First Year, Month by Month" (Oct 2026).
+   Month 0 is the NICU chapter (adjusted age below zero).
+   ===================================================================== */
+const APP_TITLE_DEFAULT = "Leo & Josie's Excellent Adventure";
+
+const DOMAINS = {
+  nicu: "NICU firsts", social: "Social & emotional", language: "Language & communication",
+  cognitive: "Thinking & learning", motor: "Movement & physical", ours: "Our own firsts"
+};
+
+// [id, month, domain, cdc(1)/emerging(0), text]
+const MS_RAW = [
+  ['n1',0,'nicu',0,"First time holding them"],
+  ['n2',0,'nicu',0,"First skin-to-skin (kangaroo care)"],
+  ['n3',0,'nicu',0,"Opened eyes and looked at us"],
+  ['n4',0,'nicu',0,"Wrapped a hand around a finger"],
+  ['n5',0,'nicu',0,"First feed by mouth (bottle or breast)"],
+  ['n6',0,'nicu',0,"Off breathing support (CPAP / oxygen)"],
+  ['n7',0,'nicu',0,"Out of the isolette into an open crib"],
+  ['n8',0,'nicu',0,"First bath"],
+  ['n9',0,'nicu',0,"Passed the hearing screen"],
+  ['n10',0,'nicu',0,"Reached 4 pounds"],
+  ['n11',0,'nicu',0,"Reached 5 pounds"],
+  ['n12',0,'nicu',0,"Came home!"],
+  ['n13',0,'nicu',0,"Reached the due date (adjusted age zero)"],
+
+  ['1a',1,'social',0,"Gazes at faces about 8–12 inches away"],
+  ['1b',1,'social',0,"Calms, at least briefly, to your voice or touch"],
+  ['1c',1,'language',0,"Startles at loud noises"],
+  ['1d',1,'language',0,"Recognizes your voice"],
+  ['1e',1,'cognitive',0,"Has short stretches of quiet alertness"],
+  ['1f',1,'motor',0,"Turns toward the nipple (rooting)"],
+  ['1g',1,'motor',0,"Brings hands near the mouth"],
+  ['1h',1,'motor',0,"Moves arms and legs (jerky patterns are normal)"],
+  ['1i',1,'motor',0,"Tolerates short tummy-time sessions"],
+
+  ['2a',2,'social',1,"Calms down when spoken to or picked up"],
+  ['2b',2,'social',1,"Looks at your face"],
+  ['2c',2,'social',1,"Seems happy to see you when you walk up"],
+  ['2d',2,'social',1,"Smiles when you talk to or smile at them"],
+  ['2e',2,'language',1,"Makes sounds other than crying"],
+  ['2f',2,'language',1,"Reacts to loud sounds"],
+  ['2g',2,'cognitive',1,"Watches you as you move"],
+  ['2h',2,'cognitive',1,"Looks at a toy for several seconds"],
+  ['2i',2,'motor',1,"Holds head up when on tummy"],
+  ['2j',2,'motor',1,"Moves both arms and both legs"],
+  ['2k',2,'motor',1,"Opens hands briefly"],
+
+  ['3a',3,'social',0,"Uses smiles and sounds to start interaction"],
+  ['3b',3,'language',0,"Back-and-forth cooing “conversations”"],
+  ['3c',3,'cognitive',0,"Follows objects across the middle of the body"],
+  ['3d',3,'cognitive',0,"Discovers their hands"],
+  ['3e',3,'motor',0,"Pushes up on forearms during tummy time"],
+  ['3f',3,'motor',0,"Swipes at toys"],
+  ['3g',3,'motor',0,"Opens and closes hands; brings hands together"],
+  ['3h',3,'motor',0,"Steadier head control on your shoulder"],
+  ['3i',3,'motor',0,"Kicks more strongly"],
+
+  ['4a',4,'social',1,"Smiles on their own to get your attention"],
+  ['4b',4,'social',1,"Chuckles (not yet a full laugh) when you try to make them laugh"],
+  ['4c',4,'social',1,"Looks at you, moves, or makes sounds to get or keep your attention"],
+  ['4d',4,'language',1,"Coos — “oooo,” “aahh”"],
+  ['4e',4,'language',1,"Makes sounds back when you talk to them"],
+  ['4f',4,'language',1,"Turns head toward the sound of your voice"],
+  ['4g',4,'cognitive',1,"If hungry, opens mouth when seeing breast or bottle"],
+  ['4h',4,'cognitive',1,"Looks at their hands with interest"],
+  ['4i',4,'motor',1,"Holds head steady without support when held"],
+  ['4j',4,'motor',1,"Holds a toy when you put it in their hand"],
+  ['4k',4,'motor',1,"Uses an arm to swing at toys"],
+  ['4l',4,'motor',1,"Brings hands to mouth"],
+  ['4m',4,'motor',1,"Pushes up onto elbows/forearms when on tummy"],
+
+  ['5a',5,'social',0,"Recognizes familiar people"],
+  ['5b',5,'social',0,"Reaches to be picked up"],
+  ['5c',5,'language',0,"Laughs out loud — full belly laughs"],
+  ['5d',5,'language',0,"Babbles with more consonant-like sounds; squeals"],
+  ['5e',5,'cognitive',0,"Moves objects to the mouth to explore"],
+  ['5f',5,'motor',0,"Rolls (often tummy-to-back first)"],
+  ['5g',5,'motor',0,"Reaches and grasps with both hands"],
+  ['5h',5,'motor',0,"Begins to pass toys between hands"],
+
+  ['6a',6,'social',1,"Knows familiar people"],
+  ['6b',6,'social',1,"Likes to look at self in a mirror"],
+  ['6c',6,'social',1,"Laughs"],
+  ['6d',6,'language',1,"Takes turns making sounds with you"],
+  ['6e',6,'language',1,"Blows “raspberries”"],
+  ['6f',6,'language',1,"Makes squealing noises"],
+  ['6g',6,'cognitive',1,"Puts things in mouth to explore them"],
+  ['6h',6,'cognitive',1,"Reaches to grab a toy they want"],
+  ['6i',6,'cognitive',1,"Closes lips to show they don't want more food"],
+  ['6j',6,'motor',1,"Rolls from tummy to back"],
+  ['6k',6,'motor',1,"Pushes up with straight arms when on tummy"],
+  ['6l',6,'motor',1,"Leans on hands to support self when sitting"],
+
+  ['7a',7,'social',0,"Responds to their name"],
+  ['7b',7,'language',0,"Babbles repeated syllables (“ba-ba-ba”)"],
+  ['7c',7,'cognitive',0,"Enjoys new tastes and textures"],
+  ['7d',7,'motor',0,"Sits more steadily"],
+  ['7e',7,'motor',0,"Scoots, pivots, army-crawls or rolls to get places"],
+  ['7f',7,'motor',0,"Rakes food toward themselves"],
+
+  ['8a',8,'social',0,"Protests when you leave; reaches for you"],
+  ['8b',8,'social',0,"Looks to your face to decide if something is safe"],
+  ['8c',8,'language',0,"“Mama / baba / dada” babbling (not yet with meaning)"],
+  ['8d',8,'cognitive',0,"Searches for a hidden toy; loves peek-a-boo"],
+  ['8e',8,'motor',0,"Crawls, or pulls toward standing"],
+  ['8f',8,'motor',0,"Transfers objects between hands"],
+  ['8g',8,'motor',0,"Beginning pincer grasp"],
+
+  ['9a',9,'social',1,"Is shy, clingy, or fearful around strangers"],
+  ['9b',9,'social',1,"Shows several facial expressions (happy, sad, angry, surprised)"],
+  ['9c',9,'social',1,"Looks when you call their name"],
+  ['9d',9,'social',1,"Reacts when you leave (looks, reaches for you, or cries)"],
+  ['9e',9,'social',1,"Smiles or laughs when you play peek-a-boo"],
+  ['9f',9,'language',1,"Makes different sounds like “mamamama” and “babababa”"],
+  ['9g',9,'language',1,"Lifts arms up to be picked up"],
+  ['9h',9,'cognitive',1,"Looks for objects when dropped out of sight"],
+  ['9i',9,'cognitive',1,"Bangs two things together"],
+  ['9j',9,'motor',1,"Gets to a sitting position by themselves"],
+  ['9k',9,'motor',1,"Moves things from one hand to the other"],
+  ['9l',9,'motor',1,"Uses fingers to “rake” food toward themselves"],
+  ['9m',9,'motor',1,"Sits without support"],
+
+  ['10a',10,'social',0,"Waves"],
+  ['10b',10,'language',0,"Understands simple words like “no” and “bye-bye”"],
+  ['10c',10,'language',0,"Begins pointing to ask for things"],
+  ['10d',10,'cognitive',0,"Imitates gestures"],
+  ['10e',10,'motor',0,"Pulls to stand"],
+  ['10f',10,'motor',0,"Cruises along furniture"],
+  ['10g',10,'motor',0,"Finger-feeds small bites (pincer grasp refining)"],
+
+  ['11a',11,'social',0,"Plays pat-a-cake; responds to simple requests"],
+  ['11b',11,'language',0,"Babbles with speech-like ups and downs"],
+  ['11c',11,'language',0,"Combines gestures and sounds (pointing plus “uh!”)"],
+  ['11d',11,'language',0,"Maybe a first meaningful word"],
+  ['11e',11,'cognitive',0,"Puts objects into containers"],
+  ['11f',11,'motor',0,"Stands alone briefly"],
+  ['11g',11,'motor',0,"Cruises confidently — maybe first steps"],
+
+  ['12a',12,'social',1,"Plays games with you, like pat-a-cake"],
+  ['12b',12,'language',1,"Waves “bye-bye”"],
+  ['12c',12,'language',1,"Calls a parent “mama,” “dada,” or another special name"],
+  ['12d',12,'language',1,"Understands “no” (pauses briefly or stops when you say it)"],
+  ['12e',12,'cognitive',1,"Puts something in a container, like a block in a cup"],
+  ['12f',12,'cognitive',1,"Looks for things they see you hide, like a toy under a blanket"],
+  ['12g',12,'motor',1,"Pulls up to stand"],
+  ['12h',12,'motor',1,"Walks, holding on to furniture"],
+  ['12i',12,'motor',1,"Drinks from a cup without a lid, as you hold it"],
+  ['12j',12,'motor',1,"Picks things up between thumb and pointer finger"],
+];
+const CDC_MONTHS = [2, 4, 6, 9, 12];
+
+const GUIDE = {
+  0: {
+    title: "The NICU chapter", range: "Before the due date", kind: 'nicu',
+    intro: "Born at 29 weeks, the first chapter happens in the NICU. Until the due date, development follows the womb's timeline: lots of sleep, growing, learning to breathe, staying warm, and coordinating suck–swallow–breathe for feeding. Adjusted age is below zero until the due date — the due date is “day zero” for milestones.",
+    celebrate: ["First hold and first skin-to-skin", "Every ounce gained", "Coming off breathing support", "First feeds by mouth", "Out of the isolette", "First bath", "Coming home", "Reaching the due date"],
+    cues: ["“I need a break”: color changes, hiccups, yawning, sneezing, splayed fingers, arching, looking away.", "“I'm ready”: calm breathing, relaxed hands, alert eyes, hands to face.", "Feeding readiness: rooting, mouthing, sucking on hands or a pacifier."],
+    feeding: ["The NICU team leads: breast milk (often fortified), donor milk, or preterm formula — sometimes by feeding tube at first.", "If pumping, pumping often protects milk supply.", "Before discharge, ask which milk or fortifier to use at home, for how long, and which vitamin and iron drops."],
+    sleep: ["Babies may be positioned on the tummy or side while on monitors in the NICU. At home it's always the ABCs: Alone, on the Back, in a Crib."],
+    visit: "Before discharge: hearing screen, eye (ROP) exams if ordered, car-seat check, and a plan for NICU follow-up, RSV protection, and the first pediatrician visit.",
+    flags: [], safety: ["Rear-facing car seat in the back seat, every ride.", "Keep smoke and vape exposure away from the babies."]
+  },
+  1: {
+    title: "Month 1", range: "0–1 month adjusted", kind: 'emerging',
+    intro: "Newborn reflexes dominate: Moro (startle), rooting, sucking, palmar and plantar grasp, stepping, and tonic neck (“fencing”). Your baby gazes at faces about 8–12 inches away, startles at loud noises, brings hands near the mouth, moves arms and legs in jerky patterns, and needs full head support.",
+    celebrate: ["Steady weight gain on their own curve", "First real stretches of quiet alertness", "Recognizing your voice", "First tummy-time sessions", "Getting through the first visits"],
+    cues: ["Hunger, early → late: stirring and rapid eye movements, then rooting and lip-smacking, then hands to mouth, then squirming and fussing, then crying (late). If crying, calm first (skin-to-skin, rocking), then feed.", "Full: relaxed hands, slowing or stopping sucking, releasing the nipple, falling asleep.", "Tired: staring off, jerky movements, yawning, fussing.", "Overstimulated: turning away, arching, hiccups, color changes, splayed fingers, sudden crying."],
+    feeding: ["Breastfed babies feed on demand, usually 8–12 times in 24 hours.", "Formula: about 2–3 oz per feed, building to at least 3–4 oz every 3–4 hours by the end of the month (follow your NICU plan for preemies).", "Vitamin D drops (400 IU/day) for any baby who gets breast milk.", "No water, juice, or other foods.", "Diapers are your best intake gauge: 6+ wet diapers a day. Call if fewer, no wet diaper in 8 hours, or dark urine."],
+    sleep: ["No AASM target under 4 months — newborns commonly sleep about 16–18 hours a day in short bouts around the clock.", "Every sleep, including naps: the ABCs — Alone, on the Back, in a Crib or bassinet in your room."],
+    visit: "Newborn visit within a few days of coming home, then the 1-month visit: weight, feeding, maternal depression screening, hepatitis B dose 2 (1–2 months).",
+    flags: [], safety: ["Never shake a baby.", "Water heater at 120°F or below; test bath water.", "Never leave the baby alone on a raised surface or in the bath."]
+  },
+  2: {
+    title: "Month 2", range: "1–2 months adjusted", kind: 'cdc',
+    intro: "The first CDC checkpoint. The big one: the first social smile. Cooing-type sounds and lifting the head during tummy time arrive. The Moro and stepping reflexes start to fade.",
+    celebrate: ["The first social smile", "Cooing-type sounds", "Lifting the head during tummy time"],
+    cues: ["Engagement cues: eye contact, smiling, cooing — let's play!", "Need-a-break cues: turning the head away, yawning, fussing.", "Hunger: hands to mouth, turning toward breast or bottle, smacking or licking lips. Full: closing the mouth or turning away."],
+    feeding: ["Breast milk or formula only — “not ready for other foods, water or other drinks for about the first 6 months.”", "Formula-fed babies typically take about 4–5 oz per feed.", "Rule of thumb: about 2½ oz of formula per pound of body weight per day, up to about 32 oz."],
+    sleep: ["Crying often peaks around 6–8 weeks. If you feel overwhelmed: put the baby in a safe place, walk away, check every 5–10 minutes. Never shake a baby."],
+    visit: "2-month visit: the first major vaccine visit (DTaP, Hib, polio, PCV, rotavirus) and maternal depression screening. Vaccines go by actual age — preemies get them on time.",
+    flags: ["Not smiling at people", "Not reacting to loud sounds", "Not holding the head up on the tummy"], safety: []
+  },
+  3: {
+    title: "Month 3", range: "2–3 months adjusted", kind: 'emerging',
+    intro: "Steadier head control, pushing up on forearms, swiping at toys, opening and closing hands, bringing hands together, kicking more strongly, more cooing, and following objects across the midline. Some babies start rolling tummy-to-back.",
+    celebrate: ["Back-and-forth cooing “conversations”", "Discovering their hands", "Better head control on your shoulder"],
+    cues: ["Babies now use smiles and sounds to start interaction.", "Overstimulated: looking away, arching, frantic fussing.", "Tired: rubbing eyes, red eyebrows, a glazed look."],
+    feeding: ["Breast milk or formula only.", "Between 2 and 4 months (or past about 12 lb), most formula-fed babies no longer need a middle-of-the-night feed. Breastfed babies vary more."],
+    sleep: ["Still no fixed target — follow your baby and keep the ABCs."],
+    visit: "No routine well visit at 3 months — a good time to jot down questions for the next one.",
+    flags: ["Not smiling at people by about 3 months", "Not reacting to loud sounds", "Not holding the head up on the tummy"], safety: ["Watch head shape and any head tilt — raise it early (see Tummy time & head shape)."]
+  },
+  4: {
+    title: "Month 4", range: "3–4 months adjusted", kind: 'cdc',
+    intro: "The first chuckles, steady head control, swatting at toys, and possibly the first roll. The rooting reflex fades by about 4 months.",
+    celebrate: ["The first chuckles", "Steady head control", "Swatting at toys", "Maybe the first roll"],
+    cues: ["Hunger becomes anticipatory: opening the mouth at the sight of breast or bottle (a 4-month milestone).", "Full: turning away, losing interest, playing with the nipple."],
+    feeding: ["Breast milk or formula only.", "If mostly breastfed and not yet eating iron-rich foods, ask about iron drops (preemies are often started earlier — follow your plan).", "Allergy planning starts now: babies with severe eczema and/or egg allergy are high-risk and may need peanut as early as 4–6 months after a clinician check. Discuss at this visit."],
+    sleep: ["AASM, 4–12 months: 12–16 hours per 24 hours including naps — often 3–4 naps at this age."],
+    visit: "4-month visit: second vaccine round, maternal depression screening, solids and allergen planning.",
+    flags: ["Not cooing", "Not bringing hands to mouth", "Not reaching for toys", "Very stiff or very floppy body"], safety: []
+  },
+  5: {
+    title: "Month 5", range: "4–5 months adjusted", kind: 'emerging',
+    intro: "Rolling (often tummy-to-back first), reaching and grasping with both hands, moving objects to the mouth, beginning to pass toys between hands, babbling with more consonant-like sounds, and laughing out loud. The palmar grasp reflex fades around 5–6 months.",
+    celebrate: ["Rolling — time to stop swaddling", "Full belly laughs", "Recognizing familiar people"],
+    cues: ["More deliberate communication: reaching to be picked up, squealing, different cries for different needs.", "Distractibility during feeds is common and normal."],
+    feeding: ["Breast milk or formula is still the whole diet for most babies.", "Watch for solid-food readiness signs (they matter more than the calendar): good head and neck control · sits with little support · brings hands or toys to the mouth · tongue-thrust reflex gone · leans toward food and opens the mouth · shows fullness by leaning back and turning away.", "Never start solids before 4 months — for preemies, go by adjusted age plus readiness signs."],
+    sleep: ["12–16 hours total. Many babies consolidate a longer night stretch, but night waking is still normal.", "Stop swaddling once rolling starts."],
+    visit: "No routine well visit at 5 months.",
+    flags: ["Not laughing", "Not reaching for toys", "Very stiff or very floppy body"], safety: ["Never leave a rolling baby on a raised surface."]
+  },
+  6: {
+    title: "Month 6", range: "5–6 months adjusted", kind: 'cdc',
+    intro: "Knows familiar people, loves the mirror, laughs, takes turns making sounds, blows raspberries, squeals, rolls tummy-to-back, pushes up on straight arms, and leans on hands to sit (tripod sitting). Most babies get teeth between 6 and 12 months.",
+    celebrate: ["First solid foods", "Rolling", "Tripod sitting", "Raspberries", "Maybe the first tooth"],
+    cues: ["Hungry: pointing to foods, opening the mouth to a spoon, getting excited when seeing food.", "Full: pushing food away, closing the mouth, turning the head away. “Closes lips to show they don't want more food” is now a formal milestone."],
+    feeding: ["Starting solids: around 6 months (adjusted, for preemies) with iron-rich foods — iron-fortified cereal, pureed or minced meats, beans — then vegetables and fruit. Start with 1–2 tablespoons once or twice a day.", "Allergens: peanut in a safe form (thinned smooth peanut butter or peanut powder — never whole nuts or chunky butter), and egg early too. Once tolerated, keep giving it regularly. Delaying does not prevent allergy.", "Milk is still the main nutrition: formula-fed babies take 6–8 oz at 4–5 feeds a day, generally no more than 32 oz in 24 hours.", "Water: small sips from an open, sippy, or straw cup — 4–8 oz a day total.", "Vitamin D 400 IU/day continues unless drinking about 32 oz/day of formula.", "Fluoride: usually through fluoridated tap water — ask whether yours is.", "First tooth? Brush twice daily with a rice-grain smear of fluoride toothpaste."],
+    sleep: ["12–16 hours, often 2–3 naps.", "Room-sharing ideally continues through at least 6 months."],
+    visit: "6-month visit: third vaccine round, first flu vaccine (2 doses 4 weeks apart the first season), maternal depression screening, and an oral health risk assessment.",
+    flags: ["Not laughing", "Not rolling", "Not reaching for toys", "Very stiff or very floppy body"], safety: ["Babyproof before crawling starts — see Month 7."]
+  },
+  7: {
+    title: "Month 7", range: "6–7 months adjusted", kind: 'emerging',
+    intro: "Sitting more steadily, starting to scoot, pivot, or crawl (crawling usually shows up around 7–10 months and some babies skip it — it's not on the CDC checklist), raking food toward themselves, babbling repeated syllables, and responding to their name.",
+    celebrate: ["Independent sitting", "Mobility of any kind — army crawl, scoot, roll", "Enjoying new tastes"],
+    cues: ["Hungry: reaching, leaning toward food, banging on the tray.", "Full or bored: turning away, throwing food, clamped lips.", "Tired: clinginess and losing interest in toys."],
+    feeding: ["Move from smooth purees to thicker, mashed, lumpier textures.", "Offer soft, dissolvable finger foods: ripe banana, avocado, well-cooked vegetables, soft scrambled egg.", "Keep milk feeds going — solids complement milk rather than replace it."],
+    sleep: ["12–16 hours total, usually 2–3 naps."],
+    visit: "No routine well visit at 7 months.",
+    flags: [], safety: ["Babyproof now: gates, anchor furniture, cover outlets, lock away medicines and cleaners.", "Save Poison Help (800-222-1222) in your phone."]
+  },
+  8: {
+    title: "Month 8", range: "7–8 months adjusted", kind: 'emerging',
+    intro: "Crawling or pulling toward standing in some babies, transferring objects between hands, an early pincer grasp, “mama/baba/dada” babbling without specific meaning, object permanence emerging (searching for a hidden toy), and the start of stranger and separation anxiety.",
+    celebrate: ["Peek-a-boo laughter (that's object permanence!)", "The first “conversations” in babble"],
+    cues: ["Protests when you leave, reaches for you, and checks your face to decide whether something is safe (“social referencing”).", "Separation distress is a sign of healthy attachment, not a problem. Use a quick, cheerful goodbye instead of sneaking away."],
+    feeding: ["2–3 meals a day plus milk, more finger foods and soft lumps.", "Offer iron-rich foods daily and keep up the allergens your baby already eats.", "Expect messy self-feeding."],
+    sleep: ["12–16 hours total. Many babies drop to 2 naps.", "Separation anxiety can temporarily disrupt sleep."],
+    visit: "No routine well visit at 8 months.",
+    flags: [], safety: ["Keep small objects and button batteries out of reach.", "Arm's reach around water at all times; empty buckets and tubs."]
+  },
+  9: {
+    title: "Month 9", range: "8–9 months adjusted", kind: 'cdc',
+    intro: "Stranger wariness (expected — it's a milestone), several facial expressions, looking when you call their name, reacting when you leave, “mamamama” and “babababa,” arms up to be picked up, looking for dropped things, banging toys together, sitting alone and getting to sitting, raking food.",
+    celebrate: ["Sitting alone", "Reduplicated babbling", "Arms up for “pick me up!” — an early intentional gesture", "Peek-a-boo"],
+    cues: ["Communication is now intentional: arm-raising, reaching, looking at you and then at an object.", "Stranger wariness is expected."],
+    feeding: ["Finely chopped and mashed table foods — “smooth, mashed, or finely chopped.”", "Let babies practice using a cup with a small amount of water.", "Re-offer refused foods many times."],
+    sleep: ["12–16 hours total, usually 2 naps."],
+    visit: "9-month visit: a standardized developmental screen (often the ASQ-3) plus an oral health check. Tell them the adjusted age and bring your milestone notes from this app. Usually no routine vaccine unless catch-up or the second flu dose.",
+    flags: ["Not babbling", "Not responding to their name", "Not looking for dropped objects", "Not sitting with support", "Not bearing weight on the legs when held"], safety: ["Safety for mobility: gates at stairs, cords out of reach."]
+  },
+  10: {
+    title: "Month 10", range: "9–10 months adjusted", kind: 'emerging',
+    intro: "Pulling to stand, cruising along furniture in some babies, a refining pincer grasp, understanding simple words like “no” and “bye-bye,” waving, beginning to point, and imitating gestures.",
+    celebrate: ["Pulling up", "The first waves", "Finger-feeding small bites"],
+    cues: ["Pointing to request (“I want that”) starts replacing whole-body reaching.", "Head shakes and pushing away mean “no” or “full.”"],
+    feeding: ["Soft table foods cut small; practice an open cup that you hold.", "Choking prevention: no whole nuts; quarter grapes and cherry tomatoes; no popcorn, hot-dog coins, raw hard vegetables, chunks of meat or cheese, or spoonfuls of nut butter.", "Always seat the baby upright and supervised while eating."],
+    sleep: ["12–16 hours total, usually 2 naps."],
+    visit: "No routine well visit at 10 months.",
+    flags: [], safety: ["Cruisers reach tabletops and cords: secure TVs and furniture, use stair gates, keep the toilet lid closed.", "Never leave the baby alone in or near water — not even for a second.", "No hot drinks while holding the baby."]
+  },
+  11: {
+    title: "Month 11", range: "10–11 months adjusted", kind: 'emerging',
+    intro: "Standing alone briefly, cruising confidently, possibly first steps (the range is wide — “takes a few steps” is a 15-month CDC item), putting objects in containers, babbling with speech-like intonation, maybe a first meaningful word.",
+    celebrate: ["Standing alone", "Pat-a-cake", "Responding to simple requests"],
+    cues: ["Combining gestures and sounds (pointing plus “uh!”).", "Tired may look like extra clumsiness, falls, or meltdowns."],
+    feeding: ["Most family foods, adapted for texture and salt: 3 meals plus 1–2 snacks.", "Plan the 12-month transition (milk, cups) with your pediatrician."],
+    sleep: ["12–16 hours, usually 2 naps."],
+    visit: "No routine well visit at 11 months.",
+    flags: [], safety: []
+  },
+  12: {
+    title: "Month 12", range: "11–12 months adjusted", kind: 'cdc',
+    intro: "Pat-a-cake, waving bye-bye, a special name for a parent, understanding “no,” putting things in containers, finding hidden toys, pulling up, cruising, drinking from an open cup you hold, and the pincer grasp. Not walking yet at 12 months is common and normal — healthy children first walk alone anywhere from about 8 to 18 months. The plantar grasp reflex fades by 9–12 months.",
+    celebrate: ["First words", "Waving", "The pincer grasp", "Cruising — maybe first steps", "The first birthday (by actual age!)"],
+    cues: ["Pointing to request, plus words or word-approximations.", "Answer with words: “You want the cup? Here is the cup.”"],
+    feeding: ["At 12 months: plain, pasteurized whole cow's milk without added sugar (or fortified unsweetened dairy alternatives) can begin.", "No honey before 12 months (botulism risk). No cow's milk as a drink and no juice before 12 months.", "After 12 months, if juice at all, 4 oz or less of 100% juice a day; no sugary drinks."],
+    sleep: ["12–16 hours up to 12 months; from 1–2 years AASM recommends 11–14 hours including naps."],
+    visit: "12-month visit: vaccines (typically MMR, varicella, hepatitis A, PCV and Hib boosters at 12–15 months), anemia and lead screening, an oral health check, and a dental home by now. Autism screening comes at 18 and 24 months; developmental screens at 18 and 30.",
+    flags: ["No gestures (waving, pointing)", "No “mama/dada”", "Not pulling to stand"], safety: []
+  }
+};
+
+const FIRST_TAGS = ["First smile", "First laugh", "First bath", "Came home", "Skin-to-skin", "Tummy time", "First roll", "First food", "First tooth", "Sitting up", "Crawling", "First steps", "First words", "Meeting family", "Twin moment", "Silly moment", "Holiday"];
+
+const VISIT_KINDS = ["Well visit", "NICU follow-up", "Vaccines", "Specialist", "Therapy / Early Intervention", "Eye exam", "Hearing", "Dental", "Sick visit", "Other"];
+
+const WELL_VISITS = [
+  { label: "Newborn visit", days: 4, what: "Weight, jaundice, feeding, diaper counts, newborn screens follow-up" },
+  { label: "1-month", months: 1, what: "Weight, feeding, parent depression screen, hep B dose 2 (1–2 mo)" },
+  { label: "2-month", months: 2, what: "First major vaccine round, parent depression screen, tummy time, safe sleep" },
+  { label: "4-month", months: 4, what: "Vaccines, parent depression screen, solids & allergen planning" },
+  { label: "6-month", months: 6, what: "Vaccines, first flu vaccine, depression screen, oral health, fluoride" },
+  { label: "9-month", months: 9, what: "Standardized developmental screen (ASQ-3), oral health, lead risk" },
+  { label: "12-month", months: 12, what: "Vaccines, anemia & lead screening, dental home, whole milk" },
+  { label: "15-month", months: 15, what: "Vaccines and growth" },
+  { label: "18-month", months: 18, what: "Developmental + autism screening" }
+];
+
+const ALLERGENS = ["Peanut", "Egg", "Milk / dairy", "Wheat", "Soy", "Tree nuts", "Fish", "Shellfish", "Sesame"];
+
+// First-Year Tracking Checklist — per baby. "age" groups go by ACTUAL age for visits & vaccines.
+const CHECKLIST = [
+  { group: "Newborn to 1 month", items: [
+    ['c1', "Newborn hearing screen passed (or follow-up scheduled); newborn blood screen done"],
+    ['c2', "Hepatitis B dose 1; RSV antibody given (or maternal RSV vaccine ≥14 days before birth confirmed)"],
+    ['c3', "First visit after coming home: weight, jaundice, feeding"],
+    ['c4', "6+ wet diapers a day; stools transitioning to yellow"],
+    ['c5', "Vitamin D 400 IU/day started (if any breast milk)"],
+    ['c6', "Safe sleep set up: bassinet or crib in your room, bare and flat; rear-facing car seat installed"],
+    ['c7', "Tummy time started; working up to 15–30 min/day"]
+  ]},
+  { group: "2–4 months", items: [
+    ['c8', "2-month vaccines"], ['c9', "4-month vaccines"],
+    ['c10', "Parent depression screening at 1, 2 and 4 months"],
+    ['c11', "Watching head shape and neck tilt"],
+    ['c12', "Discussed solids timing, eczema & peanut risk, iron"]
+  ]},
+  { group: "5–6 months", items: [
+    ['c13', "Stopped swaddling once rolling started"],
+    ['c14', "Readiness signs → iron-rich solids started (by adjusted age)"],
+    ['c15', "Peanut and egg introduced and kept in the diet"],
+    ['c16', "Water 4–8 oz/day by cup; fluoride source checked"],
+    ['c17', "6-month vaccines and first flu vaccine (2 doses first season)"],
+    ['c18', "First tooth → brushing with a fluoride smear; varnish"]
+  ]},
+  { group: "7–9 months", items: [
+    ['c19', "Home babyproofed before crawling; Poison Help number saved"],
+    ['c20', "Textures progressing: mashed → soft finger foods"],
+    ['c21', "9-month visit: standardized developmental screen (ASQ-3 or similar)"]
+  ]},
+  { group: "10–12 months", items: [
+    ['c22', "Open-cup practice; choking-safe foods"],
+    ['c23', "No honey, no cow's-milk drink or juice until 12 months"],
+    ['c24', "Dental home established by the first birthday"],
+    ['c25', "12-month visit: MMR, varicella, hep A, boosters; anemia & lead screening; whole milk"],
+    ['c26', "Autism screening scheduled at 18 & 24 months; developmental screens at 18 & 30"]
+  ]},
+  { group: "Preemie extras", items: [
+    ['c27', "NICU follow-up clinic appointment scheduled"],
+    ['c28', "Eye (ROP) follow-up exams complete"],
+    ['c29', "Asked about early intervention (cdc.gov/FindEI)"],
+    ['c30', "RSV protection plan for the first RSV season"]
+  ]}
+];
+
+// "Read first" topics. Functions receive a context with names & weeks early.
+const TOPICS = [
+  { id: 'adjusted', em: '🧮', title: "Adjusted age — the preemie rule", body: (c) => `
+    <p><b>${c.names}</b> arrived <b>${c.early} weeks early</b> (born at ${c.ga}; full term is 40 weeks).</p>
+    <p><b>Adjusted (corrected) age</b> = actual age − ${c.early} weeks. At 6 months actual, adjusted age is about ${c.example}.</p>
+    <ul class="tight"><li><b>Use adjusted age</b> for milestones, solids readiness, and comparing development — until age 2.</li>
+    <li><b>Use actual age</b> for well visits and vaccines. Preemies are vaccinated on time.</li>
+    <li>“By 2 years of age, most children have caught up to the typical milestone range.” Very early babies can take a little longer, and that's okay.</li>
+    <li>Twins and multiples: track each baby on their own. Comparing is natural; different paces are normal.</li></ul>` },
+  { id: 'act', em: '🚦', title: "Act early — red flags", body: () => `
+    <p>Milestones are ranges, not deadlines. But “if your baby is not meeting one or more milestones, has lost skills they once had, or you have other concerns, <b>act early</b>.” A missed milestone is a reason to ask about screening, not a diagnosis.</p>
+    <ul class="tight"><li><b>By about 2–3 months:</b> not smiling at people, not reacting to loud sounds, not holding the head up on the tummy</li>
+    <li><b>By about 4–6 months:</b> not cooing, not bringing hands to mouth, not reaching for toys, not laughing, not rolling, very stiff or very floppy body</li>
+    <li><b>By about 9 months:</b> not babbling, not responding to their name, not looking for dropped objects, not sitting</li>
+    <li><b>By about 12 months:</b> no gestures (waving, pointing), no “mama/dada,” not pulling to stand</li>
+    <li><b>At any age:</b> loss of skills once had, or one-sided movement or reflexes</li></ul>
+    <p>(Use adjusted age for these.) You can contact your state's early intervention program yourself — no referral needed: <a href="https://www.cdc.gov/FindEI" target="_blank" rel="noopener">cdc.gov/FindEI</a>. Many babies born before 30 weeks qualify.</p>` },
+  { id: 'sleep', em: '🌙', title: "Safe sleep, every sleep", body: () => `
+    <p><b>The ABCs: Alone, on the Back, in a Crib</b> (or bassinet) in your room.</p>
+    <ul class="tight"><li>Firm, flat, non-inclined surface; no pillows, bumpers, blankets, or toys.</li>
+    <li>Room-share without bed-sharing for at least the first 6 months. Room-sharing can cut SIDS risk by as much as 50%.</li>
+    <li>Never sleep with a baby on a couch or armchair — risk of death is up to 67 times higher.</li>
+    <li>Stop swaddling once rolling starts. If baby rolls both ways on their own, you don't need to reposition — but always put them down on their back.</li>
+    <li>Human milk, a pacifier at sleep, no smoke/alcohol/drug exposure, and routine immunizations all lower risk.</li>
+    <li>Preemies: NICU positioning ends at discharge — at home it's back to sleep, every time.</li></ul>
+    <table class="mini"><tr><th>Age</th><th>Total / 24 h</th><th>Naps</th></tr>
+    <tr><td>0–3 mo</td><td>about 14–18 h</td><td>many, irregular</td></tr>
+    <tr><td>4–6 mo</td><td>12–16 h</td><td>3–4</td></tr>
+    <tr><td>6–9 mo</td><td>12–16 h</td><td>2–3</td></tr>
+    <tr><td>9–12 mo</td><td>12–16 h</td><td>2</td></tr></table>` },
+  { id: 'call', em: '📞', title: "When to call the doctor", body: () => `
+    <p><b>Any rectal temperature ≥100.4°F (38.0°C) under 3 months is an emergency.</b> Call immediately or go to the ER; don't give medicine first. Ask your NICU team whether to use actual or adjusted age for this rule.</p>
+    <p>Older babies: call for fever with lethargy, poor feeding, trouble breathing, a rash that doesn't fade when pressed, or fever lasting more than 24 hours.</p>
+    <ul class="tight"><li><b>Call 911</b> for breathing problems: fast breathing, ribs pulling in, grunting, pauses, blue or gray lips.</li>
+    <li>Dehydration: few wet diapers (none in 8 hours), no tears, dry mouth, sunken soft spot.</li>
+    <li>Refusing several feeds in a row, or persistent forceful vomiting.</li>
+    <li>Unusual sleepiness, hard to wake, or a floppy body.</li>
+    <li>Yellow skin that is spreading or appears after the first week.</li>
+    <li>White, clay-colored, or bloody stools.</li>
+    <li>Inconsolable crying that's unusual for your baby; any seizure.</li>
+    <li>A white pupil in photos.</li></ul>
+    <p>Poison Help: <a href="tel:18002221222">800-222-1222</a></p>` },
+  { id: 'feeding', em: '🥄', title: "Feeding by age", body: () => `
+    <table class="mini"><tr><th>Age</th><th>Milk</th><th>Solids & other</th></tr>
+    <tr><td>0–1 mo</td><td>Breast 8–12×/day; formula 2–3 → 3–4 oz every 3–4 h</td><td>None. Vitamin D 400 IU if any breast milk</td></tr>
+    <tr><td>1–4 mo</td><td>Breast on demand; formula about 4–6 oz/feed; max about 32 oz/day</td><td>None. No water or juice</td></tr>
+    <tr><td>4–6 mo</td><td>About 2½ oz/lb/day</td><td>Only if ready, never before 4 mo. Iron for mostly-breastfed babies</td></tr>
+    <tr><td>6–8 mo</td><td>Formula 6–8 oz × 4–5 feeds</td><td>Iron-rich purees → mashed; peanut & egg early; water 4–8 oz/day by cup</td></tr>
+    <tr><td>9–12 mo</td><td>Gradually declines as solids rise</td><td>Finely chopped finger foods, 3 meals + snacks; open cup</td></tr></table>
+    <p class="fine">For preemies, solids timing goes by adjusted age plus readiness signs, and your NICU team may prescribe special milk, fortifier, iron, or vitamins. Follow their plan. No honey and no cow's-milk drink before 12 months.</p>` },
+  { id: 'vaccines', em: '💉', title: "Vaccines & check-ups", body: () => `
+    <p>Well visits: newborn (3–5 days), then 1, 2, 4, 6, 9 and 12 months — <b>by actual age</b>. Growth and an eye check happen at every visit.</p>
+    <table class="mini"><tr><th>Age</th><th>AAP 2026 schedule (confirm with your pediatrician)</th></tr>
+    <tr><td>Birth</td><td>RSV antibody (nirsevimab or clesrovimab) if born in or entering RSV season and not protected by maternal vaccine; hepatitis B dose 1</td></tr>
+    <tr><td>1–2 mo</td><td>Hepatitis B dose 2</td></tr>
+    <tr><td>2 mo</td><td>DTaP, Hib, IPV (polio), PCV, rotavirus</td></tr>
+    <tr><td>4 mo</td><td>DTaP, Hib, IPV, PCV, rotavirus</td></tr>
+    <tr><td>6 mo</td><td>DTaP, PCV, Hib & rotavirus (product-dependent), hep B dose 3 (6–18 mo), IPV dose 3 (6–18 mo), flu (2 doses first season), COVID-19 per AAP</td></tr>
+    <tr><td>12–15 mo</td><td>MMR, varicella, hepatitis A, PCV and Hib boosters</td></tr></table>
+    <p class="fine">Policy note (Oct 2026): a January 2026 federal memo moving several vaccines off the universal list was stayed by a federal court in March 2026 and CDC restored its prior schedules; an appeal was argued Oct 6, 2026. Follow the AAP schedule and your pediatrician, and ask about any updates after a ruling.</p>` },
+  { id: 'growth', em: '📈', title: "Growth — follow the curve", body: () => `
+    <p>U.S. pediatricians use the WHO growth standards from birth to 24 months (preemies are often plotted on a preterm chart in the NICU, then by adjusted age).</p>
+    <ul class="tight"><li>What matters is a steady path along your baby's <b>own</b> curve, not the percentile number.</li>
+    <li>Worth a closer look: crossing two or more major percentile lines, very low or very high weight-for-length, or a head growing too fast or too slow.</li>
+    <li>Head circumference matters as much as weight — it reflects brain growth.</li>
+    <li>Term babies roughly double birth weight by 4–6 months and triple it by 12. Preemies often show “catch-up” growth.</li></ul>` },
+  { id: 'tummy', em: '🧸', title: "Tummy time, head shape & reflexes", body: () => `
+    <p><b>Tummy time:</b> start soon after coming home, 3–5 minutes 2–3 times a day, building to at least 15–30 minutes total daily (by 7 weeks for term babies). Chest-to-chest counts.</p>
+    <p><b>Flat head</b> is common and cosmetic. Vary head position and crib orientation; limit time in car seats, swings, and bouncers.</p>
+    <p><b>Torticollis:</b> a head tilt, strong preference to turn one way, an ear shifted forward on the flat side, or a tight neck muscle. Treatment started early works better, so raise it early.</p>
+    <table class="mini"><tr><th>Reflex</th><th>Fades around</th></tr>
+    <tr><td>Moro (startle)</td><td>2 months</td></tr><tr><td>Stepping</td><td>2 months</td></tr>
+    <tr><td>Rooting</td><td>4 months</td></tr><tr><td>Palmar grasp</td><td>5–6 months</td></tr>
+    <tr><td>Tonic neck (“fencing”)</td><td>5–7 months</td></tr><tr><td>Plantar grasp</td><td>9–12 months</td></tr></table>
+    <p class="fine">Reflexes should be the same on both sides. Mention any that differ by side or last well past their window (by adjusted age).</p>` },
+  { id: 'teeth', em: '🦷', title: "Hearing, vision & teeth", body: () => `
+    <ul class="tight"><li>Hearing screen before discharge or by 1 month; follow up any “refer” result by 3 months.</li>
+    <li>Red reflex eye check at visits. A white pupil in photos is a reason to call.</li>
+    <li>Teeth usually appear between 6 and 12 months. Brush with a rice-grain smear of fluoride toothpaste from the first tooth. Fluoride varnish 2–4 times a year.</li>
+    <li>First dental visit: after the first tooth and by the first birthday.</li></ul>` },
+  { id: 'safety', em: '🛡️', title: "Safety by stage", body: () => `
+    <p><b>0–6 months:</b> rear-facing car seat in the back seat, every ride · ABCs of safe sleep · never shake a baby · water heater ≤120°F and test bath water · never alone on a raised surface or in the bath · no smoke or vape exposure.</p>
+    <p><b>6–12 months:</b> babyproof (gates, outlet covers, furniture anchors, cords, locked medicines and chemicals) · choking-safe foods; keep small objects and button batteries away · water: arm's reach always, empty buckets and tubs, toilet locks · no hot drinks while holding the baby · Poison Help <a href="tel:18002221222">800-222-1222</a>.</p>
+    <p><b>Screens:</b> none before age 2, except video chats — perfect for grandparents!</p>` },
+  { id: 'you', em: '💛', title: "Taking care of you", body: () => `
+    <p>Parent depression screening is recommended at the 1-, 2-, 4- and 6-month visits. Partners can develop depression and anxiety too — ask to be screened.</p>
+    <p>Warning signs: persistent sadness, anxiety or intrusive thoughts, can't sleep even when the baby sleeps, feeling disconnected from the baby.</p>
+    <p>National Maternal Mental Health Hotline: <a href="tel:18338526262">1-833-TLC-MAMA</a>. In a crisis, call or text <a href="tel:988">988</a>.</p>
+    <p>“You will not spoil your baby by holding or responding to him.” Responsive back-and-forth (“serve and return”) builds the brain. And: “Take care of yourself. Parenting can be hard work!” Accept help, sleep in shifts.</p>` }
+];
+
+const SOURCES = [
+  ["CDC “Learn the Signs. Act Early.” milestone checklists (2022)", "https://www.cdc.gov/act-early/"],
+  ["CDC — Find early intervention", "https://www.cdc.gov/FindEI"],
+  ["HealthyChildren (AAP) — preemie milestones", "https://www.healthychildren.org/English/ages-stages/baby/preemie/Pages/Preemie-Milestones.aspx"],
+  ["HealthyChildren — formula amounts & schedule", "https://www.healthychildren.org/English/ages-stages/baby/formula-feeding/Pages/amount-and-schedule-of-formula-feedings.aspx"],
+  ["AASM — child sleep duration", "https://aasm.org/advocacy/position-statements/child-sleep-duration-health-advisory/"],
+  ["AAP — Bright Futures periodicity schedule", "https://www.aap.org/en/practice-management/care-delivery-approaches/periodicity-schedule/"],
+  ["CDC — WHO growth charts", "https://www.cdc.gov/growth-chart-training/hcp/using-growth-charts/who-using.html"]
+];
+
+/* =====================================================================
+   UTILITIES
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, a, ...kids) {
+  const el = document.createElement(tag);
+  if (a) for (const k in a) {
+    const v = a[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'style') el.setAttribute('style', v);
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === 'html') el.innerHTML = v;
+    else if (k === 'value' || k === 'checked') el[k] = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  add(el, kids);
+  return el;
+}
+function add(el, kids) {
+  for (const k of [kids].flat(Infinity)) {
+    if (k == null || k === false || k === true) continue;
+    el.appendChild(k instanceof Node ? k : document.createTextNode(String(k)));
+  }
+  return el;
+}
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  book: '<path d="M12 6.5C10 5 7 4.5 3.5 5v13.5C7 18 10 18.5 12 20c2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5V20"/>',
+  star: '<path d="m12 3 2.7 5.6 6.1.8-4.4 4.3 1 6.1L12 16.9l-5.4 2.9 1-6.1-4.4-4.3 6.1-.8z"/>',
+  heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.3 5.3-5.3 2.3 2.3-5.3z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
+  share: '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  play: '<path d="M8 5v14l11-7z" fill="currentColor"/>',
+  download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>'
+};
+function icon(n) {
+  const s = document.createElement('span');
+  s.className = 'ico';
+  s.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+  return s;
+}
+const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = (n) => String(n).padStart(2, '0');
+const DAY = 86400000;
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => ymd(new Date());
+function parseD(s) { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }
+function isoUTC(t) { const d = new Date(t); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
+const daysBetween = (a, b) => Math.round((parseD(b) - parseD(a)) / DAY);
+const addDays = (s, n) => isoUTC(parseD(s) + n * DAY);
+function addMonths(s, n) {
+  const [y, m, d] = s.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  return isoUTC(Date.UTC(y, m - 1 + n, Math.min(d, last)));
+}
+function fmtDate(s, o) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, o || { month: 'short', day: 'numeric', year: 'numeric' }); }
+const fmtShort = (s) => fmtDate(s, { month: 'short', day: 'numeric' });
+const plural = (n, w, pl) => `${n} ${n === 1 ? w : (pl || w + 's')}`;
+function fmtAge(days) {
+  if (days < 0) { const w = Math.ceil(-days / 7); return `${plural(w, 'wk')} to due date`; }
+  if (days < 14) return plural(days, 'day');
+  if (days < 63) { const w = Math.floor(days / 7), d = days % 7; return `${w} wk` + (d ? ` ${d} d` : ''); }
+  const mo = Math.floor(days / 30.4375), wk = Math.floor((days - Math.floor(mo * 30.4375)) / 7);
+  if (mo >= 24) { const y = Math.floor(mo / 12), r = mo % 12; return `${y} yr` + (r ? ` ${r} mo` : ''); }
+  return `${mo} mo` + (wk ? ` ${wk} wk` : '');
+}
+function fmtDuration(s) { if (!s || !isFinite(s)) return ''; s = Math.round(s); return `${Math.floor(s / 60)}:${pad(s % 60)}`; }
+function fmtBytes(b) { if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB'; if (b < 1024 ** 3) return (b / 1024 / 1024).toFixed(0) + ' MB'; return (b / 1024 ** 3).toFixed(1) + ' GB'; }
+function fmtWeight(oz) { if (oz == null || oz === '') return '—'; const lb = Math.floor(oz / 16); const r = Math.round((oz - lb * 16) * 10) / 10; return `${lb} lb ${r} oz`; }
+function hashRot(id) { let x = 0; for (const c of id) x = (x * 31 + c.charCodeAt(0)) | 0; return ((Math.abs(x) % 50) / 10 - 2.5).toFixed(1) + 'deg'; }
+
+/* =====================================================================
+   STORAGE — IndexedDB (photos & videos are stored as Blobs)
+   ===================================================================== */
+const DB_NAME = 'leo-josie-adventure';
+const STORES = ['kv', 'memories', 'media', 'milestones', 'growth', 'visits', 'foods'];
+let db;
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => { for (const s of STORES) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s, { keyPath: s === 'kv' ? 'key' : 'id' }); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function tx(store, mode, fn) {
+  return new Promise((res, rej) => {
+    const t = db.transaction(store, mode);
+    const req = fn(t.objectStore(store));
+    let out;
+    if (req) req.onsuccess = () => { out = req.result; };
+    t.oncomplete = () => res(out);
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error || new Error('Transaction aborted'));
+  });
+}
+const idb = {
+  get: (s, k) => tx(s, 'readonly', (st) => st.get(k)),
+  all: (s) => tx(s, 'readonly', (st) => st.getAll()),
+  put: (s, v) => tx(s, 'readwrite', (st) => st.put(v)),
+  del: (s, k) => tx(s, 'readwrite', (st) => st.delete(k)),
+  clear: (s) => tx(s, 'readwrite', (st) => st.clear())
+};
+let persistAsked = false;
+function requestPersist() {
+  if (persistAsked) return; persistAsked = true;
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* optional */ }
+}
+function storageError(e) {
+  console.error(e);
+  if (e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''))) toast("The phone's storage is full — free up space, then try again.");
+  else toast("Couldn't save: " + (e && e.message || e));
+}
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const S = {
+  settings: null, memories: [], media: new Map(), ms: new Map(), growth: [], visits: [], foods: [],
+  questions: [], customMs: [],
+  tab: 'home', bookFilter: 'all', msMonth: null, guideMonth: null, healthSeg: 'growth', growthMetric: 'weight'
+};
+function defaultSettings() {
+  return {
+    key: 'settings', title: APP_TITLE_DEFAULT, createdAt: Date.now(),
+    babies: [
+      { id: 'leo', name: 'Leo', birthDate: '', gaWeeks: 29, gaDays: 0, color: '#4f8fc0', avatarId: null },
+      { id: 'josie', name: 'Josie', birthDate: '', gaWeeks: 29, gaDays: 0, color: '#d6677e', avatarId: null }
+    ]
+  };
+}
+const babies = () => S.settings.babies;
+const readyBabies = () => babies().filter((b) => b.birthDate);
+const babyById = (id) => babies().find((b) => b.id === id);
+function joinNames(list) { const n = list.map((b) => b.name); return n.length <= 1 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1]; }
+
+function ageInfo(b, on = todayStr()) {
+  const actual = daysBetween(b.birthDate, on);
+  const early = Math.max(0, 280 - (Number(b.gaWeeks) * 7 + Number(b.gaDays || 0)));
+  return { actual, adjusted: actual - early, early, due: addDays(b.birthDate, early) };
+}
+const guideMonthFor = (adj) => adj < 0 ? 0 : Math.min(12, Math.floor(adj / 30.4375) + 1);
+function currentGuideMonth() { const rb = readyBabies(); return rb.length ? guideMonthFor(ageInfo(rb[0]).adjusted) : 1; }
+// Babies that share birthday + gestation read as one group ("Leo & Josie").
+function ageGroups(list = readyBabies()) {
+  const groups = new Map();
+  for (const b of list) { const k = `${b.birthDate}|${b.gaWeeks}|${b.gaDays || 0}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(b); }
+  return [...groups.values()];
+}
+function ageStamp(date, list = readyBabies()) {
+  return ageGroups(list).map((g) => {
+    const a = ageInfo(g[0], date);
+    if (a.actual < 0) return null;
+    return `${joinNames(g)}: ${fmtAge(a.actual)}` + (a.early ? ` · adjusted ${fmtAge(a.adjusted)}` : '');
+  }).filter(Boolean).join('  ·  ');
+}
+
+const MILESTONES = () => [
+  ...MS_RAW.map(([id, month, domain, cdc, text]) => ({ id, month, domain, cdc: !!cdc, text })),
+  ...S.customMs.map((c) => ({ ...c, domain: 'ours', cdc: false, custom: true }))
+];
+const msById = (id) => MILESTONES().find((m) => m.id === id) || CHECK_INDEX[id];
+const CHECK_INDEX = {};
+CHECKLIST.forEach((g) => g.items.forEach(([id, text]) => { CHECK_INDEX[id] = { id, text, checklist: true, group: g.group }; }));
+const msKey = (bid, mid) => `${bid}|${mid}`;
+const getMs = (bid, mid) => S.ms.get(msKey(bid, mid));
+async function setMs(bid, mid, val) {
+  const k = msKey(bid, mid);
+  try {
+    if (!val) { await idb.del('milestones', k); S.ms.delete(k); }
+    else { const rec = { id: k, babyId: bid, msId: mid, status: val.status, date: val.date || todayStr(), note: val.note || '' }; await idb.put('milestones', rec); S.ms.set(k, rec); }
+  } catch (e) { storageError(e); }
+}
+
+/* ---------- media URLs ---------- */
+const urlCache = new Map();
+function mediaURL(m, kind = 'thumb') {
+  const key = m.id + ':' + kind;
+  if (!urlCache.has(key)) {
+    const blob = kind === 'thumb' ? (m.thumb || (m.type === 'image' ? m.blob : null)) : m.blob;
+    if (!blob) return null;
+    urlCache.set(key, URL.createObjectURL(blob));
+  }
+  return urlCache.get(key);
+}
+function revokeMedia(id) { for (const k of ['thumb', 'full']) { const u = urlCache.get(id + ':' + k); if (u) { URL.revokeObjectURL(u); urlCache.delete(id + ':' + k); } } }
+
+function canvasToBlob(c, q = 0.82) { return new Promise((r) => c.toBlob(r, 'image/jpeg', q)); }
+function loadImg(blob) {
+  return new Promise((res, rej) => { const u = URL.createObjectURL(blob); const i = new Image(); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Image could not be read')); }; i.src = u; });
+}
+async function makeImageThumb(blob, max = 640) {
+  let src;
+  try { src = await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch (e) { src = await loadImg(blob); }
+  const w = src.width, ht = src.height, sc = Math.min(1, max / Math.max(w, ht));
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(ht * sc));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return { thumb: await canvasToBlob(c), w, h: ht };
+}
+function makeVideoThumb(blob) {
+  return new Promise((res) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(blob);
+    let done = false;
+    const finish = (r) => { if (done) return; done = true; clearTimeout(timer); URL.revokeObjectURL(url); v.removeAttribute('src'); try { v.load(); } catch (e) { /* ignore */ } res(r); };
+    const timer = setTimeout(() => finish({ thumb: null, w: 0, h: 0, duration: 0 }), 9000);
+    v.muted = true; v.playsInline = true; v.preload = 'metadata';
+    v.onloadedmetadata = () => { const d = isFinite(v.duration) ? v.duration : 1; v.currentTime = Math.min(0.6, d / 2); };
+    v.onseeked = async () => {
+      try {
+        const sc = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight || 1));
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(v.videoWidth * sc)); c.height = Math.max(1, Math.round(v.videoHeight * sc));
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+        finish({ thumb: await canvasToBlob(c), w: v.videoWidth, h: v.videoHeight, duration: isFinite(v.duration) ? v.duration : 0 });
+      } catch (e) { finish({ thumb: null, w: 0, h: 0, duration: isFinite(v.duration) ? v.duration : 0 }); }
+    };
+    v.onerror = () => finish({ thumb: null, w: 0, h: 0, duration: 0 });
+    v.src = url;
+  });
+}
+
+/* =====================================================================
+   SHEETS, CONFIRM, TOAST
+   ===================================================================== */
+const sheetStack = [];
+function openSheet({ title, body, foot, full, onClose }) {
+  const wrap = h('div', { class: 'sheet-wrap' });
+  const closeBtn = h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close', onclick: () => closeSheet() }, icon('close'));
+  const sheet = h('div', { class: 'sheet' + (full ? ' full' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Details' },
+    h('div', { class: 'sheet-head' }, h('h2', {}, title || ''), closeBtn),
+    h('div', { class: 'sheet-body' }, body),
+    foot ? h('div', { class: 'sheet-foot' }, foot) : null);
+  add(wrap, [h('div', { class: 'backdrop', onclick: () => closeSheet() }), sheet]);
+  $('#sheets').appendChild(wrap);
+  document.body.style.overflow = 'hidden';
+  // One "guard" history entry lets the phone's back button close the top sheet.
+  try { if (!(history.state && history.state.ljSheet)) history.pushState({ ljSheet: 1 }, ''); } catch (e) { /* no history */ }
+  sheetStack.push({ wrap, onClose });
+  return { close: closeSheet, el: sheet, body: sheet.querySelector('.sheet-body') };
+}
+function closeSheet() {
+  const e = sheetStack.pop();
+  if (!e) return;
+  e.wrap.remove();
+  if (!sheetStack.length) document.body.style.overflow = '';
+  if (e.onClose) e.onClose();
+}
+window.addEventListener('popstate', () => {
+  if (!sheetStack.length) return;
+  closeSheet();
+  if (sheetStack.length) try { history.pushState({ ljSheet: 1 }, ''); } catch (e) { /* no history */ }
+});
+
+function confirmSheet(message, okLabel = 'Delete', danger = true) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const done = (v) => { if (answered) return; answered = true; resolve(v); closeSheet(); };
+    openSheet({
+      title: 'Are you sure?',
+      body: h('p', { style: 'font-size:16px' }, message),
+      foot: [h('button', { class: 'btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
+             h('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), type: 'button', onclick: () => done(true) }, okLabel)],
+      onClose: () => { if (!answered) { answered = true; resolve(false); } }
+    });
+  });
+}
+let toastTimer;
+function toast(msg, action) {
+  const t = $('#toast');
+  t.innerHTML = '';
+  add(t, [h('span', {}, msg), action ? h('button', { type: 'button', onclick: () => { t.classList.remove('show'); action.fn(); } }, action.label) : null]);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), action ? 5000 : 2600);
+}
+
+/* =====================================================================
+   SHARED COMPONENTS
+   ===================================================================== */
+function avatar(b, cls = '') {
+  const m = b.avatarId && S.media.get(b.avatarId);
+  if (m) return h('img', { class: 'avatar ' + cls, src: mediaURL(m), alt: b.name, style: `--c:${b.color}` });
+  return h('span', { class: 'avatar ' + cls, style: `--c:${b.color}`, 'aria-hidden': 'true' }, (b.name || '?')[0].toUpperCase());
+}
+function babyDots(ids) { return ids.map((id) => babyById(id)).filter(Boolean).map((b) => h('span', { class: 'dot', style: `--c:${b.color}`, title: b.name })); }
+function babyToggle(selected, onChange) {
+  const wrap = h('div', { class: 'chips wrap' });
+  const draw = () => {
+    wrap.innerHTML = '';
+    add(wrap, babies().map((b) => h('button', {
+      type: 'button', class: 'chip baby-chip' + (selected.includes(b.id) ? ' on' : ''), style: `--c:${b.color}`, 'aria-pressed': String(selected.includes(b.id)),
+      onclick: () => { const i = selected.indexOf(b.id); if (i >= 0) selected.splice(i, 1); else selected.push(b.id); draw(); onChange && onChange(); }
+    }, h('span', { class: 'dot', style: `--c:${selected.includes(b.id) ? '#fff' : b.color}` }), b.name)));
+  };
+  draw();
+  return wrap;
+}
+// A <label> forwards taps to its first button, so groups of buttons get a plain <div>.
+function field(label, input, extra) {
+  const hasButtons = input instanceof Element && (input.matches('button') || input.querySelector('button'));
+  return h(hasButtons ? 'div' : 'label', { class: 'field' }, h('span', {}, label), input, extra);
+}
+function selectEl(options, value) {
+  const s = h('select', {}, options.map((o) => Array.isArray(o.group) ? h('optgroup', { label: o.label }, o.group.map((g) => h('option', { value: g.value }, g.label))) : h('option', { value: o.value }, o.label)));
+  s.value = value == null ? '' : value;
+  return s;
+}
+function polaroid(mem, onclick) {
+  const media = mem.mediaIds.map((id) => S.media.get(id)).filter(Boolean);
+  const first = media[0];
+  const firstBaby = babyById(mem.babyIds[0]);
+  let ph;
+  if (first && mediaURL(first)) ph = h('div', { class: 'ph' }, h('img', { src: mediaURL(first), alt: '', loading: 'lazy' }));
+  else if (first) ph = h('div', { class: 'ph note' }, icon(first.type === 'video' ? 'video' : 'image'));
+  else ph = h('div', { class: 'ph note' }, (mem.story || mem.title || 'A note').slice(0, 90));
+  if (first && first.type === 'video') ph.appendChild(h('span', { class: 'badge tl' }, icon('play'), fmtDuration(first.duration) || 'Video'));
+  if (media.length > 1) ph.appendChild(h('span', { class: 'badge tr' }, '+' + (media.length - 1)));
+  return h('button', { type: 'button', class: 'polaroid', style: `--rot:${hashRot(mem.id)};--tape:${firstBaby ? firstBaby.color : '#f6c26b'}`, onclick },
+    ph,
+    h('div', { class: 'cap' }, mem.title || (first && first.caption) || fmtDate(mem.date)),
+    h('div', { class: 'meta' }, babyDots(mem.babyIds), fmtDate(mem.date)));
+}
+function sortedMemories() { return [...S.memories].sort((a, b) => (b.date.localeCompare(a.date)) || (b.createdAt - a.createdAt)); }
+
+/* ---------- milestone row (one check per baby) ---------- */
+function statusLine(m) {
+  const parts = babies().map((b) => {
+    const st = getMs(b.id, m.id);
+    if (!st) return null;
+    return st.status === 'done' ? `${b.name} ✓ ${fmtShort(st.date)}` : `${b.name}: working on it`;
+  }).filter(Boolean);
+  return parts.join(' · ');
+}
+function quickToggle(b, m) {
+  const prev = getMs(b.id, m.id);
+  if (prev && prev.status === 'done') {
+    setMs(b.id, m.id, null).then(() => { render(); toast(`Unchecked for ${b.name}`, { label: 'Undo', fn: () => setMs(b.id, m.id, prev).then(render) }); });
+  } else {
+    setMs(b.id, m.id, { status: 'done', date: todayStr(), note: prev ? prev.note : '' }).then(() => {
+      render();
+      if (!m.checklist) toast(`${b.name}: ${m.text.length > 34 ? m.text.slice(0, 32) + '…' : m.text} ✓`, { label: 'Add memory', fn: () => editMemory(null, { msId: m.id, babyIds: [b.id], title: m.text }) });
+    });
+  }
+}
+function msRow(m) {
+  const st = statusLine(m);
+  return h('div', { class: 'ms-row' },
+    h('button', { type: 'button', class: 'ms-text', onclick: () => openMsDetail(m) }, m.text, st ? h('small', {}, st) : (m.cdc ? h('small', {}, 'CDC checklist') : null)),
+    h('div', { class: 'ms-checks' }, babies().map((b) => {
+      const s = getMs(b.id, m.id);
+      const status = s ? s.status : '';
+      return h('button', {
+        type: 'button', class: 'bcheck ' + status, style: `--c:${b.color}`,
+        'aria-label': `${b.name}: ${status === 'done' ? 'done' : status === 'working' ? 'working on it' : 'not yet'}`,
+        onclick: () => quickToggle(b, m)
+      }, status === 'done' ? icon('check') : (b.name || '?')[0].toUpperCase());
+    })));
+}
+function openMsDetail(m) {
+  const drafts = babies().map((b) => { const s = getMs(b.id, m.id); return { b, status: s ? s.status : '', date: s ? s.date : todayStr(), note: s ? s.note : '' }; });
+  const linked = S.memories.filter((x) => x.msId === m.id);
+  const body = h('div', {},
+    h('p', { style: 'font-size:17px;font-weight:700;margin:4px 0 6px' }, m.text),
+    h('div', { class: 'row wrap' },
+      m.checklist ? h('span', { class: 'tagchip' }, m.group) : h('span', { class: 'tagchip' }, m.month === 0 ? 'NICU' : `Month ${m.month}`),
+      m.cdc ? h('span', { class: 'tagchip cdc' }, 'CDC ✔ — about 75% of babies by this age') : (m.checklist ? null : h('span', { class: 'tagchip warm' }, m.custom ? 'Your own' : 'Emerging skill'))),
+    drafts.map((d) => {
+      const dateIn = h('input', { type: 'date', value: d.date, max: todayStr(), onchange: (e) => { d.date = e.target.value; } });
+      const dateWrap = field('Date', dateIn);
+      const seg = h('div', { class: 'seg' });
+      const opts = [['', 'Not yet'], ['working', 'Working on it'], ['done', 'Done ✓']];
+      const drawSeg = () => {
+        seg.innerHTML = '';
+        add(seg, opts.map(([v, l]) => h('button', { type: 'button', class: d.status === v ? 'on' : '', onclick: () => { d.status = v; drawSeg(); } }, l)));
+        dateWrap.style.display = d.status === 'done' ? '' : 'none';
+      };
+      drawSeg();
+      let ageNote = null;
+      if (d.b.birthDate && d.status === 'done' && d.date) {
+        const a = ageInfo(d.b, d.date);
+        ageNote = h('p', { class: 'fine' }, `At ${fmtAge(a.actual)} actual` + (a.early ? `, ${fmtAge(a.adjusted)} adjusted` : ''));
+      }
+      return h('div', { class: 'babyedit', style: `--c:${d.b.color}` },
+        h('h3', { style: 'margin:10px 0 8px' }, d.b.name), seg, dateWrap, ageNote,
+        field('Note', h('textarea', { rows: 2, placeholder: 'How it happened, who saw it…', oninput: (e) => { d.note = e.target.value; } }, d.note)));
+    }),
+    linked.length ? [h('div', { class: 'section-title' }, 'Memories'), h('div', { class: 'strip' }, linked.map((x) => polaroid(x, () => openMemory(x.id))))] : null,
+    m.checklist ? null : h('button', { type: 'button', class: 'btn block', style: 'margin-top:14px', onclick: () => editMemory(null, { msId: m.id, title: m.text }) }, icon('camera'), 'Add a photo or video of this'),
+    m.custom ? h('button', { type: 'button', class: 'btn danger block', style: 'margin-top:10px', onclick: async () => {
+      if (!(await confirmSheet('Remove this milestone you added?', 'Remove'))) return;
+      S.customMs = S.customMs.filter((c) => c.id !== m.id); await idb.put('kv', { key: 'customMs', items: S.customMs });
+      for (const b of babies()) await setMs(b.id, m.id, null);
+      closeSheet(); render();
+    } }, 'Remove this milestone') : null);
+  openSheet({
+    title: m.checklist ? 'Checklist item' : 'Milestone', body,
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'),
+      h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+        for (const d of drafts) await setMs(d.b.id, m.id, d.status ? { status: d.status, date: d.date || todayStr(), note: d.note } : (d.note ? { status: 'working', date: d.date, note: d.note } : null));
+        closeSheet(); render(); toast('Saved');
+      } }, 'Save')]
+  });
+}
+
+/* =====================================================================
+   VIEW: HOME
+   ===================================================================== */
+function heroTitle() {
+  const t = S.settings.title || APP_TITLE_DEFAULT;
+  const i = t.indexOf("'s ");
+  return i > 0 ? [t.slice(0, i + 2), h('em', {}, t.slice(i + 3))] : [t];
+}
+function viewHome() {
+  const out = [h('div', { class: 'hero' },
+    h('div', { class: 'kicker' }, 'Year one · the scrapbook'),
+    h('h1', {}, heroTitle()),
+    h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Settings', onclick: openSettings }, icon('gear')))];
+  const rb = readyBabies();
+  if (!rb.length) { out.push(setupCard()); return out; }
+
+  out.push(h('div', { class: 'babies' }, rb.map((b) => {
+    const a = ageInfo(b);
+    return h('div', { class: 'baby', style: `--c:${b.color}` },
+      h('div', { class: 'row' }, avatar(b), h('div', {}, h('div', { class: 'name' }, b.name), h('div', { class: 'day' }, a.actual >= 0 ? `Day ${a.actual + 1} of the adventure` : 'Arriving soon'))),
+      h('div', { class: 'ages' },
+        h('div', { class: 'age' }, h('small', {}, 'Actual'), h('b', {}, a.actual >= 0 ? fmtAge(a.actual) : '—')),
+        h('div', { class: 'age adj' }, h('small', {}, 'Adjusted'), h('b', {}, fmtAge(a.adjusted)))));
+  })));
+
+  // Adventure trail (adjusted months)
+  const trailMonths = rb.map((b) => guideMonthFor(ageInfo(b).adjusted));
+  const lead = Math.max(...trailMonths);
+  const trail = h('div', { class: 'trail' }, h('div', { class: 'trail-inner' }, Array.from({ length: 13 }, (_, m) => {
+    const here = rb.filter((b, i) => trailMonths[i] === m);
+    return h('div', { class: 'stop' + (m < lead ? ' past' : '') + (m === lead ? ' now' : ''), 'data-m': m },
+      here.length ? h('div', { class: 'who' }, here.map((b) => avatar(b, 'sm'))) : null,
+      h('div', { class: 'pin' }, m === 0 ? '★' : m === 12 ? '🎂' : m),
+      h('label', {}, m === 0 ? 'NICU' : m === 12 ? 'Year!' : 'Mo ' + m));
+  })));
+  out.push(h('div', { class: 'card' },
+    h('div', { class: 'spread' }, h('h2', {}, 'The adventure trail'), h('span', { class: 'tagchip warm' }, 'by adjusted age')),
+    trail,
+    h('p', { class: 'fine', style: 'margin:6px 0 0' }, 'Each stop is a month of development, counted from the due date. Well visits and vaccines still go by actual age.')));
+  requestAnimationFrame(() => { const now = trail.querySelector('.stop.now'); if (now) trail.scrollLeft = now.offsetLeft - trail.clientWidth / 2 + 26; });
+
+  // This month — one card per distinct adjusted month
+  const seen = new Set();
+  rb.forEach((b, i) => { const m = trailMonths[i]; if (seen.has(m)) return; seen.add(m); out.push(monthCard(m, rb.filter((_, j) => trailMonths[j] === m))); });
+
+  out.push(nextVisitCard());
+
+  const recent = sortedMemories().slice(0, 8);
+  out.push(h('div', { class: 'section-title' }, 'Latest memories'));
+  out.push(h('div', { class: 'strip' },
+    recent.map((m) => polaroid(m, () => openMemory(m.id))),
+    h('button', { type: 'button', class: 'addtile', onclick: () => editMemory() }, icon('camera'), 'Add a memory')));
+
+  const tips = h('div', { class: 'card' }, h('h2', {}, 'Good to remember'),
+    h('ul', { class: 'tight' },
+      h('li', {}, 'Milestones are ranges, not deadlines. Use adjusted age until age 2.'),
+      h('li', {}, 'A missed milestone, a lost skill, or your own worry → ask about screening. Act early.'),
+      h('li', {}, 'Every sleep: Alone, on the Back, in a Crib.'),
+      h('li', {}, 'Any fever of 100.4°F or more under 3 months: call right away.')),
+    h('button', { type: 'button', class: 'linkbtn', onclick: () => go('guide') }, 'Open the guide', icon('chevron')));
+  out.push(tips);
+  return out;
+}
+function setupCard() {
+  const bs = babies();
+  const names = bs.map((b) => ({ b, input: h('input', { type: 'text', value: b.name, autocomplete: 'off' }) }));
+  const bday = h('input', { type: 'date', max: todayStr() });
+  const gw = h('input', { type: 'number', inputmode: 'numeric', min: 22, max: 42, value: bs[0].gaWeeks });
+  const gd = h('input', { type: 'number', inputmode: 'numeric', min: 0, max: 6, value: bs[0].gaDays || 0 });
+  return h('div', { class: 'card' },
+    h('h2', {}, "Let's set up the adventure"),
+    h('p', { class: 'muted' }, 'Enter the birthday and how early they arrived. Adjusted age, the trail and the milestone months all come from this.'),
+    h('div', { class: 'two' }, names.map((n, i) => field(`Baby ${i + 1}`, n.input))),
+    field('Birthday', bday),
+    h('div', { class: 'two' }, field('Born at (weeks)', h('div', { class: 'unit' }, gw, h('em', {}, 'wk'))), field('+ days', h('div', { class: 'unit' }, gd, h('em', {}, 'd')))),
+    h('p', { class: 'fine' }, 'Twins share a birthday here — you can fine-tune each baby, add a photo, or add another baby in Settings.'),
+    h('button', { type: 'button', class: 'btn primary block', onclick: async () => {
+      if (!bday.value) return toast('Pick the birthday first');
+      const w = Math.min(42, Math.max(22, Number(gw.value) || 40)), d = Math.min(6, Math.max(0, Number(gd.value) || 0));
+      names.forEach((n) => { n.b.name = n.input.value.trim() || n.b.name; n.b.birthDate = bday.value; n.b.gaWeeks = w; n.b.gaDays = d; });
+      await saveSettings(); render(); toast('Welcome to the adventure!');
+    } }, 'Start the adventure'));
+}
+function monthCard(m, group) {
+  const g = GUIDE[m];
+  const ms = MILESTONES().filter((x) => x.month === m);
+  const open = ms.filter((x) => !group.every((b) => (getMs(b.id, x.id) || {}).status === 'done')).slice(0, 4);
+  const counts = group.map((b) => `${b.name} ${ms.filter((x) => (getMs(b.id, x.id) || {}).status === 'done').length}/${ms.length}`).join(' · ');
+  return h('div', { class: 'card' },
+    h('div', { class: 'spread' },
+      h('div', {}, h('h2', {}, m === 0 ? g.title : `This month: ${g.title}`), h('div', { class: 'sub' }, `${joinNames(group)} · ${g.range}`)),
+      h('span', { class: 'tagchip ' + (g.kind === 'cdc' ? 'cdc' : 'warm') }, g.kind === 'cdc' ? 'CDC checklist' : g.kind === 'nicu' ? 'NICU' : 'Emerging')),
+    h('p', {}, g.intro),
+    h('div', { class: 'domain' }, 'Celebrate'),
+    h('div', { class: 'chips wrap' }, g.celebrate.map((c) => h('span', { class: 'tagchip warm' }, c))),
+    open.length ? [h('div', { class: 'domain' }, `Milestones · ${counts}`), open.map(msRow)] : h('p', { class: 'fine' }, `Every milestone for this month is checked off. 🎉`),
+    h('div', { class: 'btnrow' },
+      h('button', { type: 'button', class: 'btn sm', onclick: () => { S.msMonth = m; go('ms'); } }, icon('star'), 'All milestones'),
+      h('button', { type: 'button', class: 'btn sm', onclick: () => { S.guideMonth = m; go('guide'); } }, icon('compass'), 'Cues, feeding & sleep')));
+}
+function wellSchedule(b) { return WELL_VISITS.map((v) => ({ ...v, date: v.days != null ? addDays(b.birthDate, v.days) : addMonths(b.birthDate, v.months) })); }
+function nextVisitCard() {
+  const today = todayStr();
+  const booked = S.visits.filter((v) => v.nextDate && v.nextDate >= today).sort((a, b) => a.nextDate.localeCompare(b.nextDate))[0];
+  const card = h('div', { class: 'card' }, h('h2', {}, 'Next check-up'));
+  if (booked) add(card, h('div', { class: 'item', style: 'margin-top:10px' },
+    h('div', { class: 'when' }, h('small', {}, fmtDate(booked.nextDate, { month: 'short' })), h('b', {}, fmtDate(booked.nextDate, { day: 'numeric' }))),
+    h('div', { class: 'grow' }, h('b', {}, 'Booked: ' + (booked.title || booked.kind)), h('small', {}, `${joinNames(booked.babyIds.map(babyById).filter(Boolean))} · in ${plural(daysBetween(today, booked.nextDate), 'day')}`))));
+  for (const g of ageGroups()) {
+    const nx = wellSchedule(g[0]).find((v) => v.date >= addDays(today, -3));
+    if (!nx) continue;
+    const dd = daysBetween(today, nx.date);
+    add(card, h('div', { class: 'item', style: 'margin-top:10px' },
+      h('div', { class: 'when' }, h('small', {}, fmtDate(nx.date, { month: 'short' })), h('b', {}, fmtDate(nx.date, { day: 'numeric' }))),
+      h('div', { class: 'grow' }, h('b', {}, `${nx.label} well visit`), h('small', {}, `${joinNames(g)} · ${dd > 0 ? 'around ' + plural(dd, 'day') + ' from now' : dd === 0 ? 'around today' : 'due now'}`), h('p', {}, nx.what))));
+  }
+  add(card, h('p', { class: 'fine' }, 'Well visits and vaccines follow actual age — preemies get them on time.'),
+    h('button', { type: 'button', class: 'linkbtn', onclick: () => { S.healthSeg = 'visits'; go('health'); } }, 'Visits & questions', icon('chevron')));
+  return card;
+}
+
+/* =====================================================================
+   VIEW: SCRAPBOOK
+   ===================================================================== */
+function viewBook() {
+  const all = sortedMemories();
+  const out = [h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, 'Scrapbook'), h('p', {}, `${plural(all.length, 'memory', 'memories')} · ${plural(S.memories.reduce((n, m) => n + m.mediaIds.length, 0), 'photo or video', 'photos & videos')}`)))];
+  const filters = [['all', 'All'], ...babies().map((b) => [b.id, b.name, b.color]), ['firsts', '⭐ Firsts'], ['videos', '🎬 Videos'], ['notes', '✏️ Notes']];
+  out.push(h('div', { class: 'chips' }, filters.map(([k, l, c]) => h('button', {
+    type: 'button', class: 'chip' + (c ? ' baby-chip' : '') + (S.bookFilter === k ? ' on' : ''), style: c ? `--c:${c}` : null,
+    onclick: () => { S.bookFilter = k; render(); }
+  }, l))));
+  const f = S.bookFilter;
+  const list = all.filter((m) => {
+    if (f === 'all') return true;
+    if (f === 'firsts') return (m.tags && m.tags.length) || m.msId;
+    if (f === 'videos') return m.mediaIds.some((id) => (S.media.get(id) || {}).type === 'video');
+    if (f === 'notes') return !m.mediaIds.length;
+    return m.babyIds.includes(f);
+  });
+  if (!list.length) {
+    out.push(h('div', { class: 'empty-state' }, h('div', { class: 'big' }, '📸'),
+      h('h3', {}, all.length ? 'Nothing here yet' : 'The first page is waiting'),
+      h('p', {}, all.length ? 'Try another filter.' : 'Add photos and videos, write what happened, and tag who was in it. Everything stays on this phone.'),
+      all.length ? null : h('button', { type: 'button', class: 'btn primary', onclick: () => editMemory() }, icon('camera'), 'Add the first memory')));
+    return out;
+  }
+  let curKey = null, grid = null;
+  for (const m of list) {
+    const key = m.date.slice(0, 7);
+    if (key !== curKey) {
+      curKey = key;
+      const endOfMonth = addDays(addMonths(key + '-01', 1), -1);
+      const stampDate = endOfMonth > todayStr() ? todayStr() : endOfMonth;
+      out.push(h('div', { class: 'monthhead' }, fmtDate(key + '-01', { month: 'long', year: 'numeric' })));
+      const stamp = ageStamp(stampDate);
+      out.push(h('p', { class: 'fine' }, stamp));
+      grid = h('div', { class: 'pgrid' });
+      out.push(grid);
+    }
+    grid.appendChild(polaroid(m, () => openMemory(m.id)));
+  }
+  return out;
+}
+
+/* ---------- memory viewer ---------- */
+function openMemory(id) {
+  const mem = S.memories.find((m) => m.id === id);
+  if (!mem) return;
+  const media = mem.mediaIds.map((x) => S.media.get(x)).filter(Boolean);
+  const cap = h('div', { class: 'handcap' });
+  const dots = h('div', { class: 'dots' }, media.length > 1 ? media.map(() => h('i')) : null);
+  const setIdx = (i) => {
+    const m = media[i];
+    cap.textContent = m && m.caption ? m.caption : (m ? (m.type === 'video' ? 'No description for this video yet.' : 'No caption yet.') : '');
+    cap.className = 'handcap' + (m && m.caption ? '' : ' empty');
+    [...dots.children].forEach((d, j) => d.classList.toggle('on', j === i));
+  };
+  let carousel = null;
+  if (media.length) {
+    carousel = h('div', { class: 'carousel' }, media.map((m, i) => h('div', { class: 'slide' },
+      m.type === 'video'
+        ? h('video', { src: mediaURL(m, 'full'), poster: mediaURL(m) || null, controls: true, playsinline: true, preload: 'metadata' })
+        : h('img', { src: mediaURL(m, 'full'), alt: m.caption || mem.title || 'Photo' }),
+      h('button', { type: 'button', class: 'dl', 'aria-label': 'Save to phone', onclick: () => saveFile(m.blob, mediaFileName(mem, m, i)) }, icon('download')))));
+    let raf;
+    carousel.addEventListener('scroll', () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const i = Math.round(carousel.scrollLeft / carousel.clientWidth);
+        setIdx(i);
+        carousel.querySelectorAll('video').forEach((v, j) => { if (j !== i && !v.paused) v.pause(); });
+      });
+    }, { passive: true });
+  }
+  setIdx(0);
+  const tagged = mem.babyIds.map(babyById).filter(Boolean);
+  const ms = mem.msId && msById(mem.msId);
+  const body = h('div', {},
+    carousel, media.length ? [dots, cap] : null,
+    h('h2', { style: 'font-size:24px;margin-top:14px' }, mem.title || 'A memory'),
+    h('div', { class: 'sub muted', style: 'font-weight:700;margin-top:2px' }, fmtDate(mem.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })),
+    tagged.filter((b) => b.birthDate).map((b) => { const a = ageInfo(b, mem.date); return h('div', { class: 'row', style: 'margin-top:8px;font-size:14px;font-weight:700' }, h('span', { class: 'dot', style: `--c:${b.color}` }), `${b.name} · ${a.actual >= 0 ? fmtAge(a.actual) : 'before birth'}` + (a.early ? ` (adjusted ${fmtAge(a.adjusted)})` : '')); }),
+    (mem.tags && mem.tags.length) || ms ? h('div', { class: 'chips wrap', style: 'margin-top:10px' }, (mem.tags || []).map((t) => h('span', { class: 'tagchip warm' }, '⭐ ' + t)), ms ? h('span', { class: 'tagchip cdc' }, '✓ ' + ms.text) : null) : null,
+    mem.story ? h('div', { class: 'story' }, mem.story) : null,
+    h('div', { class: 'btnrow' },
+      h('button', { type: 'button', class: 'btn', onclick: () => shareMemory(mem) }, icon('share'), 'Share'),
+      h('button', { type: 'button', class: 'btn', onclick: () => { closeSheet(); setTimeout(() => editMemory(mem), 60); } }, icon('edit'), 'Edit'),
+      h('button', { type: 'button', class: 'btn danger', onclick: async () => {
+        if (!(await confirmSheet('Delete this memory and its photos and videos from this phone?'))) return;
+        await deleteMemory(mem); closeSheet(); render(); toast('Memory deleted');
+      } }, icon('trash'), 'Delete')));
+  openSheet({ title: mem.title || fmtDate(mem.date), body, full: true, onClose: () => body.querySelectorAll('video').forEach((v) => v.pause()) });
+}
+async function deleteMemory(mem) {
+  try {
+    for (const id of mem.mediaIds) { await idb.del('media', id); S.media.delete(id); revokeMedia(id); }
+    await idb.del('memories', mem.id);
+    S.memories = S.memories.filter((m) => m.id !== mem.id);
+  } catch (e) { storageError(e); }
+}
+function mediaFileName(mem, m, i) {
+  const ext = (m.mime || m.blob.type || '').split('/')[1] || (m.type === 'video' ? 'mp4' : 'jpg');
+  const base = (mem.title || 'memory').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'memory';
+  return `${mem.date}-${base}-${i + 1}.${ext.replace('jpeg', 'jpg').replace('quicktime', 'mov').split(';')[0]}`;
+}
+async function shareMemory(mem) {
+  const media = mem.mediaIds.map((x) => S.media.get(x)).filter(Boolean);
+  const lines = [mem.title, fmtDate(mem.date, { month: 'long', day: 'numeric', year: 'numeric' }), mem.story, ...media.map((m) => m.caption).filter(Boolean)].filter(Boolean);
+  const text = lines.join('\n\n') + `\n\n— ${S.settings.title || APP_TITLE_DEFAULT}`;
+  const files = media.map((m, i) => new File([m.blob], mediaFileName(mem, m, i), { type: m.mime || m.blob.type }));
+  try {
+    if (files.length && navigator.canShare && navigator.canShare({ files })) await navigator.share({ files, title: mem.title || 'A memory', text });
+    else if (navigator.share) await navigator.share({ title: mem.title || 'A memory', text });
+    else { await navigator.clipboard.writeText(text); toast('Story copied — paste it into a message'); }
+  } catch (e) { if (e.name !== 'AbortError') toast("Sharing didn't work here: " + e.message); }
+}
+async function saveFile(blob, name) {
+  if (window.umade && umade.files && umade.files.save) {
+    try { await umade.files.save(name, blob, blob.type || 'application/octet-stream'); return; } catch (e) { console.warn(e); }
+  }
+  const a = h('a', { href: URL.createObjectURL(blob), download: name });
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+}
+
+/* ---------- memory editor ---------- */
+function editMemory(mem, preset = {}) {
+  const isNew = !mem;
+  const draft = mem
+    ? { ...mem, babyIds: [...mem.babyIds], tags: [...(mem.tags || [])] }
+    : { id: uid('m'), date: preset.date || todayStr(), title: preset.title || '', story: '', babyIds: preset.babyIds ? [...preset.babyIds] : babies().map((b) => b.id), tags: preset.tags || [], msId: preset.msId || '', mediaIds: [], createdAt: Date.now() };
+  const items = mem ? mem.mediaIds.map((id) => S.media.get(id)).filter(Boolean).map((m) => ({ ...m })) : [];
+  const removed = [];
+  const tempUrls = [];
+  let dateTouched = !isNew || !!preset.date;
+  let pending = 0;
+
+  const grid = h('div', {});
+  const drawGrid = () => {
+    grid.innerHTML = '';
+    add(grid, items.map((it) => {
+      let th;
+      if (it._busy) th = h('div', { class: 'spinner' });
+      else {
+        let src = null;
+        if (it._new) { const b = it.thumb || (it.type === 'image' ? it.blob : null); if (b) { if (!it._url) { it._url = URL.createObjectURL(b); tempUrls.push(it._url); } src = it._url; } }
+        else src = mediaURL(it);
+        th = src ? h('img', { src, alt: '' }) : icon(it.type === 'video' ? 'video' : 'image');
+      }
+      return h('div', { class: 'media-edit' },
+        h('div', { class: 'th' }, th,
+          it.type === 'video' && !it._busy ? h('span', { class: 'badge tl' }, icon('play'), fmtDuration(it.duration)) : null,
+          h('button', { type: 'button', class: 'x', 'aria-label': 'Remove', onclick: () => { const i = items.indexOf(it); items.splice(i, 1); if (!it._new) removed.push(it.id); drawGrid(); } }, icon('close'))),
+        h('textarea', { class: 'hand', placeholder: it.type === 'video' ? 'Describe this video — what happens, who is laughing…' : 'Caption this photo…', oninput: (e) => { it.caption = e.target.value; it._dirty = true; } }, it.caption || ''));
+    }));
+  };
+  drawGrid();
+
+  const dateIn = h('input', { type: 'date', value: draft.date, max: todayStr(), onchange: (e) => { draft.date = e.target.value; dateTouched = true; drawAge(); } });
+  const ageLine = h('p', { class: 'fine', style: 'margin:-6px 0 0' });
+  const drawAge = () => { ageLine.textContent = draft.date ? ageStamp(draft.date, draft.babyIds.map(babyById).filter((b) => b && b.birthDate)) : ''; };
+
+  async function handleFiles(fileList) {
+    const files = [...fileList];
+    for (const f of files) {
+      const type = f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : (/\.(mp4|mov|webm|3gp|mkv)$/i.test(f.name) ? 'video' : /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(f.name) ? 'image' : null);
+      if (!type) { toast(`Skipped ${f.name} — not a photo or video`); continue; }
+      const it = { id: uid('x'), type, blob: f, mime: f.type, caption: '', thumb: null, w: 0, h: 0, duration: 0, _new: true, _busy: true, addedAt: Date.now() };
+      items.push(it); pending++;
+      if (!dateTouched && f.lastModified) {
+        const d = ymd(new Date(f.lastModified));
+        if (d <= todayStr()) { draft.date = d; dateIn.value = d; dateTouched = true; drawAge(); }
+      }
+    }
+    drawGrid();
+    for (const it of items.filter((x) => x._busy)) {
+      try { Object.assign(it, it.type === 'image' ? await makeImageThumb(it.blob) : await makeVideoThumb(it.blob)); }
+      catch (e) { console.warn('thumb failed', e); }
+      it._busy = false; pending--; drawGrid();
+    }
+  }
+  const picker = (label, ic, accept, capture, multiple) => {
+    const inp = h('input', { type: 'file', accept, capture: capture || null, multiple: multiple || null, onchange: (e) => { handleFiles(e.target.files); e.target.value = ''; } });
+    return h('label', {}, icon(ic), label, inp);
+  };
+
+  const titleIn = h('input', { type: 'text', value: draft.title, placeholder: 'e.g. First bath at home', oninput: (e) => { draft.title = e.target.value; } });
+  const storyIn = h('textarea', { rows: 5, placeholder: 'What happened? Who was there? What do you want them to know someday?', oninput: (e) => { draft.story = e.target.value; } }, draft.story || '');
+
+  const tagWrap = h('div', { class: 'chips wrap' });
+  const drawTags = () => {
+    tagWrap.innerHTML = '';
+    const all = [...new Set([...FIRST_TAGS, ...draft.tags])];
+    add(tagWrap, all.map((t) => h('button', { type: 'button', class: 'chip' + (draft.tags.includes(t) ? ' on' : ''), onclick: () => { const i = draft.tags.indexOf(t); if (i >= 0) draft.tags.splice(i, 1); else draft.tags.push(t); drawTags(); } }, t)));
+  };
+  drawTags();
+  const newTag = h('input', { type: 'text', placeholder: 'Your own tag (e.g. Meeting Grandpa)' });
+  const addTag = () => { const t = newTag.value.trim(); if (t && !draft.tags.includes(t)) { draft.tags.push(t); drawTags(); } newTag.value = ''; };
+  newTag.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
+
+  const msOptions = [{ value: '', label: '— none —' }, ...[...Array(13).keys()].map((mo) => ({
+    label: mo === 0 ? 'NICU firsts' : `Month ${mo}${CDC_MONTHS.includes(mo) ? ' (CDC)' : ''}`,
+    group: MILESTONES().filter((x) => x.month === mo).map((x) => ({ value: x.id, label: x.text }))
+  })).filter((g) => g.group.length)];
+  const msSel = selectEl(msOptions, draft.msId);
+  msSel.addEventListener('change', () => { draft.msId = msSel.value; if (!draft.title && msSel.value) { draft.title = msById(msSel.value).text; titleIn.value = draft.title; } });
+
+  drawAge();
+  const body = h('div', {},
+    h('div', { class: 'addmedia' },
+      picker('Photos & videos', 'image', 'image/*,video/*', null, true),
+      picker('Take photo', 'camera', 'image/*', 'environment'),
+      picker('Record video', 'video', 'video/*', 'environment')),
+    grid,
+    field('Title', titleIn),
+    field('Date', dateIn), ageLine,
+    field("Who's in it", babyToggle(draft.babyIds, drawAge)),
+    field('Firsts & tags', h('div', {}, tagWrap, h('div', { class: 'row', style: 'margin-top:8px' }, newTag, h('button', { type: 'button', class: 'btn sm', onclick: addTag }, 'Add')))),
+    field('Milestone (optional — checks it off for who\'s in it)', msSel),
+    field('The story', storyIn));
+
+  const save = async () => {
+    if (pending) return toast('Still preparing photos & videos…');
+    draft.title = titleIn.value.trim(); draft.story = storyIn.value.trim(); draft.date = dateIn.value || todayStr();
+    if (!draft.title && !items.length && !draft.story) return toast('Add a photo, video, title or note first');
+    if (!draft.babyIds.length) draft.babyIds = babies().map((b) => b.id);
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    try {
+      for (const it of items) {
+        if (!it._new && !it._dirty) continue;
+        const rec = { id: it.id, memoryId: draft.id, type: it.type, blob: it.blob, thumb: it.thumb, mime: it.mime || it.blob.type, caption: (it.caption || '').trim(), w: it.w, h: it.h, duration: it.duration || 0, addedAt: it.addedAt || Date.now() };
+        await idb.put('media', rec); S.media.set(rec.id, rec);
+      }
+      for (const id of removed) { await idb.del('media', id); S.media.delete(id); revokeMedia(id); }
+      draft.mediaIds = items.map((i) => i.id); draft.updatedAt = Date.now();
+      await idb.put('memories', draft);
+      S.memories = S.memories.filter((m) => m.id !== draft.id).concat(draft);
+      if (draft.msId) for (const bid of draft.babyIds) { const cur = getMs(bid, draft.msId); if (!cur || cur.status !== 'done') await setMs(bid, draft.msId, { status: 'done', date: draft.date, note: cur ? cur.note : '' }); }
+      requestPersist();
+      closeSheet(); render(); toast(isNew ? 'Added to the scrapbook ✨' : 'Memory updated');
+    } catch (e) { storageError(e); saveBtn.disabled = false; saveBtn.textContent = 'Save memory'; }
+  };
+  const saveBtn = h('button', { class: 'btn primary', type: 'button', onclick: save }, 'Save memory');
+  openSheet({
+    title: isNew ? 'New memory' : 'Edit memory', body, full: true,
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'), saveBtn],
+    onClose: () => tempUrls.forEach((u) => URL.revokeObjectURL(u))
+  });
+}
+
+/* =====================================================================
+   VIEW: MILESTONES
+   ===================================================================== */
+function viewMilestones() {
+  if (S.msMonth == null) S.msMonth = currentGuideMonth();
+  const mo = S.msMonth;
+  const all = MILESTONES();
+  const out = [h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, 'Milestones'), h('p', {}, 'By adjusted age · each baby on their own')))];
+  const cur = currentGuideMonth();
+  const chips = h('div', { class: 'chips' }, [...Array(13).keys()].map((m) => {
+    const list = all.filter((x) => x.month === m);
+    const done = list.length ? babies().reduce((s, b) => s + list.filter((x) => (getMs(b.id, x.id) || {}).status === 'done').length, 0) : 0;
+    const total = list.length * babies().length;
+    return h('button', { type: 'button', class: 'chip' + (CDC_MONTHS.includes(m) ? ' cdc' : '') + (m === mo ? ' on' : ''), 'data-m': m, onclick: () => { S.msMonth = m; render(); } },
+      m === 0 ? 'NICU' : `Mo ${m}`, m === cur && readyBabies().length ? ' 📍' : '', total ? h('small', {}, `${done}/${total}`) : null);
+  }));
+  out.push(chips);
+  requestAnimationFrame(() => { const c = chips.querySelector('.chip.on'); if (c) chips.scrollLeft = c.offsetLeft - chips.clientWidth / 2 + c.offsetWidth / 2; });
+
+  const g = GUIDE[mo];
+  if (g.kind === 'cdc') out.push(h('div', { class: 'banner cdc' }, h('b', {}, `CDC checklist · ${mo} months. `), `About 75% of babies do these by ${mo} months — use adjusted age. If something's missing, it's a reason to ask about screening, not a diagnosis.`));
+  else if (g.kind === 'nicu') out.push(h('div', { class: 'banner' }, h('b', {}, 'NICU firsts. '), 'Not milestones to “pass” — moments worth remembering. Add your own below.'));
+  else out.push(h('div', { class: 'banner' }, h('b', {}, `Emerging skills · month ${mo}. `), 'There is no CDC checklist for this month. These commonly appear around now; many babies do them earlier or later. Between checklist ages, the CDC says to use the younger checklist.'));
+
+  // Progress per baby
+  const list = all.filter((x) => x.month === mo);
+  out.push(h('div', { class: 'card', style: 'padding:12px 14px' }, babies().map((b) => {
+    const d = list.filter((x) => (getMs(b.id, x.id) || {}).status === 'done').length;
+    return h('div', { style: 'margin:4px 0' }, h('div', { class: 'spread', style: 'font-size:13.5px;font-weight:800' }, h('span', { class: 'row', style: 'gap:6px' }, h('span', { class: 'dot', style: `--c:${b.color}` }), b.name), `${d} of ${list.length}`),
+      h('div', { class: 'prog', style: `--c:${b.color};margin-top:4px` }, h('i', { style: `width:${list.length ? (d / list.length) * 100 : 0}%` })));
+  })));
+
+  for (const dom of Object.keys(DOMAINS)) {
+    const items = list.filter((x) => x.domain === dom);
+    if (!items.length) continue;
+    out.push(h('div', { class: 'domain' }, DOMAINS[dom] + (g.kind === 'cdc' && dom !== 'ours' ? ' · CDC ✔' : '')));
+    out.push(items.map(msRow));
+  }
+  // Add your own
+  const inp = h('input', { type: 'text', placeholder: mo === 0 ? 'e.g. First time hearing them cry' : 'e.g. Grabbed Grandma\'s glasses' });
+  const addOwn = async () => {
+    const t = inp.value.trim(); if (!t) return;
+    S.customMs.push({ id: uid('c'), month: mo, text: t });
+    await idb.put('kv', { key: 'customMs', items: S.customMs }); render(); toast('Added to ' + (mo === 0 ? 'NICU firsts' : 'month ' + mo));
+  };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addOwn(); });
+  out.push(h('div', { class: 'card' }, h('h3', { style: 'font-size:16px' }, 'Add your own first'), h('div', { class: 'row', style: 'margin-top:8px' }, inp, h('button', { type: 'button', class: 'btn', onclick: addOwn }, 'Add'))));
+
+  if (g.flags && g.flags.length) out.push(h('div', { class: 'banner warn' }, h('b', {}, 'Talk to your pediatrician soon if, by about this adjusted age: '), g.flags.join(' · ').toLowerCase() + '.', h('br'), 'Also at any age: losing skills they once had, or using one side much more than the other.'));
+  out.push(h('div', { class: 'card' }, h('h2', {}, 'Act early'),
+    h('p', {}, 'A missed milestone, a lost skill, or your own worry is reason enough to ask. You can contact early intervention yourself — no doctor\'s referral needed.'),
+    h('a', { class: 'btn sm', href: 'https://www.cdc.gov/FindEI', target: '_blank', rel: 'noopener' }, 'cdc.gov/FindEI')));
+  return out;
+}
+
+/* =====================================================================
+   VIEW: HEALTH (growth, visits, foods, checklist, questions)
+   ===================================================================== */
+function viewHealth() {
+  const segs = [['growth', 'Growth'], ['visits', 'Visits'], ['foods', 'Foods'], ['check', 'Checklist'], ['questions', 'Questions']];
+  const out = [h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, 'Health log'), h('p', {}, 'Growth, visits, foods & the first-year checklist'))),
+    h('div', { class: 'seg' }, segs.map(([k, l]) => h('button', { type: 'button', class: S.healthSeg === k ? 'on' : '', onclick: () => { S.healthSeg = k; render(); } }, l)))];
+  out.push({ growth: healthGrowth, visits: healthVisits, foods: healthFoods, check: healthChecklist, questions: healthQuestions }[S.healthSeg]());
+  return out;
+}
+function healthGrowth() {
+  const wrap = h('div', {});
+  const metrics = { weight: ['Weight', 'lb', (g) => g.weightOz != null ? g.weightOz / 16 : null], length: ['Length', 'in', (g) => g.lengthIn], head: ['Head', 'in', (g) => g.headIn] };
+  add(wrap, h('div', { class: 'babies' }, babies().map((b) => {
+    const list = S.growth.filter((g) => g.babyId === b.id).sort((x, y) => x.date.localeCompare(y.date));
+    const last = list[list.length - 1];
+    const prevW = [...list].reverse().find((g) => g !== last && g.weightOz != null);
+    let delta = null;
+    if (last && last.weightOz != null && prevW) { const d = last.weightOz - prevW.weightOz; const days = daysBetween(prevW.date, last.date); delta = `${d >= 0 ? '+' : ''}${Math.round(d * 10) / 10} oz ${days ? 'in ' + plural(days, 'day') : 'same day'} (since ${fmtShort(prevW.date)})`; }
+    return h('div', { class: 'baby', style: `--c:${b.color}` },
+      h('div', { class: 'name' }, b.name),
+      last ? [h('div', { class: 'day' }, 'Last measured ' + fmtShort(last.date)),
+        h('dl', { class: 'kv', style: 'margin:8px 0 0' }, h('dt', {}, 'Weight'), h('dd', {}, fmtWeight(last.weightOz)), h('dt', {}, 'Length'), h('dd', {}, last.lengthIn ? last.lengthIn + ' in' : '—'), h('dt', {}, 'Head'), h('dd', {}, last.headIn ? last.headIn + ' in' : '—')),
+        delta ? h('div', { class: 'fine', style: 'margin-top:6px' }, delta) : null] : h('div', { class: 'day' }, 'No measurements yet'));
+  })));
+  add(wrap, h('button', { type: 'button', class: 'btn primary block', style: 'margin-top:12px', onclick: () => editGrowth() }, icon('plus'), 'Add a measurement'));
+
+  const card = h('div', { class: 'card' }, h('div', { class: 'spread' }, h('h2', {}, 'Growth chart'),
+    h('div', { class: 'seg', style: 'padding:3px' }, Object.entries(metrics).map(([k, [l]]) => h('button', { type: 'button', class: S.growthMetric === k ? 'on' : '', style: 'padding:6px 10px;font-size:13px', onclick: () => { S.growthMetric = k; render(); } }, l)))));
+  const [label, unit, get] = metrics[S.growthMetric];
+  const series = babies().filter((b) => b.birthDate).map((b) => ({ b, pts: S.growth.filter((g) => g.babyId === b.id && get(g) != null && get(g) !== '').map((g) => ({ x: ageInfo(b, g.date).adjusted / 7, y: Number(get(g)) })).sort((p, q) => p.x - q.x) })).filter((s) => s.pts.length);
+  if (!series.length) add(card, h('p', { class: 'fine' }, `Add measurements from visits and the ${label.toLowerCase()} chart appears here — by adjusted age, both babies together.`));
+  else {
+    const W = 340, H = 210, L = 38, R = 10, T = 12, B = 30;
+    const xs = series.flatMap((s) => s.pts.map((p) => p.x)), ys = series.flatMap((s) => s.pts.map((p) => p.y));
+    let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    if (x1 - x0 < 4) { x1 = x0 + 4; } if (y1 - y0 < 1) { y0 -= 0.5; y1 += 0.5; }
+    const padY = (y1 - y0) * 0.1; y0 = Math.max(0, y0 - padY); y1 += padY;
+    const X = (x) => L + ((x - x0) / (x1 - x0)) * (W - L - R), Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
+    let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${label} by adjusted age">`;
+    for (let i = 0; i <= 4; i++) { const yv = y0 + ((y1 - y0) * i) / 4; svg += `<line x1="${L}" x2="${W - R}" y1="${Y(yv)}" y2="${Y(yv)}" stroke="currentColor" stroke-opacity=".12"/><text x="${L - 5}" y="${Y(yv) + 3}" text-anchor="end">${yv.toFixed(1)}</text>`; }
+    for (let i = 0; i <= 4; i++) { const xv = x0 + ((x1 - x0) * i) / 4; svg += `<text x="${X(xv)}" y="${H - 14}" text-anchor="middle">${Math.round(xv)}</text>`; }
+    if (x0 < 0 && x1 > 0) svg += `<line x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${H - B}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="3 3"/><text x="${X(0) + 3}" y="${T + 9}">due date</text>`;
+    svg += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">adjusted age (weeks) · ${unit}</text>`;
+    for (const s of series) {
+      svg += `<polyline fill="none" stroke="${s.b.color}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" points="${s.pts.map((p) => X(p.x) + ',' + Y(p.y)).join(' ')}"/>`;
+      for (const p of s.pts) svg += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3.6" fill="${s.b.color}" stroke="var(--card)" stroke-width="1.5"/>`;
+    }
+    svg += '</svg>';
+    add(card, h('div', { html: svg, style: 'color:var(--ink)' }), h('div', { class: 'legend' }, series.map((s) => h('span', {}, h('span', { class: 'dot', style: `--c:${s.b.color}` }), s.b.name))),
+      h('p', { class: 'fine' }, 'Follow the curve, not the percentile: a steady path on their own line is what matters. Your pediatrician plots percentiles.'));
+  }
+  add(wrap, card);
+  const entries = [...S.growth].sort((a, b) => b.date.localeCompare(a.date));
+  if (entries.length) add(wrap, h('div', { class: 'section-title' }, 'All measurements'), h('div', { class: 'list' }, entries.map((g) => {
+    const b = babyById(g.babyId);
+    return h('button', { type: 'button', class: 'item', onclick: () => editGrowth(g) },
+      h('div', { class: 'when' }, h('small', {}, fmtDate(g.date, { month: 'short' })), h('b', {}, fmtDate(g.date, { day: 'numeric' }))),
+      h('div', { class: 'grow' }, h('b', { class: 'row', style: 'gap:6px' }, b ? h('span', { class: 'dot', style: `--c:${b.color}` }) : null, b ? b.name : '?'),
+        h('small', {}, [g.weightOz != null ? fmtWeight(g.weightOz) : null, g.lengthIn ? g.lengthIn + ' in long' : null, g.headIn ? 'head ' + g.headIn + ' in' : null].filter(Boolean).join(' · ')),
+        g.note ? h('p', {}, g.note) : null));
+  })));
+  return wrap;
+}
+function numIn(v, step = 'any', ph = '') { return h('input', { type: 'number', inputmode: 'decimal', step, min: 0, value: v == null ? '' : v, placeholder: ph }); }
+function editGrowth(g) {
+  const d = g ? { ...g } : { id: uid('g'), babyId: babies()[0].id, date: todayStr() };
+  const sel = [d.babyId];
+  const lb = numIn(d.weightOz != null ? Math.floor(d.weightOz / 16) : null, '1', 'lb');
+  const oz = numIn(d.weightOz != null ? Math.round((d.weightOz % 16) * 10) / 10 : null, '0.1', 'oz');
+  const len = numIn(d.lengthIn, '0.1'), head = numIn(d.headIn, '0.1');
+  const date = h('input', { type: 'date', value: d.date, max: todayStr() });
+  const note = h('textarea', { rows: 2, placeholder: 'Percentile, where it was measured, anything the doctor said' }, d.note || '');
+  const babyPick = h('div', { class: 'chips wrap' });
+  const drawPick = () => { babyPick.innerHTML = ''; add(babyPick, babies().map((b) => h('button', { type: 'button', class: 'chip baby-chip' + (sel[0] === b.id ? ' on' : ''), style: `--c:${b.color}`, onclick: () => { sel[0] = b.id; drawPick(); } }, b.name))); };
+  drawPick();
+  openSheet({
+    title: g ? 'Edit measurement' : 'New measurement',
+    body: h('div', {}, field('Baby', babyPick), field('Date', date),
+      field('Weight', h('div', { class: 'two' }, h('div', { class: 'unit' }, lb, h('em', {}, 'lb')), h('div', { class: 'unit' }, oz, h('em', {}, 'oz')))),
+      h('div', { class: 'two' }, field('Length', h('div', { class: 'unit' }, len, h('em', {}, 'in'))), field('Head', h('div', { class: 'unit' }, head, h('em', {}, 'in')))),
+      field('Note', note),
+      g ? h('button', { type: 'button', class: 'btn danger block', onclick: async () => { if (!(await confirmSheet('Delete this measurement?'))) return; await idb.del('growth', g.id); S.growth = S.growth.filter((x) => x.id !== g.id); closeSheet(); render(); } }, 'Delete') : null),
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'), h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+      const w = (lb.value !== '' || oz.value !== '') ? (Number(lb.value) || 0) * 16 + (Number(oz.value) || 0) : null;
+      if (w == null && !len.value && !head.value) return toast('Enter at least one measurement');
+      const rec = { id: d.id, babyId: sel[0], date: date.value || todayStr(), weightOz: w, lengthIn: len.value ? Number(len.value) : null, headIn: head.value ? Number(head.value) : null, note: note.value.trim() };
+      try { await idb.put('growth', rec); S.growth = S.growth.filter((x) => x.id !== rec.id).concat(rec); closeSheet(); render(); toast('Measurement saved'); } catch (e) { storageError(e); }
+    } }, 'Save')]
+  });
+}
+function healthVisits() {
+  const wrap = h('div', {});
+  const today = todayStr();
+  add(wrap, h('button', { type: 'button', class: 'btn primary block', style: 'margin-top:12px', onclick: () => editVisit() }, icon('plus'), 'Log a visit or appointment'));
+  for (const g of ageGroups()) {
+    add(wrap, h('div', { class: 'card' }, h('h2', {}, 'Well-visit schedule'), h('div', { class: 'sub' }, `${joinNames(g)} · by actual age`),
+      h('div', { class: 'list', style: 'margin-top:10px' }, wellSchedule(g[0]).map((v) => h('div', { class: 'item' + (v.date < addDays(today, -14) ? ' past' : '') },
+        h('div', { class: 'when' }, h('small', {}, fmtDate(v.date, { month: 'short' })), h('b', {}, fmtDate(v.date, { day: 'numeric' }))),
+        h('div', { class: 'grow' }, h('b', {}, v.label), h('small', {}, v.what)))))));
+  }
+  const list = [...S.visits].sort((a, b) => b.date.localeCompare(a.date));
+  add(wrap, h('div', { class: 'section-title' }, 'Visit log'));
+  if (!list.length) add(wrap, h('p', { class: 'fine' }, 'Log well visits, NICU follow-ups, therapy, eye exams and vaccines — with notes on what the doctor said.'));
+  add(wrap, h('div', { class: 'list' }, list.map((v) => h('button', { type: 'button', class: 'item', onclick: () => editVisit(v) },
+    h('div', { class: 'when' }, h('small', {}, fmtDate(v.date, { month: 'short' })), h('b', {}, fmtDate(v.date, { day: 'numeric' }))),
+    h('div', { class: 'grow' }, h('b', {}, v.title || v.kind), h('small', {}, [v.kind, joinNames(v.babyIds.map(babyById).filter(Boolean))].join(' · ')),
+      v.vaccines ? h('p', {}, '💉 ' + v.vaccines) : null, v.notes ? h('p', {}, v.notes) : null,
+      v.nextDate ? h('p', { style: 'font-weight:800' }, 'Next: ' + fmtDate(v.nextDate)) : null)))));
+  return wrap;
+}
+function editVisit(v) {
+  const d = v ? { ...v, babyIds: [...v.babyIds] } : { id: uid('v'), date: todayStr(), kind: 'Well visit', babyIds: babies().map((b) => b.id), title: '', notes: '', vaccines: '', nextDate: '' };
+  const date = h('input', { type: 'date', value: d.date });
+  const kind = selectEl(VISIT_KINDS.map((k) => ({ value: k, label: k })), d.kind);
+  const title = h('input', { type: 'text', value: d.title, placeholder: 'e.g. 4-month check-up with Dr. Patel' });
+  const vacc = h('input', { type: 'text', value: d.vaccines, placeholder: 'e.g. DTaP, Hib, IPV, PCV, rotavirus' });
+  const notes = h('textarea', { rows: 4, placeholder: 'What the doctor said, measurements, referrals, things to watch' }, d.notes);
+  const next = h('input', { type: 'date', value: d.nextDate || '' });
+  openSheet({
+    title: v ? 'Edit visit' : 'New visit',
+    body: h('div', {}, h('div', { class: 'two' }, field('Date', date), field('Type', kind)), field('Who', babyToggle(d.babyIds)), field('Title / provider', title),
+      field('Vaccines given', vacc), field('Notes', notes), field('Next appointment', next),
+      v ? h('button', { type: 'button', class: 'btn danger block', onclick: async () => { if (!(await confirmSheet('Delete this visit?'))) return; await idb.del('visits', v.id); S.visits = S.visits.filter((x) => x.id !== v.id); closeSheet(); render(); } }, 'Delete') : null),
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'), h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+      const rec = { ...d, date: date.value || todayStr(), kind: kind.value, title: title.value.trim(), vaccines: vacc.value.trim(), notes: notes.value.trim(), nextDate: next.value || '' };
+      if (!rec.babyIds.length) rec.babyIds = babies().map((b) => b.id);
+      try { await idb.put('visits', rec); S.visits = S.visits.filter((x) => x.id !== rec.id).concat(rec); closeSheet(); render(); toast('Visit saved'); } catch (e) { storageError(e); }
+    } }, 'Save')]
+  });
+}
+function healthFoods() {
+  const wrap = h('div', {});
+  add(wrap, h('div', { class: 'banner' }, h('b', {}, 'Starting solids? '), 'Go by adjusted age (around 6 months) plus readiness signs. Introduce peanut and egg early, then keep them in the diet regularly. Log new foods and any reactions here.'));
+  add(wrap, h('button', { type: 'button', class: 'btn primary block', onclick: () => editFood() }, icon('plus'), 'Log a new food'));
+  // Allergen tracker
+  add(wrap, h('div', { class: 'card' }, h('h2', {}, 'Allergens'), h('div', { class: 'sub' }, 'Last time each was eaten'),
+    h('table', { class: 'mini', style: 'margin-top:8px' }, h('tr', {}, h('th', {}, 'Food'), babies().map((b) => h('th', {}, b.name))),
+      ALLERGENS.map((a) => h('tr', {}, h('td', { style: 'font-weight:800' }, a), babies().map((b) => {
+        const hits = S.foods.filter((f) => f.allergen === a && f.babyIds.includes(b.id)).sort((x, y) => y.date.localeCompare(x.date));
+        if (!hits.length) return h('td', { class: 'muted' }, '—');
+        const ago = daysBetween(hits[0].date, todayStr());
+        const flag = hits.some((x) => x.reaction === 'concern') ? ' ⚠️' : '';
+        return h('td', {}, `${fmtShort(hits[0].date)}${flag}`, h('div', { class: 'fine' }, `${plural(hits.length, 'time')} · ${ago === 0 ? 'today' : ago + 'd ago'}`));
+      })))),
+    h('p', { class: 'fine' }, 'Once a food is tolerated, keep offering it regularly. Babies with severe eczema or egg allergy need a clinician plan for peanut before starting.')));
+  const list = [...S.foods].sort((a, b) => b.date.localeCompare(a.date));
+  if (list.length) add(wrap, h('div', { class: 'section-title' }, 'Food log'), h('div', { class: 'list' }, list.map((f) => h('button', { type: 'button', class: 'item', onclick: () => editFood(f) },
+    h('div', { class: 'when' }, h('small', {}, fmtDate(f.date, { month: 'short' })), h('b', {}, fmtDate(f.date, { day: 'numeric' }))),
+    h('div', { class: 'grow' }, h('b', {}, f.food + (f.reaction === 'concern' ? ' ⚠️' : f.reaction === 'liked' ? ' 😋' : f.reaction === 'disliked' ? ' 😖' : '')),
+      h('small', {}, [f.allergen ? 'Allergen: ' + f.allergen : null, joinNames(f.babyIds.map(babyById).filter(Boolean))].filter(Boolean).join(' · ')),
+      f.note ? h('p', {}, f.note) : null)))));
+  return wrap;
+}
+function editFood(f) {
+  const d = f ? { ...f, babyIds: [...f.babyIds] } : { id: uid('f'), date: todayStr(), food: '', allergen: '', reaction: 'liked', babyIds: babies().map((b) => b.id), note: '' };
+  const date = h('input', { type: 'date', value: d.date, max: todayStr() });
+  const food = h('input', { type: 'text', value: d.food, placeholder: 'e.g. Iron-fortified oatmeal, thinned peanut butter' });
+  const alg = selectEl([{ value: '', label: 'Not a major allergen' }, ...ALLERGENS.map((a) => ({ value: a, label: a }))], d.allergen);
+  const reactions = [['liked', '😋 Liked it'], ['meh', '😐 Meh'], ['disliked', '😖 Not a fan'], ['concern', '⚠️ Reaction']];
+  const seg = h('div', { class: 'seg' });
+  const drawSeg = () => { seg.innerHTML = ''; add(seg, reactions.map(([k, l]) => h('button', { type: 'button', class: d.reaction === k ? 'on' : '', onclick: () => { d.reaction = k; drawSeg(); } }, l))); };
+  drawSeg();
+  const note = h('textarea', { rows: 3, placeholder: 'Texture, how much, any rash, vomiting or fussiness (call the doctor about reactions; 911 for trouble breathing or swelling)' }, d.note);
+  openSheet({
+    title: f ? 'Edit food' : 'New food',
+    body: h('div', {}, field('Food', food), h('div', { class: 'two' }, field('Date', date), field('Allergen', alg)), field('Who tried it', babyToggle(d.babyIds)), field('How it went', seg), field('Notes', note),
+      f ? h('button', { type: 'button', class: 'btn danger block', onclick: async () => { if (!(await confirmSheet('Delete this food entry?'))) return; await idb.del('foods', f.id); S.foods = S.foods.filter((x) => x.id !== f.id); closeSheet(); render(); } }, 'Delete') : null),
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'), h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+      if (!food.value.trim()) return toast('What food was it?');
+      const rec = { ...d, date: date.value || todayStr(), food: food.value.trim(), allergen: alg.value, note: note.value.trim() };
+      if (!rec.babyIds.length) rec.babyIds = babies().map((b) => b.id);
+      try { await idb.put('foods', rec); S.foods = S.foods.filter((x) => x.id !== rec.id).concat(rec); closeSheet(); render(); toast('Food saved'); } catch (e) { storageError(e); }
+    } }, 'Save')]
+  });
+}
+function healthChecklist() {
+  const wrap = h('div', {}, h('div', { class: 'banner' }, h('b', {}, 'First-year checklist. '), 'Visit and vaccine items go by actual age; feeding and development items by adjusted age. Tap a name to check it off for that baby.'));
+  for (const g of CHECKLIST) {
+    add(wrap, h('div', { class: 'domain' }, g.group));
+    add(wrap, g.items.map(([id]) => msRow(CHECK_INDEX[id])));
+  }
+  add(wrap, h('div', { class: 'domain' }, 'All year'), h('ul', { class: 'tight fine' },
+    h('li', {}, 'Every sleep: Alone, Back, Crib.'), h('li', {}, 'Any fever ≥100.4°F under 3 months → emergency.'),
+    h('li', {}, 'Any loss of skills, or a parent\'s concern → act early (pediatrician + cdc.gov/FindEI).'), h('li', {}, 'Adjusted age for preemies until age 2.')));
+  return wrap;
+}
+function healthQuestions() {
+  const wrap = h('div', {});
+  const inp = h('input', { type: 'text', placeholder: 'e.g. Is Josie\'s head tilt worth a PT referral?' });
+  const save = () => idb.put('kv', { key: 'questions', items: S.questions }).catch(storageError);
+  const addQ = async () => { const t = inp.value.trim(); if (!t) return; S.questions.unshift({ id: uid('q'), text: t, done: false, at: todayStr() }); await save(); render(); };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') addQ(); });
+  add(wrap, h('div', { class: 'card' }, h('h2', {}, 'Questions for the next visit'), h('p', { class: 'fine' }, 'Jot them down as they come up — at 3 a.m. counts. Your own mood is a fair question too.'),
+    h('div', { class: 'row' }, inp, h('button', { type: 'button', class: 'btn primary', onclick: addQ }, 'Add'))));
+  const open = S.questions.filter((q) => !q.done), done = S.questions.filter((q) => q.done);
+  const row = (q) => h('div', { class: 'ms-row' },
+    h('div', { class: 'ms-text', style: q.done ? 'text-decoration:line-through;opacity:.6' : '' }, q.text, h('small', {}, 'Added ' + fmtShort(q.at))),
+    h('div', { class: 'ms-checks' },
+      h('button', { type: 'button', class: 'bcheck' + (q.done ? ' done' : ''), style: '--c:var(--sage)', 'aria-label': q.done ? 'Mark not asked' : 'Mark asked', onclick: async () => { q.done = !q.done; await save(); render(); } }, icon('check')),
+      h('button', { type: 'button', class: 'bcheck', style: '--c:var(--muted)', 'aria-label': 'Delete question', onclick: async () => { S.questions = S.questions.filter((x) => x !== q); await save(); render(); } }, icon('trash'))));
+  add(wrap, open.map(row));
+  if (done.length) add(wrap, h('div', { class: 'domain' }, 'Asked'), done.map(row));
+  if (!S.questions.length) add(wrap, h('p', { class: 'fine', style: 'text-align:center' }, 'No questions yet.'));
+  return wrap;
+}
+
+/* =====================================================================
+   VIEW: GUIDE
+   ===================================================================== */
+function topicCtx() {
+  const rb = readyBabies().length ? readyBabies() : babies();
+  const b = rb[0];
+  const gaDays = Number(b.gaWeeks) * 7 + Number(b.gaDays || 0);
+  const earlyW = Math.round(Math.max(0, 280 - gaDays) / 7 * 10) / 10;
+  const exampleDays = 183 - (280 - gaDays);
+  return { names: joinNames(rb), early: earlyW, ga: `${b.gaWeeks} weeks` + (b.gaDays ? ` ${b.gaDays} days` : ''), example: exampleDays > 0 ? fmtAge(exampleDays) : 'still before the due date' };
+}
+function viewGuide() {
+  if (S.guideMonth == null) S.guideMonth = currentGuideMonth();
+  const mo = S.guideMonth, g = GUIDE[mo], cur = currentGuideMonth();
+  const out = [h('div', { class: 'pagehead' }, h('div', {}, h('h1', {}, 'Month-by-month guide'), h('p', {}, 'Development, cues, feeding, sleep & check-ups')))];
+  const chips = h('div', { class: 'chips' }, [...Array(13).keys()].map((m) => h('button', { type: 'button', class: 'chip' + (CDC_MONTHS.includes(m) ? ' cdc' : '') + (m === mo ? ' on' : ''), onclick: () => { S.guideMonth = m; render(); } }, m === 0 ? 'NICU' : `Mo ${m}`, m === cur && readyBabies().length ? ' 📍' : '')));
+  out.push(chips);
+  requestAnimationFrame(() => { const c = chips.querySelector('.chip.on'); if (c) chips.scrollLeft = c.offsetLeft - chips.clientWidth / 2 + c.offsetWidth / 2; });
+  const sec = (em, title, items) => items && items.length ? h('div', { class: 'gsec' }, h('h3', {}, h('span', { class: 'em' }, em), title), h('ul', {}, items.map((i) => h('li', {}, i)))) : null;
+  out.push(h('div', { class: 'card' },
+    h('div', { class: 'spread' }, h('div', {}, h('h2', {}, g.title), h('div', { class: 'sub' }, g.range)), h('span', { class: 'tagchip ' + (g.kind === 'cdc' ? 'cdc' : 'warm') }, g.kind === 'cdc' ? 'CDC checklist' : g.kind === 'nicu' ? 'NICU' : 'Emerging')),
+    h('p', {}, g.intro),
+    sec('🎉', 'Celebrate', g.celebrate), sec('👀', 'Reading the cues', g.cues), sec('🍼', 'Feeding', g.feeding), sec('🌙', 'Sleep', g.sleep),
+    h('div', { class: 'gsec' }, h('h3', {}, h('span', { class: 'em' }, '🩺'), mo === 0 ? 'Before going home' : 'Check-up at this actual age'), h('p', { style: 'margin:4px 0;font-size:14.5px' }, g.visit)),
+    g.flags.length ? h('div', { class: 'banner warn' }, h('b', {}, 'Ask your pediatrician if, by about this adjusted age: '), g.flags.join(' · ').toLowerCase() + '.') : null,
+    sec('🛡️', 'Safety', g.safety),
+    h('div', { class: 'btnrow' }, h('button', { type: 'button', class: 'btn sm', onclick: () => { S.msMonth = mo; go('ms'); } }, icon('star'), mo === 0 ? 'NICU firsts' : `Month ${mo} milestones`))));
+  out.push(h('div', { class: 'section-title' }, 'Read first'));
+  const ctx = topicCtx();
+  out.push(TOPICS.map((t) => h('details', { class: 'acc' }, h('summary', {}, h('span', {}, t.em), t.title), h('div', { class: 'body', html: t.body(ctx) }))));
+  out.push(h('div', { class: 'section-title' }, 'Sources'));
+  out.push(h('ul', { class: 'tight fine' }, SOURCES.map(([l, u]) => h('li', {}, h('a', { href: u, target: '_blank', rel: 'noopener' }, l)))));
+  out.push(h('p', { class: 'fine' }, 'From “Your Baby\'s First Year, Month by Month” (October 2026). Educational only — it does not replace advice from your pediatrician and NICU team.'));
+  return out;
+}
+
+/* =====================================================================
+   SETTINGS, BACKUP & SHARING WITH GRANDPARENTS
+   ===================================================================== */
+async function saveSettings() { try { await idb.put('kv', S.settings); updateWidget(); } catch (e) { storageError(e); } }
+const SWATCHES = ['#4f8fc0', '#d6677e', '#5f9b6b', '#dd8a2e', '#8a6fc0', '#3b9c9c', '#c0574a', '#7a8a3c'];
+function openSettings() {
+  const st = JSON.parse(JSON.stringify(S.settings));
+  const newAvatars = new Map();
+  const titleIn = h('input', { type: 'text', value: st.title });
+  const list = h('div', {});
+  const drawBabies = () => {
+    list.innerHTML = '';
+    add(list, st.babies.map((b, i) => {
+      const sw = h('div', { class: 'swatches' }, SWATCHES.map((c) => h('button', { type: 'button', class: 'swatch' + (b.color === c ? ' on' : ''), style: `--c:${c}`, 'aria-label': 'Color ' + c, onclick: () => { b.color = c; drawBabies(); } })));
+      const avIn = h('input', { type: 'file', accept: 'image/*', style: 'display:none', onchange: async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try { const r = await makeImageThumb(f, 400); const id = uid('av'); newAvatars.set(id, r.thumb); b.avatarId = id; drawBabies(); } catch (err) { toast("Couldn't read that photo"); }
+      } });
+      let av;
+      if (b.avatarId && newAvatars.has(b.avatarId)) av = h('img', { class: 'avatar', src: URL.createObjectURL(newAvatars.get(b.avatarId)), style: `--c:${b.color}` });
+      else av = avatar({ ...b, avatarId: S.media.has(b.avatarId) ? b.avatarId : null });
+      const a = b.birthDate ? ageInfo(b) : null;
+      return h('div', { class: 'babyedit', style: `--c:${b.color}` },
+        h('div', { class: 'row', style: 'margin-top:12px' }, av, h('label', { class: 'btn sm' }, 'Profile photo', avIn), b.avatarId ? h('button', { type: 'button', class: 'btn sm', onclick: () => { b.avatarId = null; drawBabies(); } }, 'Remove') : null),
+        field('Name', h('input', { type: 'text', value: b.name, oninput: (e) => { b.name = e.target.value; } })),
+        field('Birthday', h('input', { type: 'date', value: b.birthDate, max: todayStr(), onchange: (e) => { b.birthDate = e.target.value; drawBabies(); } })),
+        h('div', { class: 'two' },
+          field('Born at (weeks)', h('div', { class: 'unit' }, h('input', { type: 'number', inputmode: 'numeric', min: 22, max: 42, value: b.gaWeeks, onchange: (e) => { b.gaWeeks = Math.min(42, Math.max(22, Number(e.target.value) || 40)); drawBabies(); } }), h('em', {}, 'wk'))),
+          field('+ days', h('div', { class: 'unit' }, h('input', { type: 'number', inputmode: 'numeric', min: 0, max: 6, value: b.gaDays || 0, onchange: (e) => { b.gaDays = Math.min(6, Math.max(0, Number(e.target.value) || 0)); drawBabies(); } }), h('em', {}, 'd')))),
+        a ? h('p', { class: 'fine' }, `${a.early ? `${Math.round(a.early / 7 * 10) / 10} weeks early · due date ${fmtDate(a.due)}` : 'Full term'} · today ${fmtAge(a.actual)} actual, ${fmtAge(a.adjusted)} adjusted`) : null,
+        field('Color', sw),
+        st.babies.length > 1 ? h('button', { type: 'button', class: 'linkbtn', style: 'color:var(--danger)', onclick: async () => {
+          if (!(await confirmSheet(`Remove ${b.name || 'this baby'} from the app? Their memories stay, but their milestone checks and growth entries will be hidden.`, 'Remove'))) return;
+          st.babies.splice(i, 1); drawBabies();
+        } }, 'Remove baby') : null);
+    }));
+  };
+  drawBabies();
+  const storageLine = h('p', { class: 'fine' }, 'Checking storage…');
+  (async () => {
+    try {
+      const e = await navigator.storage.estimate();
+      const p = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+      storageLine.textContent = `Using ${fmtBytes(e.usage || 0)} of about ${fmtBytes(e.quota || 0)} available. ${p ? 'Protected from automatic cleanup ✓' : 'Tip: export a backup now and then.'}`;
+    } catch (err) { storageLine.textContent = 'Storage details aren\'t available on this device.'; }
+  })();
+  const importIn = h('input', { type: 'file', style: 'display:none', onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFlow(f); } });
+  const body = h('div', {},
+    field('App title', titleIn),
+    h('div', { class: 'section-title' }, 'The babies'),
+    list,
+    h('button', { type: 'button', class: 'btn block', onclick: () => { const f = st.babies[0] || {}; st.babies.push({ id: uid('b'), name: '', birthDate: f.birthDate || '', gaWeeks: f.gaWeeks || 40, gaDays: f.gaDays || 0, color: SWATCHES[st.babies.length % SWATCHES.length], avatarId: null }); drawBabies(); } }, icon('plus'), 'Add another baby'),
+    h('div', { class: 'section-title' }, 'Share with grandparents'),
+    h('p', { class: 'fine' }, 'Everything lives on this phone — nothing is uploaded. To give someone a copy: export a backup, send the file (Messages, email, Drive), and they open this app on their phone and tap Import. Importing again later adds anything new. To share a single memory, open it and tap Share.'),
+    h('div', { class: 'btnrow' },
+      h('button', { type: 'button', class: 'btn primary', onclick: () => exportBackup(true) }, icon('share'), 'Send a backup'),
+      h('button', { type: 'button', class: 'btn', onclick: () => exportBackup(false) }, icon('download'), 'Save backup file'),
+      h('label', { class: 'btn' }, 'Import a backup', importIn)),
+    h('div', { class: 'section-title' }, 'This phone'),
+    storageLine,
+    window.umade && umade.addToHomeScreen ? h('button', { type: 'button', class: 'btn block', onclick: () => { try { umade.addToHomeScreen(); } catch (e) { /* optional */ } } }, 'Add to home screen') : null,
+    h('button', { type: 'button', class: 'btn danger block', style: 'margin-top:10px', onclick: async () => {
+      if (!(await confirmSheet('Erase every memory, photo, video and log from this phone? Export a backup first if you want to keep them. This cannot be undone.', 'Erase everything'))) return;
+      for (const s of STORES) await idb.clear(s);
+      location.reload();
+    } }, 'Erase everything on this phone'));
+  openSheet({
+    title: 'Settings', body, full: true,
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => closeSheet() }, 'Cancel'), h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+      st.babies.forEach((b, i) => { b.name = (b.name || '').trim() || `Baby ${i + 1}`; });
+      try {
+        for (const [id, blob] of newAvatars) if (st.babies.some((b) => b.avatarId === id)) { const rec = { id, memoryId: null, avatar: true, type: 'image', blob, thumb: blob, mime: 'image/jpeg', caption: '', addedAt: Date.now() }; await idb.put('media', rec); S.media.set(id, rec); }
+        for (const old of S.settings.babies) if (old.avatarId && !st.babies.some((b) => b.avatarId === old.avatarId)) { await idb.del('media', old.avatarId); S.media.delete(old.avatarId); revokeMedia(old.avatarId); }
+      } catch (e) { return storageError(e); }
+      st.title = titleIn.value.trim() || APP_TITLE_DEFAULT;
+      S.settings = st; await saveSettings(); document.title = st.title;
+      closeSheet(); render(); toast('Settings saved');
+    } }, 'Save')]
+  });
+  body.appendChild(h('p', { class: 'fine', style: 'margin-top:16px;text-align:center' }, 'Leo & Josie\'s Excellent Adventure · v1'));
+}
+
+const MAGIC = 'LJADV001';
+async function exportBackup(share) {
+  toast('Packing the scrapbook…');
+  try {
+    const [kv, memories, media, milestones, growth, visits, foods] = await Promise.all(STORES.map((s) => idb.all(s)));
+    const parts = []; let off = 0;
+    const mediaMeta = media.map((m) => {
+      const o = { ...m }; delete o.blob; delete o.thumb;
+      if (m.blob) { o._b = [off, m.blob.size, m.blob.type]; parts.push(m.blob); off += m.blob.size; }
+      if (m.thumb) { o._t = [off, m.thumb.size, m.thumb.type]; parts.push(m.thumb); off += m.thumb.size; }
+      return o;
+    });
+    const json = new TextEncoder().encode(JSON.stringify({ app: 'leo-josie-adventure', version: 1, exportedAt: new Date().toISOString(), kv, memories, milestones, growth, visits, foods, media: mediaMeta }));
+    const head = new Uint8Array(12); head.set(new TextEncoder().encode(MAGIC), 0); new DataView(head.buffer).setUint32(8, json.length, true);
+    const blob = new Blob([head, json, ...parts], { type: 'application/octet-stream' });
+    const name = `leo-josie-scrapbook-${todayStr()}.ljadv`;
+    if (share) {
+      const file = new File([blob], name, { type: 'application/octet-stream' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: S.settings.title, text: `Scrapbook backup (${fmtBytes(blob.size)}). Open "${S.settings.title}" and tap Settings → Import a backup.` }); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      toast('Sharing a file isn\'t available here — saving it instead');
+    }
+    await saveFile(blob, name);
+    toast(`Backup ready (${fmtBytes(blob.size)})`);
+  } catch (e) { console.error(e); toast('Backup failed: ' + e.message); }
+}
+async function readBackup(file) {
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (new TextDecoder().decode(head.slice(0, 8)) !== MAGIC) throw new Error("That file isn't a scrapbook backup");
+  const len = new DataView(head.buffer).getUint32(8, true);
+  const manifest = JSON.parse(await file.slice(12, 12 + len).text());
+  return { manifest, base: 12 + len };
+}
+async function importFlow(file) {
+  let data;
+  try { data = await readBackup(file); } catch (e) { return toast(e.message); }
+  const m = data.manifest;
+  const choose = (mode) => { closeSheet(); setTimeout(() => runImport(file, data, mode), 80); };
+  openSheet({
+    title: 'Import backup',
+    body: h('div', {}, h('p', {}, `From ${fmtDate(m.exportedAt.slice(0, 10))}: ${plural(m.memories.length, 'memory', 'memories')}, ${m.media.length} photos & videos.`),
+      h('p', { class: 'fine' }, '“Add to this phone” keeps everything already here and adds or updates what\'s in the backup — use this for updates. “Replace” erases this phone\'s scrapbook first.')),
+    foot: [h('button', { class: 'btn', type: 'button', onclick: () => choose('replace') }, 'Replace'), h('button', { class: 'btn primary', type: 'button', onclick: () => choose('merge') }, 'Add to this phone')]
+  });
+}
+async function runImport(file, { manifest, base }, mode) {
+  toast('Importing… keep the app open');
+  try {
+    if (mode === 'replace') for (const s of STORES) await idb.clear(s);
+    for (const rec of manifest.media) {
+      const r = { ...rec };
+      if (r._b) r.blob = file.slice(base + r._b[0], base + r._b[0] + r._b[1], r._b[2]);
+      if (r._t) r.thumb = file.slice(base + r._t[0], base + r._t[0] + r._t[1], r._t[2]);
+      delete r._b; delete r._t;
+      if (r.blob) r.blob = new Blob([await r.blob.arrayBuffer()], { type: r.blob.type });
+      if (r.thumb) r.thumb = new Blob([await r.thumb.arrayBuffer()], { type: r.thumb.type });
+      await idb.put('media', r);
+    }
+    for (const s of ['memories', 'milestones', 'growth', 'visits', 'foods']) for (const r of (manifest[s] || [])) await idb.put(s, r);
+    const local = mode === 'merge' ? await idb.get('kv', 'settings') : null;
+    for (const r of (manifest.kv || [])) {
+      if (r.key === 'settings' && local) {
+        const ids = new Set(local.babies.map((b) => b.id));
+        local.babies = local.babies.map((b) => { const inc = r.babies.find((x) => x.id === b.id); return inc && !b.birthDate ? inc : (inc && !b.avatarId ? { ...b, avatarId: inc.avatarId } : b); });
+        r.babies.forEach((b) => { if (!ids.has(b.id)) local.babies.push(b); });
+        await idb.put('kv', local);
+      } else if ((r.key === 'questions' || r.key === 'customMs') && mode === 'merge') {
+        const cur = await idb.get('kv', r.key);
+        const items = cur ? cur.items.slice() : [];
+        for (const it of r.items) if (!items.some((x) => x.id === it.id)) items.push(it);
+        await idb.put('kv', { key: r.key, items });
+      } else await idb.put('kv', r);
+    }
+    toast('Import complete ✨');
+    setTimeout(() => location.reload(), 900);
+  } catch (e) { storageError(e); }
+}
+
+/* =====================================================================
+   SHELL
+   ===================================================================== */
+const TABS = [['home', 'Home', 'home'], ['book', 'Scrapbook', 'book'], ['ms', 'Milestones', 'star'], ['health', 'Health', 'heart'], ['guide', 'Guide', 'compass']];
+function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+function render() {
+  const view = $('#view');
+  view.innerHTML = '';
+  const fn = { home: viewHome, book: viewBook, ms: viewMilestones, health: viewHealth, guide: viewGuide }[S.tab];
+  add(view, fn());
+  const tabs = $('#tabs');
+  tabs.innerHTML = '';
+  add(tabs, TABS.map(([k, l, ic]) => h('button', { type: 'button', class: S.tab === k ? 'on' : '', 'aria-current': S.tab === k ? 'page' : null, onclick: () => go(k) }, icon(ic), l)));
+  $('#fab').classList.toggle('hide', !(S.tab === 'home' || S.tab === 'book') || !readyBabies().length && S.tab === 'home');
+}
+function updateWidget() {
+  try {
+    if (!(window.umade && umade.widget && umade.widget.update)) return;
+    const rb = readyBabies(); if (!rb.length) return;
+    const a = ageInfo(rb[0]);
+    umade.widget.update({ title: joinNames(rb), value: `Day ${a.actual + 1}`, subtitle: `${fmtAge(a.actual)} · adjusted ${fmtAge(a.adjusted)}` });
+  } catch (e) { /* widget is optional */ }
+}
+
+async function boot() {
+  const fab = $('#fab');
+  add(fab, [icon('plus'), 'Memory']);
+  fab.addEventListener('click', () => editMemory());
+  try { db = await openDB(); }
+  catch (e) { $('#view').innerHTML = '<div class="card"><h2>Storage unavailable</h2><p>This browser blocked on-device storage (private mode?). The scrapbook needs it to keep photos and videos.</p></div>'; return; }
+  const [set, memories, media, ms, growth, visits, foods, q, cm] = await Promise.all([
+    idb.get('kv', 'settings'), idb.all('memories'), idb.all('media'), idb.all('milestones'), idb.all('growth'), idb.all('visits'), idb.all('foods'), idb.get('kv', 'questions'), idb.get('kv', 'customMs')]);
+  S.settings = set || defaultSettings();
+  if (!set) await idb.put('kv', S.settings);
+  S.memories = memories; media.forEach((m) => S.media.set(m.id, m)); ms.forEach((m) => S.ms.set(m.id, m));
+  S.growth = growth; S.visits = visits; S.foods = foods; S.questions = q ? q.items : []; S.customMs = cm ? cm.items : [];
+  document.title = S.settings.title || APP_TITLE_DEFAULT;
+  render();
+  updateWidget();
+}
+boot();
+</script>
+</body>
+</html>
