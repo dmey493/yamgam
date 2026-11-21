@@ -19,9 +19,11 @@
   FAIRNESS: per-exercise daily diminishing returns (no overtraining reward),
     +20% once three different exercises are logged in a day.
 
-  PALETTE (autumn burrow, declared once in :root): ink #33231c, soil #5a3d2c,
-    clay #8a5f43, fur #c98a4b, cream #f6e9d3, moss #7a9a56, berry #c8553d,
-    acorn #e2a93b.
+  ART DIRECTION: kawaii. Front-facing chibi chipmunk (head bigger than body,
+    low wide sparkly eyes, blush, tiny "w" mouth), pastel burrow.
+  PALETTE (strawberry-milk burrow, declared once in :root): ink #5b4037,
+    peach #ffd9cc, clay #e3ab93, fur #e8a66a, cream #fffaf3, mint #86d6a4,
+    pink #ff9db0, strawberry #f0607e, butter #ffc857.
   TYPE: Fredoka (display) + Nunito (body) — house pair.
 
   AUDIO IDENTITY
@@ -43,17 +45,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#5a3d2c">
+<meta name="theme-color" content="#ffd9cc">
 <title>Burrow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#33231c; --soil:#5a3d2c; --clay:#8a5f43; --clay-lt:#a87a58; --fur:#c98a4b;
-  --cream:#f6e9d3; --cream-dk:#e6d3b3; --moss:#7a9a56; --moss-dk:#5d7a3f;
-  --berry:#c8553d; --acorn:#e2a93b;
-  --r:18px; --shadow:0 4px 0 rgba(51,35,28,.28);
+  --ink:#5b4037; --soil:#ffd9cc; --clay:#e3ab93; --clay-lt:#f0c4b0; --fur:#e8a66a;
+  --cream:#fffaf3; --cream-dk:#ffe6da; --moss:#86d6a4; --moss-dk:#2f8f5b; --mint-dk:#5fbf85;
+  --berry:#f0607e; --acorn:#ffc857; --pink:#ff9db0; --pink-dk:#e8718a;
+  --r:20px; --shadow:0 4px 0 rgba(140,80,70,.2);
   --disp:'Fredoka','Trebuchet MS',sans-serif; --body:'Nunito','Trebuchet MS',sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -65,14 +67,14 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 
 /* HUD */
-#hud{display:flex;align-items:center;gap:10px;padding:12px 16px 4px;color:var(--cream)}
+#hud{display:flex;align-items:center;gap:10px;padding:12px 16px 4px;color:var(--ink)}
 #who{flex:1;min-width:0}
 #name{font-family:var(--disp);font-weight:700;font-size:24px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #stage{font-size:13px;opacity:.85}
-.pill{display:flex;align-items:center;gap:6px;background:rgba(51,35,28,.45);border-radius:999px;padding:6px 12px 6px 8px;
+.pill{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.75);border-radius:999px;padding:6px 12px 6px 8px;
   font-family:var(--disp);font-weight:700;font-size:20px}
 .pill svg{width:22px;height:22px}
-.icon-btn{width:44px;height:44px;border-radius:50%;background:rgba(51,35,28,.45);display:grid;place-items:center;color:var(--cream)}
+.icon-btn{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.75);display:grid;place-items:center;color:var(--ink)}
 .icon-btn svg{width:22px;height:22px}
 .icon-btn:active,.btn:active,.tile:active,.chip:active{transform:scale(.95)}
 .punch{animation:punch .28s cubic-bezier(.3,1.6,.5,1)}
@@ -87,16 +89,16 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 #banner b{font-family:var(--disp)}
 
 /* Panel */
-#panel{background:var(--cream);border-radius:26px 26px 0 0;padding:14px 16px 16px;box-shadow:0 -4px 0 rgba(51,35,28,.25)}
+#panel{background:var(--cream);border-radius:26px 26px 0 0;padding:14px 16px 16px;box-shadow:0 -4px 0 rgba(140,80,70,.25)}
 .meter{margin-bottom:10px}
 .meter-top{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:4px}
 .meter-top b{font-family:var(--disp);font-size:16px}
-.bar{height:16px;border-radius:999px;background:var(--cream-dk);overflow:hidden;box-shadow:inset 0 2px 0 rgba(51,35,28,.12)}
+.bar{height:16px;border-radius:999px;background:var(--cream-dk);overflow:hidden;box-shadow:inset 0 2px 0 rgba(140,80,70,.12)}
 .bar i{display:block;height:100%;width:0;border-radius:999px;background:var(--moss);transition:width .7s cubic-bezier(.2,.9,.3,1),background .4s}
 #growBar i{background:var(--acorn)}
 #bellyBar.low i{background:var(--berry)}
 #bellyBar.low{animation:pulse 1.2s ease-in-out infinite}
-@keyframes pulse{50%{box-shadow:0 0 0 4px rgba(200,85,61,.3)}}
+@keyframes pulse{50%{box-shadow:0 0 0 4px rgba(240,96,126,.3)}}
 #today{display:flex;align-items:center;gap:10px;font-size:14px;margin:2px 0 12px}
 #today .dots{display:flex;gap:5px;margin-left:auto;align-items:center}
 .dot{width:14px;height:14px;border-radius:5px;border:2px solid var(--clay);transform:rotate(45deg);transition:background .3s}
@@ -104,14 +106,14 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .actions{display:flex;gap:10px}
 .btn{font-family:var(--disp);font-weight:700;border-radius:var(--r);min-height:56px;padding:0 18px;box-shadow:var(--shadow);
   transition:transform .1s;background:var(--cream-dk);font-size:17px}
-.btn.primary{flex:1;background:var(--moss);color:#fbf6ea;font-size:21px}
+.btn.primary{flex:1;background:var(--pink);color:var(--ink);font-size:21px;box-shadow:0 4px 0 var(--pink-dk)}
 .btn.primary.beckon{animation:beckon 1.6s ease-in-out infinite}
-@keyframes beckon{50%{transform:scale(1.035);box-shadow:0 4px 0 rgba(51,35,28,.28),0 0 0 7px rgba(122,154,86,.3)}}
-.btn.warn{background:var(--berry);color:#fbf6ea}
+@keyframes beckon{50%{transform:scale(1.035);box-shadow:0 4px 0 var(--pink-dk),0 0 0 7px rgba(255,157,176,.35)}}
+.btn.warn{background:var(--berry);color:#fff}
 .btn:disabled{opacity:.45}
 
 /* Sheets */
-#scrim{position:absolute;inset:0;background:rgba(51,35,28,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:5}
+#scrim{position:absolute;inset:0;background:rgba(91,64,55,.45);opacity:0;pointer-events:none;transition:opacity .25s;z-index:5}
 #scrim.on{opacity:1;pointer-events:auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--cream);border-radius:26px 26px 0 0;
   padding:8px 16px calc(18px + env(safe-area-inset-bottom));transform:translateY(105%);visibility:hidden;
@@ -122,19 +124,19 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .sheet h2 .back{width:44px;height:44px;margin:-6px 0 -6px -8px;border-radius:50%;display:grid;place-items:center}
 .sheet h2 .back svg{width:24px;height:24px}
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.tile{background:#fbf3e2;border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);
+.tile{background:#fff;border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);
   font-family:var(--disp);font-weight:500;font-size:17px;text-align:left;min-height:64px;animation:rise .35s both cubic-bezier(.3,1.4,.5,1)}
-.tile svg{width:38px;height:38px;flex:none;color:var(--soil)}
+.tile svg{width:38px;height:38px;flex:none;color:var(--pink-dk)}
 .tile small{display:block;font-family:var(--body);font-size:12px;opacity:.7}
 .tile.done{outline:3px solid var(--acorn)}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}}
 .seg{display:flex;background:var(--cream-dk);border-radius:var(--r);padding:4px;margin-bottom:14px}
 .seg button{flex:1;min-height:46px;border-radius:14px;font-family:var(--disp);font-weight:500;font-size:16px}
-.seg button.on{background:#fbf3e2;box-shadow:0 2px 0 rgba(51,35,28,.2);font-weight:700}
+.seg button.on{background:#fff;box-shadow:0 2px 0 rgba(140,80,70,.2);font-weight:700}
 .seg em{font-style:normal;color:var(--moss-dk);font-size:13px}
 .big{font-family:var(--disp);font-weight:700;font-size:64px;line-height:1;text-align:center}
 .big small{font-size:20px;font-weight:500;opacity:.7;margin-left:6px}
-#qty{font-family:var(--disp);font-weight:700;font-size:56px;width:100%;text-align:center;border:0;background:#fbf3e2;border-radius:var(--r);
+#qty{font-family:var(--disp);font-weight:700;font-size:56px;width:100%;text-align:center;border:0;background:#fff;border-radius:var(--r);
   padding:8px;color:var(--ink);outline:none;user-select:text;-webkit-user-select:text}
 #qty:focus{box-shadow:0 0 0 3px var(--acorn)}
 .unit{text-align:center;font-size:14px;opacity:.75;margin:4px 0 10px}
@@ -143,19 +145,19 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .chip.on{background:var(--acorn);font-weight:700}
 #preview{text-align:center;min-height:44px;font-size:15px;margin-bottom:12px}
 #preview b{font-family:var(--disp);font-size:18px}
-#pad{width:100%;height:210px;border-radius:26px;background:var(--moss);color:#fbf6ea;box-shadow:0 6px 0 var(--moss-dk);display:grid;place-items:center;
+#pad{width:100%;height:210px;border-radius:26px;background:var(--moss);color:var(--ink);box-shadow:0 6px 0 var(--mint-dk);display:grid;place-items:center;
   margin-bottom:14px;transition:transform .06s,box-shadow .06s}
-#pad.down{transform:translateY(5px);box-shadow:0 1px 0 var(--moss-dk)}
+#pad.down{transform:translateY(5px);box-shadow:0 1px 0 var(--mint-dk)}
 #pad .big small{display:block;margin:6px 0 0;font-size:16px;opacity:.9}
-#pad.hold{background:var(--clay)}#pad.hold{box-shadow:0 6px 0 var(--soil)}
-#pad.run{background:var(--berry);box-shadow:0 6px 0 #8f3524}
+#pad.hold{background:var(--acorn);box-shadow:0 6px 0 #e0a52e}
+#pad.run{background:var(--pink);box-shadow:0 6px 0 var(--pink-dk)}
 .row{display:flex;gap:10px}
 .row .btn{flex:1}
 .note{font-size:13px;opacity:.75;text-align:center;margin:10px 0 0}
 
 /* History */
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-.stat{background:#fbf3e2;border-radius:var(--r);padding:10px 6px;text-align:center;font-size:12px}
+.stat{background:#fff;border-radius:var(--r);padding:10px 6px;text-align:center;font-size:12px}
 .stat b{display:block;font-family:var(--disp);font-size:24px}
 .day{font-family:var(--disp);font-weight:700;font-size:14px;opacity:.7;margin:12px 0 4px;display:flex;justify-content:space-between}
 .entry{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:2px solid var(--cream-dk);font-size:15px}
@@ -164,9 +166,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 .set{margin-top:18px;padding-top:14px;border-top:3px dashed var(--cream-dk)}
 .set h3{font-family:var(--disp);font-size:17px;margin:0 0 10px}
 .set .row{margin-bottom:10px}
-#saveBox{width:100%;height:80px;border-radius:12px;border:2px solid var(--cream-dk);background:#fbf3e2;font:12px monospace;padding:8px;
+#saveBox{width:100%;height:80px;border-radius:12px;border:2px solid var(--cream-dk);background:#fff;font:12px monospace;padding:8px;
   display:none;margin-bottom:10px;user-select:text;-webkit-user-select:text}
-#nameIn{font-family:var(--disp);font-weight:700;font-size:28px;width:100%;text-align:center;border:0;background:#fbf3e2;border-radius:var(--r);
+#nameIn{font-family:var(--disp);font-weight:700;font-size:28px;width:100%;text-align:center;border:0;background:#fff;border-radius:var(--r);
   padding:10px;color:var(--ink);outline:none;margin-bottom:14px;user-select:text;-webkit-user-select:text}
 
 /* Toast + celebration */
@@ -176,7 +178,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 #toast.on{transform:none;opacity:1;pointer-events:auto}
 #toast span{flex:1}
 #toast button{font-family:var(--disp);font-weight:700;color:var(--acorn);min-height:44px;padding:0 12px}
-#cele{position:absolute;inset:0;z-index:7;display:grid;place-items:center;background:rgba(51,35,28,.6);opacity:0;pointer-events:none;transition:opacity .3s}
+#cele{position:absolute;inset:0;z-index:7;display:grid;place-items:center;background:rgba(91,64,55,.5);opacity:0;pointer-events:none;transition:opacity .3s}
 #cele.on{opacity:1;pointer-events:auto}
 #celeCard{background:var(--cream);border-radius:26px;padding:22px 20px;margin:0 22px;text-align:center;box-shadow:var(--shadow);
   transform:scale(.7);transition:transform .4s cubic-bezier(.3,1.6,.5,1);width:calc(100% - 44px);max-width:380px}
@@ -184,7 +186,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 #celeCard h2{font-family:var(--disp);font-size:28px;margin:0 0 6px}
 #celeCard p{margin:0 0 16px;font-size:15px}
 #celeCard .btn{width:100%}
-.floater{font-family:var(--disp);font-weight:700;font-size:22px;fill:var(--cream);stroke:var(--ink);stroke-width:5px;paint-order:stroke;text-anchor:middle}
+.floater{font-family:var(--disp);font-weight:700;font-size:22px;fill:#fff;stroke:var(--pink-dk);stroke-width:5px;paint-order:stroke;text-anchor:middle}
 @media (prefers-reduced-motion:reduce){.btn.primary.beckon,#bellyBar.low{animation:none}}
 </style>
 </head>
@@ -199,46 +201,53 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
   <div id="sceneWrap">
     <svg id="scene" viewBox="0 0 360 400" preserveAspectRatio="xMidYMax meet" aria-label="The burrow">
       <defs>
-        <symbol id="i-acorn" viewBox="0 0 24 24"><path d="M5 10c0-4 3-6 7-6s7 2 7 6z" fill="#6b4a35"/><path d="M12 4V1.8" stroke="#6b4a35" stroke-width="2.4" stroke-linecap="round"/><path d="M6 10h12c0 6-3 11-6 12-3-1-6-6-6-12z" fill="#e2a93b"/><path d="M9 12c0 3 1 5.500 2 7" stroke="#f6e9d3" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".7"/></symbol>
-        <radialGradient id="den" cx="50%" cy="62%" r="70%"><stop offset="0" stop-color="#a87a58"/><stop offset="1" stop-color="#7d553c"/></radialGradient>
-        <radialGradient id="glow"><stop offset="0" stop-color="#ffe9a8" stop-opacity=".75"/><stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/></radialGradient>
-        <clipPath id="winClip"><circle cx="262" cy="150" r="36"/></clipPath>
+        <symbol id="i-acorn" viewBox="0 0 24 24"><path d="M5 10.500c0-4.500 3-6.500 7-6.500s7 2 7 6.500z" fill="#b98263"/><path d="M12 4V2" stroke="#b98263" stroke-width="2.600" stroke-linecap="round"/><path d="M6 10.500h12c0 6-3 10.500-6 11.500-3-1-6-5.500-6-11.500z" fill="#ffc857"/><ellipse cx="9.500" cy="14" rx="1.500" ry="2.500" fill="#fff" opacity=".7"/></symbol>
+        <radialGradient id="den" cx="50%" cy="60%" r="70%"><stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#ffe8d6"/></radialGradient>
+        <radialGradient id="glow"><stop offset="0" stop-color="#fff3b8" stop-opacity=".9"/><stop offset="1" stop-color="#fff3b8" stop-opacity="0"/></radialGradient>
+        <clipPath id="winClip"><circle cx="262" cy="160" r="36"/></clipPath>
       </defs>
-      <rect width="360" height="400" fill="#5a3d2c"/>
-      <path d="M8,400 V170 Q8,40 180,40 Q352,40 352,170 V400 Z" fill="url(#den)"/>
-      <g stroke="#6b4a35" stroke-width="5" fill="none" stroke-linecap="round" opacity=".8">
-        <path d="M70,58 q6,34 -8,52 q-8,12 2,26"/><path d="M150,42 q-4,22 8,36"/><path d="M214,42 q10,18 2,34 q-4,10 4,16"/><path d="M312,84 q-10,16 -2,34"/>
+      <rect width="360" height="400" fill="#ffd9cc"/>
+      <path d="M8,400 V170 Q8,40 180,40 Q352,40 352,170 V400 Z" fill="url(#den)" stroke="#f6bfa9" stroke-width="6"/>
+      <!-- wallpaper: scattered hearts and dots -->
+      <g fill="#ffd3da" opacity=".8">
+        <path id="wh" d="M0,3 C-7,-3 -4,-9 0,-5 C4,-9 7,-3 0,3Z" transform="translate(58,232)"/><use href="#wh" x="116" y="62"/><use href="#wh" x="-12" y="-74"/>
+        <use href="#wh" x="232" y="34"/><use href="#wh" x="150" y="-104"/><use href="#wh" x="262" y="-36"/><use href="#wh" x="92" y="-22"/>
+        <circle cx="120" cy="250" r="3"/><circle cx="206" cy="232" r="3"/><circle cx="318" cy="250" r="3"/><circle cx="150" cy="150" r="3"/><circle cx="34" cy="262" r="3"/><circle cx="238" cy="282" r="3"/>
       </g>
-      <!-- round window to the outside -->
-      <circle cx="262" cy="150" r="42" fill="#4a3226"/>
+      <g id="bunting"></g>
+      <!-- round window -->
+      <circle cx="262" cy="160" r="43" fill="#fff" stroke="#f6bfa9" stroke-width="3"/>
       <g clip-path="url(#winClip)">
-        <rect id="sky" x="220" y="108" width="84" height="84" fill="#bfe0e6"/>
-        <circle id="orb" cx="262" cy="140" r="11" fill="#ffe9a8"/>
-        <path id="hill" d="M220,180 q22,-18 44,-4 t40,-6 v24 h-84z" fill="#7a9a56"/>
+        <rect id="sky" x="220" y="118" width="84" height="84" fill="#c9ecff"/>
+        <circle id="orb" cx="244" cy="142" r="10" fill="#ffe08a"/>
+        <g id="cloud" fill="#fff"><circle cx="270" cy="150" r="8"/><circle cx="281" cy="146" r="10"/><circle cx="292" cy="151" r="7"/><rect x="266" y="150" width="30" height="8" rx="4"/></g>
+        <g id="stars" fill="#fff6c9" display="none"><circle cx="276" cy="140" r="1.800"/><circle cx="290" cy="158" r="1.400"/><circle cx="236" cy="166" r="1.500"/><circle cx="262" cy="128" r="1.300"/></g>
+        <path id="hill" d="M220,188 q22,-16 44,-4 t40,-6 v24 h-84z" fill="#b8e6c0"/>
       </g>
-      <path d="M262,108 v84 M220,150 h84" stroke="#4a3226" stroke-width="4"/>
-      <!-- shelf + jars -->
-      <rect x="34" y="196" width="96" height="9" rx="4" fill="#5a3d2c"/>
-      <rect x="46" y="170" width="24" height="26" rx="6" fill="#f6e9d3" opacity=".85"/><rect x="50" y="166" width="16" height="6" rx="2" fill="#c8553d"/>
-      <circle cx="54" cy="188" r="4" fill="#e2a93b"/><circle cx="62" cy="186" r="4" fill="#e2a93b"/><circle cx="58" cy="180" r="4" fill="#e2a93b"/>
-      <rect x="82" y="176" width="20" height="20" rx="5" fill="#f6e9d3" opacity=".85"/><rect x="85" y="172" width="14" height="6" rx="2" fill="#7a9a56"/>
-      <!-- lantern -->
-      <path d="M180,40 v52" stroke="#4a3226" stroke-width="3"/>
-      <circle id="lampGlow" cx="180" cy="108" r="58" fill="url(#glow)"/>
-      <rect x="170" y="92" width="20" height="26" rx="6" fill="#4a3226"/><rect x="174" y="97" width="12" height="16" rx="4" fill="#ffe9a8"/>
+      <path d="M262,118 v84 M220,160 h84" stroke="#fff" stroke-width="5"/>
+      <!-- shelf: acorn jar + sprout -->
+      <rect x="34" y="206" width="96" height="9" rx="4.500" fill="#f0b79f"/>
+      <rect x="46" y="178" width="26" height="28" rx="8" fill="#fff" stroke="#ffd3da" stroke-width="2"/><rect x="50" y="173" width="18" height="7" rx="3" fill="#ff9db0"/>
+      <circle cx="55" cy="197" r="4" fill="#ffc857"/><circle cx="63" cy="196" r="4" fill="#ffc857"/><circle cx="59" cy="189" r="4" fill="#ffc857"/>
+      <path d="M86,206 h22 l-3,-14 h-16z" fill="#ff9db0"/><path d="M97,192 q-10,-4 -9,-14 q10,2 9,14z M97,192 q10,-6 8,-16 q-10,4 -8,16z" fill="#86d6a4"/>
+      <!-- paper lantern -->
+      <path d="M180,40 v48" stroke="#f0b79f" stroke-width="3"/>
+      <circle id="lampGlow" cx="180" cy="104" r="56" fill="url(#glow)"/>
+      <ellipse cx="180" cy="104" rx="15" ry="17" fill="#fff3b8" stroke="#ffc857" stroke-width="2.500"/><path d="M180,87 v34 M172,90 q-5,14 0,28 M188,90 q5,14 0,28" stroke="#ffc857" stroke-width="1.500" fill="none" opacity=".7"/>
       <!-- floor -->
-      <path d="M0,336 Q180,322 360,336 V400 H0 Z" fill="#6b4a35"/>
-      <ellipse cx="190" cy="366" rx="96" ry="15" fill="#c8553d" opacity=".55"/><ellipse cx="190" cy="366" rx="74" ry="10" fill="none" stroke="#f6e9d3" stroke-width="2.500" stroke-dasharray="5 7" opacity=".7"/>
+      <path d="M0,336 Q180,322 360,336 V400 H0 Z" fill="#f9c9ae"/>
+      <ellipse cx="190" cy="366" rx="96" ry="15" fill="#ffb3c1"/><ellipse cx="190" cy="366" rx="76" ry="10" fill="none" stroke="#fff" stroke-width="2.500" stroke-dasharray="1 9" stroke-linecap="round"/>
       <!-- leaf bed -->
-      <g id="bed"><ellipse cx="70" cy="350" rx="50" ry="13" fill="#5d7a3f"/>
-        <path d="M24,348 q10,-16 26,-6 q-12,12 -26,6z M54,342 q16,-14 30,-2 q-14,10 -30,2z M88,346 q14,-12 26,0 q-12,10 -26,0z" fill="#7a9a56"/>
-        <path d="M40,352 q14,-10 28,0 q-14,8 -28,0z M72,354 q14,-10 28,-2 q-12,10 -28,2z" fill="#93b06b"/></g>
+      <g id="bed"><ellipse cx="70" cy="350" rx="50" ry="13" fill="#86d6a4"/>
+        <path d="M24,348 q10,-16 26,-6 q-12,12 -26,6z M54,342 q16,-14 30,-2 q-14,10 -30,2z M88,346 q14,-12 26,0 q-12,10 -26,0z" fill="#a9e4bd"/>
+        <path d="M40,352 q14,-10 28,0 q-14,8 -28,0z M72,354 q14,-10 28,-2 q-12,10 -28,2z" fill="#c9f0d4"/></g>
       <!-- bowl -->
-      <g id="bowl"><g id="bowlAcorns"></g><path d="M266,350 h56 q-2,22 -28,22 t-28,-22z" fill="#4a3226"/><path d="M266,350 h56" stroke="#33231c" stroke-width="4" stroke-linecap="round"/></g>
+      <g id="bowl"><g id="bowlAcorns"></g><path d="M266,350 h56 q-2,22 -28,22 t-28,-22z" fill="#ff9db0"/><path d="M266,350 h56" stroke="#e8718a" stroke-width="4" stroke-linecap="round"/>
+        <path d="M294,365 C288,360 291,355 294,358 C297,355 300,360 294,365Z" fill="#fff"/></g>
       <g id="fxBack"></g>
       <g id="pet"></g>
       <g id="fx"></g>
-      <path id="nightTint" d="M8,400 V170 Q8,40 180,40 Q352,40 352,170 V400 Z" fill="#1d2440" opacity="0" pointer-events="none"/>
+      <path id="nightTint" d="M8,400 V170 Q8,40 180,40 Q352,40 352,170 V400 Z" fill="#5d5a9c" opacity="0" pointer-events="none"/>
     </svg>
     <div id="banner" class="hide"></div>
     <div id="toast"><span id="toastTxt"></span><button id="undoBtn">Undo</button></div>
@@ -473,41 +482,47 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 const Scene = (() => {
   const FLOOR = 356, BED_X = 70, BOWL_X = 250;
-  const FUR = '#c98a4b', DARK = '#4a3226', CREAM = '#f6e9d3', INK = '#33231c';
+  const FUR = '#e8a66a', FUR2 = '#f5c595', DARK = '#8a5a44', CREAM = '#fffaf3', INK = '#4a2f28', PINK = '#ff9fae';
   const root = $('pet');
-  // Local coords: feet on y=0, facing right.
+  // Local coords: feet on y=0, facing the player. Head pivots at the neck (0,-30).
+  const eye = x => `<ellipse cx="${x}" cy="-56" rx="6.500" ry="8.200" fill="${INK}"/><circle cx="${x - 2}" cy="-59.500" r="2.900" fill="#fff"/><circle cx="${x + 2.200}" cy="-52" r="1.400" fill="#fff"/>`;
   root.innerHTML = `
-  <ellipse id="pShadow" cx="0" cy="2" rx="30" ry="5" fill="${INK}" opacity=".25"/>
+  <ellipse id="pShadow" cx="0" cy="2" rx="26" ry="5" fill="#c98a72" opacity=".35"/>
   <g id="pFlip"><g id="pBody">
-    <g id="pTail"><path d="M-26,-16 C-66,-18 -64,-76 -32,-70 C-46,-52 -36,-34 -18,-30 Z" fill="${FUR}"/>
-      <path d="M-30,-22 C-54,-28 -54,-58 -38,-64" fill="none" stroke="${DARK}" stroke-width="5" stroke-linecap="round"/></g>
-    <ellipse cx="-16" cy="-4" rx="11" ry="5.500" fill="${DARK}"/>
-    <ellipse cx="-4" cy="-24" rx="30" ry="22" fill="${FUR}"/>
-    <ellipse cx="4" cy="-15" rx="20" ry="12" fill="${CREAM}"/>
-    <g id="pStripes"><path class="s1" d="M-30,-32 Q-8,-52 18,-40" fill="none" stroke="${DARK}" stroke-width="5" stroke-linecap="round"/>
-      <path class="s2" d="M-32,-26 Q-8,-45 17,-34" fill="none" stroke="${CREAM}" stroke-width="3.500" stroke-linecap="round"/></g>
-    <ellipse cx="14" cy="-3" rx="8" ry="4.500" fill="${DARK}"/>
+    <g id="pTail"><path d="M8,-10 C56,-4 66,-58 40,-72 C24,-80 10,-62 24,-53 C36,-46 30,-28 8,-28Z" fill="${FUR}"/>
+      <path d="M22,-16 C46,-19 53,-52 37,-63" fill="none" stroke="${DARK}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M20,-23 C38,-27 43,-48 34,-56" fill="none" stroke="${CREAM}" stroke-width="3" stroke-linecap="round"/></g>
+    <ellipse cx="-11" cy="-3" rx="9" ry="5.500" fill="${FUR2}"/><ellipse cx="11" cy="-3" rx="9" ry="5.500" fill="${FUR2}"/>
+    <ellipse cx="0" cy="-19" rx="22" ry="20" fill="${FUR}"/>
+    <ellipse cx="0" cy="-16" rx="14" ry="14" fill="${CREAM}"/>
     <g id="pHead">
-      <ellipse cx="12" cy="-60" rx="6.500" ry="8.500" fill="${FUR}"/><ellipse cx="12.500" cy="-59" rx="3.200" ry="5" fill="#e9a48c"/>
-      <circle cx="24" cy="-42" r="19" fill="${FUR}"/>
-      <path d="M7,-49 Q24,-58 41,-48" fill="none" stroke="${DARK}" stroke-width="3.500" stroke-linecap="round"/>
-      <ellipse id="pCheek" cx="31" cy="-34" rx="11" ry="9" fill="${CREAM}"/>
-      <circle cx="42.500" cy="-40" r="2.600" fill="#8f3524"/>
-      <g id="pEyeOpen"><circle cx="30" cy="-45" r="3.600" fill="${INK}"/><circle cx="31.200" cy="-46.200" r="1.200" fill="${CREAM}"/></g>
-      <path id="pEyeShut" d="M26,-44 q4,3.500 8,0" fill="none" stroke="${INK}" stroke-width="2.400" stroke-linecap="round" display="none"/>
-      <path id="pBrow" d="M25,-51 l8,3" stroke="${INK}" stroke-width="2.200" stroke-linecap="round" display="none"/>
+      <circle cx="-25" cy="-80" r="10" fill="${FUR}"/><circle cx="-25" cy="-79" r="5.500" fill="#ffc2cc"/>
+      <circle cx="25" cy="-80" r="10" fill="${FUR}"/><circle cx="25" cy="-79" r="5.500" fill="#ffc2cc"/>
+      <ellipse cx="0" cy="-55" rx="37" ry="31" fill="${FUR}"/>
+      <g id="pStripes" stroke="${DARK}" stroke-linecap="round" fill="none"><path class="s1" d="M0,-85 L0,-73" stroke-width="7"/>
+        <path class="s2" d="M-13,-82.500 L-11,-73 M13,-82.500 L11,-73" stroke-width="5"/></g>
+      <ellipse id="pCheek" cx="0" cy="-45" rx="28" ry="18" fill="${CREAM}"/>
+      <ellipse cx="-26" cy="-44" rx="7" ry="4.500" fill="${PINK}" opacity=".8"/><ellipse cx="26" cy="-44" rx="7" ry="4.500" fill="${PINK}" opacity=".8"/>
+      <g id="pEyeOpen">${eye(-15)}${eye(15)}</g>
+      <path id="pEyeShut" d="M-21,-55 q6,5 12,0 M9,-55 q6,5 12,0" fill="none" stroke="${INK}" stroke-width="2.600" stroke-linecap="round" display="none"/>
+      <path id="pEyeHappy" d="M-21,-52 q6,-8 12,0 M9,-52 q6,-8 12,0" fill="none" stroke="${INK}" stroke-width="2.800" stroke-linecap="round" display="none"/>
+      <ellipse cx="0" cy="-49" rx="3" ry="2.200" fill="#e8718a"/>
+      <path id="pMouth" d="M-5,-45 q2.500,4 5,0 q2.500,4 5,0" fill="none" stroke="${INK}" stroke-width="1.900" stroke-linecap="round"/>
+      <path id="pMouthSad" d="M-4,-41.500 q4,-4 8,0" fill="none" stroke="${INK}" stroke-width="1.900" stroke-linecap="round" display="none"/>
+      <path id="pTear" d="M-23,-50 q-4,7 0,9 q4,-2 0,-9z" fill="#9fd8ff" display="none"/>
     </g>
-    <ellipse id="pArm" cx="20" cy="-20" rx="6" ry="4" fill="${DARK}"/>
-    <g id="pLeaf" display="none"><path d="M-40,-8 Q-10,-46 34,-10 Q0,6 -40,-8Z" fill="#7a9a56"/><path d="M-34,-9 Q0,-26 28,-10" stroke="#5d7a3f" stroke-width="2.500" fill="none"/></g>
+    <use id="pNut" href="#i-acorn" x="-9" y="-42" width="18" height="18" display="none"/>
+    <g id="pArms"><ellipse cx="-17" cy="-25" rx="5.500" ry="8" transform="rotate(24 -17 -25)" fill="${FUR2}"/><ellipse cx="17" cy="-25" rx="5.500" ry="8" transform="rotate(-24 17 -25)" fill="${FUR2}"/></g>
+    <g id="pLeaf" display="none"><path d="M-32,-2 Q-38,-36 0,-38 Q38,-36 32,-2 Q0,8 -32,-2Z" fill="#86d6a4"/><path d="M0,-36 V2 M0,-24 l-16,-6 M0,-14 l18,-8" stroke="#5fbf85" stroke-width="2.200" stroke-linecap="round" fill="none"/></g>
   </g></g>
-  <text id="pZzz" x="20" y="-70" font-family="Fredoka,sans-serif" font-weight="700" font-size="18" fill="${CREAM}" opacity="0">z</text>`;
-  const P = { flip: $('pFlip'), body: $('pBody'), tail: $('pTail'), head: $('pHead'), cheek: $('pCheek'), eyeO: $('pEyeOpen'), eyeS: $('pEyeShut'),
-    brow: $('pBrow'), leaf: $('pLeaf'), zzz: $('pZzz'), stripes: $('pStripes'), shadow: $('pShadow'), arm: $('pArm') };
+  <text id="pZzz" x="26" y="-84" font-family="Fredoka,sans-serif" font-weight="700" font-size="18" fill="#b9a5e8" opacity="0">z</text>`;
+  const P = { flip: $('pFlip'), body: $('pBody'), tail: $('pTail'), head: $('pHead'), cheek: $('pCheek'), eyeO: $('pEyeOpen'), eyeS: $('pEyeShut'), eyeH: $('pEyeHappy'),
+    mouth: $('pMouth'), mouthSad: $('pMouthSad'), tear: $('pTear'), nut: $('pNut'), arms: $('pArms'), leaf: $('pLeaf'), zzz: $('pZzz'), stripes: $('pStripes'), shadow: $('pShadow') };
   const LOOK = [ // per stage: overall scale, head scale, tail scale, stripes shown
-    { s: .5, h: 1.3, t: .6, st: 0 }, { s: .55, h: 1.32, t: .65, st: 0 }, { s: .7, h: 1.18, t: .8, st: 1 }, { s: .85, h: 1.08, t: .92, st: 2 }, { s: 1, h: 1, t: 1, st: 2 }];
+    { s: .62, h: 1.14, t: .55, st: 0 }, { s: .64, h: 1.14, t: .6, st: 0 }, { s: .78, h: 1.08, t: .78, st: 1 }, { s: .92, h: 1.03, t: .92, st: 2 }, { s: 1.06, h: 1, t: 1, st: 2 }];
 
-  const pet = { x: 180, y: 0, dir: 1, mode: 'idle', t: 0, wait: 1.5, target: 180, phase: 0, blink: 3, cheek: 0, squash: 0, after: null };
-  let state = null, clock = 0, zzzT = 0;
+  const pet = { x: 180, y: 0, dir: 1, mode: 'idle', t: 0, wait: 1.5, target: 180, phase: 0, blink: 3, cheek: 0, squash: 0, happy: 0, after: null };
+  let state = null, clock = 0, zzzT = 0, sparkT = 2;
   const parts = []; // falling acorns / hearts / sparks
 
   const sleeping = () => state.stage === 0 || state.hibernating || nightNow();
@@ -515,10 +530,10 @@ const Scene = (() => {
 
   function goto(x, then) { pet.target = Math.max(44, Math.min(316, x)); pet.dir = pet.target >= pet.x ? 1 : -1; pet.mode = 'walk'; pet.after = then || null; }
   function eat(n) { goto(BOWL_X, () => { pet.dir = 1; pet.mode = 'eat'; pet.t = Math.min(4.5, 1.2 + n * .25); }); }
-  function cheer() { pet.mode = 'jump'; pet.t = 1.1; }
+  function cheer() { pet.mode = 'jump'; pet.t = 1.1; pet.happy = 1.6; }
   function poke() {
     if (state.stage === 0 || state.hibernating) { Sfx.tick(); pet.squash = .12; return; }
-    Sfx.chirp(); pet.squash = .22; heart(pet.x, FLOOR - 80 * LOOK[state.stage].s);
+    Sfx.chirp(); pet.squash = .22; pet.happy = 1; heart(pet.x + rand(-14, 14), FLOOR - 98 * LOOK[state.stage].s);
     if (pet.mode === 'idle') { pet.wait = .8; }
   }
 
@@ -547,25 +562,33 @@ const Scene = (() => {
     pet.blink -= dt; if (pet.blink < -.13) pet.blink = rand(2.2, 5);
 
     // pose
-    const asleep = pet.mode === 'sleep', breathe = Math.sin(clock * (asleep ? 1.6 : 2.6)) * (asleep ? .035 : .018);
-    const sy = (asleep ? .8 : 1) * (1 + breathe - pet.squash), sx = (asleep ? 1.1 : 1) * (1 - breathe + pet.squash);
+    pet.happy = Math.max(0, pet.happy - dt);
+    const asleep = pet.mode === 'sleep', walking = pet.mode === 'walk', eating = pet.mode === 'eat';
+    const breathe = Math.sin(clock * (asleep ? 1.6 : 2.6)) * (asleep ? .035 : .02);
+    const sy = (asleep ? .93 : 1) * (1 + breathe - pet.squash), sx = (asleep ? 1.04 : 1) * (1 - breathe + pet.squash);
+    const waddle = walking ? Math.sin(pet.phase) * (sad ? 3 : 7) : 0;
     root.setAttribute('transform', `translate(${pet.x.toFixed(1)},${FLOOR})`);
     P.flip.setAttribute('transform', `translate(0,${pet.y.toFixed(1)}) scale(${(L.s * pet.dir).toFixed(3)},${L.s})`);
-    P.body.setAttribute('transform', `scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
-    P.shadow.setAttribute('rx', (30 * L.s * (1 + pet.y / 90)).toFixed(1));
-    const bob = pet.mode === 'eat' ? Math.sin(pet.phase) * 5 : sad && !asleep ? 5 : asleep ? 8 : 0;
-    P.head.setAttribute('transform', `translate(24,-42) rotate(${asleep ? 24 : bob * 2}) scale(${L.h}) translate(-24,${(42 + bob * .3).toFixed(1)})`);
-    P.tail.setAttribute('transform', `translate(-24,-18) rotate(${(asleep ? 38 : sad ? 30 : Math.sin(clock * 3) * 5).toFixed(1)}) scale(${L.t}) translate(24,18)`);
-    P.cheek.setAttribute('rx', (11 + pet.cheek * 5).toFixed(1)); P.cheek.setAttribute('ry', (9 + pet.cheek * 3.5).toFixed(1));
-    const shut = asleep || pet.blink < 0;
-    P.eyeO.setAttribute('display', shut ? 'none' : ''); P.eyeS.setAttribute('display', shut ? '' : 'none');
-    P.brow.setAttribute('display', sad && !asleep ? '' : 'none');
+    P.body.setAttribute('transform', `rotate(${waddle.toFixed(1)}) scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
+    P.shadow.setAttribute('rx', (26 * L.s * (1 + pet.y / 90)).toFixed(1));
+    const drop = eating ? Math.abs(Math.sin(pet.phase)) * 3 : sad && !asleep ? 4 : asleep ? 5 : 0;
+    const tilt = asleep ? 9 : eating ? 0 : walking ? -waddle * .5 : Math.sin(clock * 1.3) * 3;
+    P.head.setAttribute('transform', `translate(0,${(-30 + drop).toFixed(1)}) rotate(${tilt.toFixed(1)}) scale(${L.h}) translate(0,30)`);
+    P.tail.setAttribute('transform', `translate(10,-16) rotate(${(asleep ? 14 : sad ? 16 : Math.sin(clock * 3) * 6).toFixed(1)}) scale(${L.t}) translate(-10,16)`);
+    P.cheek.setAttribute('rx', (28 + pet.cheek * 6).toFixed(1)); P.cheek.setAttribute('ry', (18 + pet.cheek * 2).toFixed(1));
+    const shut = asleep || pet.blink < 0, glad = !shut && (pet.happy > 0 || pet.mode === 'jump');
+    P.eyeO.setAttribute('display', shut || glad ? 'none' : ''); P.eyeS.setAttribute('display', shut ? '' : 'none'); P.eyeH.setAttribute('display', glad ? '' : 'none');
+    const glum = sad && !asleep && !glad && !eating;
+    P.mouth.setAttribute('display', glum ? 'none' : ''); P.mouthSad.setAttribute('display', glum ? '' : 'none'); P.tear.setAttribute('display', glum ? '' : 'none');
+    P.nut.setAttribute('display', eating ? '' : 'none');
+    P.arms.setAttribute('transform', eating ? `translate(0,${(-9 + drop).toFixed(1)}) scale(.7,1)` : glad ? 'translate(0,-6)' : '');
     P.leaf.setAttribute('display', state.stage === 0 ? '' : 'none');
     P.stripes.querySelector('.s1').setAttribute('display', L.st >= 1 ? '' : 'none');
     P.stripes.querySelector('.s2').setAttribute('display', L.st >= 2 ? '' : 'none');
-    P.flip.style.filter = state.hibernating ? 'saturate(.35) brightness(1.12) hue-rotate(160deg)' : '';
-    if (asleep) { zzzT += dt; const u = zzzT % 2.4 / 2.4; P.zzz.setAttribute('opacity', (Math.sin(u * Math.PI) * .9).toFixed(2)); P.zzz.setAttribute('transform', `translate(${u * 14},${-u * 26}) scale(${.7 + u * .6})`); }
+    P.flip.style.filter = state.hibernating ? 'saturate(.35) brightness(1.08) hue-rotate(170deg)' : '';
+    if (asleep) { zzzT += dt; const u = zzzT % 2.4 / 2.4; P.zzz.setAttribute('opacity', (Math.sin(u * Math.PI) * .9).toFixed(2)); P.zzz.setAttribute('transform', `translate(${u * 14},${-u * 26}) scale(${(L.s * (.7 + u * .6)).toFixed(2)})`); }
     else P.zzz.setAttribute('opacity', 0);
+    sparkT -= dt; if (sparkT <= 0 && !reduceMotion) { sparkT = rand(1.2, 2.6); sparkle(rand(30, 330), rand(120, 320)); }
 
     // particles
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -590,8 +613,10 @@ const Scene = (() => {
     for (let i = 0; i < n; i++) { const a = rand(0, 6.28), v = rand(70, 210), e = el('circle', { r: rand(2.5, 5), fill: colors[i % colors.length] }, $('fx'));
       parts.push({ e, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 90, g: 420, rot: 0, vr: 0, s: 1, life: rand(.6, 1.1) }); }
   }
-  function heart(x, y) { const e = el('path', { d: 'M0,4 C-9,-4 -5,-11 0,-6 C5,-11 9,-4 0,4Z', fill: '#c8553d', stroke: '#f6e9d3', 'stroke-width': 1.5 }, $('fx'));
+  function heart(x, y) { const e = el('path', { d: 'M0,4 C-9,-4 -5,-11 0,-6 C5,-11 9,-4 0,4Z', fill: '#ff7b93', stroke: '#fff', 'stroke-width': 1.5 }, $('fx'));
     parts.push({ e, x, y, vx: rand(-12, 12), vy: -46, g: 0, rot: 0, vr: 0, s: 1.3, life: 1 }); }
+  function sparkle(x, y) { const e = el('path', { d: 'M0,-6 Q1,-1 6,0 Q1,1 0,6 Q-1,1 -6,0 Q-1,-1 0,-6Z', fill: Math.random() < .5 ? '#ffe08a' : '#ffc2cc', opacity: .9 }, $('fxBack'));
+    parts.push({ e, x, y, vx: 0, vy: -10, g: 0, rot: 0, vr: 60, s: rand(.5, 1), life: 1.4 }); }
   function floater(txt, x, y) { const e = el('text', { class: 'floater' }, $('fx')); e.textContent = txt; parts.push({ e, x, y, vx: 0, vy: -38, g: 0, rot: 0, vr: 0, s: 1, life: 1.5 }); }
 
   function bowl(belly) { // 0-6 acorns heaped in the bowl
@@ -601,19 +626,26 @@ const Scene = (() => {
   }
   function sky() {
     const h = new Date().getHours() + new Date().getMinutes() / 60, night = h >= 20.5 || h < 5.5, dusk = !night && (h >= 18.5 || h < 7);
-    $('sky').setAttribute('fill', night ? '#27325a' : dusk ? '#f0b98a' : '#bfe0e6');
-    $('orb').setAttribute('fill', night ? '#f6e9d3' : '#ffe08a'); $('orb').setAttribute('cy', night ? 132 : dusk ? 168 : 132);
-    $('hill').setAttribute('fill', night ? '#3f5440' : '#7a9a56');
-    $('nightTint').setAttribute('opacity', night ? .28 : dusk ? .08 : 0);
+    $('sky').setAttribute('fill', night ? '#6a68b0' : dusk ? '#ffd1b8' : '#c9ecff');
+    $('orb').setAttribute('fill', night ? '#fffbe6' : '#ffe08a'); $('orb').setAttribute('cy', dusk ? 176 : 142);
+    $('cloud').setAttribute('display', night ? 'none' : ''); $('stars').setAttribute('display', night ? '' : 'none');
+    $('hill').setAttribute('fill', night ? '#8fb7b0' : '#b8e6c0');
+    $('nightTint').setAttribute('opacity', night ? .2 : dusk ? .05 : 0);
+  }
+  function bunting() { // pastel flags along a sagging string
+    const g = $('bunting'), cols = ['#ff9db0', '#ffc857', '#86d6a4', '#9fd8ff', '#c9b6f2'], q = t => [36 + 288 * t, 88 + 4 * 34 * t * (1 - t)];
+    el('path', { d: 'M36,88 Q180,156 324,88', fill: 'none', stroke: '#f0b79f', 'stroke-width': 2 }, g);
+    for (let i = 0; i < 9; i++) { if (i === 4) continue; const [x, y] = q((i + .5) / 9), [x2, y2] = q((i + .5) / 9 + .01), a = Math.atan2(y2 - y, x2 - x) * 57.3;
+      el('path', { d: 'M-9,0 H9 L0,17Z', fill: cols[i % 5], transform: `translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${a.toFixed(1)})`, 'stroke-linejoin': 'round', stroke: cols[i % 5], 'stroke-width': 2 }, g); }
   }
   function start(s) {
-    state = s; sky(); setInterval(sky, 60000); let last = performance.now();
+    state = s; bunting(); sky(); setInterval(sky, 60000); let last = performance.now();
     if (sleeping()) { pet.x = BED_X; pet.mode = 'sleep'; }
     const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; update(dt); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
     $('pet').addEventListener('pointerdown', poke);
   }
-  return { start, use(s) { state = s; }, eat, cheer, acornRain, burst, floater, bowl, pet, FLOOR, get petTop() { return FLOOR - 78 * LOOK[state.stage].s; } };
+  return { start, use(s) { state = s; }, eat, cheer, acornRain, burst, floater, bowl, pet, FLOOR, get petTop() { return FLOOR - 60 * LOOK[state.stage].s; } };
 })();
 
 /* ================================== UI ================================ */
@@ -783,7 +815,7 @@ $('undoBtn').addEventListener('click', () => { if (!undoSnap) return; S = JSON.p
 function celebrate(h, p, askName) {
   $('celeH').textContent = h; $('celeP').textContent = p; $('nameIn').style.display = askName ? '' : 'none';
   if (askName) { $('nameIn').value = S.name || 'Pip'; $('celeBtn').textContent = 'Welcome home'; } else $('celeBtn').textContent = 'Yay';
-  $('cele').classList.add('on'); Sfx.grow(); Scene.burst(Scene.pet.x, Scene.petTop, 22, ['#e2a93b', '#f6e9d3', '#7a9a56', '#c8553d']); $('toast').classList.remove('on');
+  $('cele').classList.add('on'); Sfx.grow(); Scene.burst(Scene.pet.x, Scene.petTop, 24, ['#ffc857', '#ff9db0', '#86d6a4', '#9fd8ff', '#c9b6f2']); $('toast').classList.remove('on');
 }
 $('celeBtn').addEventListener('click', () => {
   if ($('nameIn').style.display !== 'none') { S.name = ($('nameIn').value.trim() || 'Pip').slice(0, 14); save(); }
