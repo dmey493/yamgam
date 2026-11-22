@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffe9c9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1830" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Zuzu the milk zebra: log how much each baby drank, see the daily goal grow with them, and get a 7-day Milk Forecast of what to thaw.">
+<title>Zuzu · Milk Zebra</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  ZUZU · MILK ZEBRA — feed tracker + Milk Forecast (phone app)
+  ═══════════════════════════════════════════════════════════════════
+  For parents of one, two or three babies. Each baby gets a zebra foal
+  that fills with milk (and earns its stripes) as the day's feeds are
+  logged. After a feed you drag the milk in a bottle to how much was
+  actually drunk (ml / oz, with % of the bottle shown alongside).
+
+  Tabs: Today    (foals, next feed, today's feeds, the week)
+        Forecast (7-day Milk Forecast: what to thaw / mix each day,
+                  tonight's freezer-to-fridge job, freezer stash)
+        Grow     (how the daily goal is worked out, weight log,
+                  the months-ahead outlook, feeding plan, doctor's number)
+        More     (units, sounds, babies, backup, sources)
+
+  HOW THE DAILY GOAL IS WORKED OUT (all in target() below)
+    · A number from the baby's own care team always wins.
+    · Otherwise weight-based, which is how the guidance is written:
+        formula      ≈ 165 ml/kg/day (AAP: 2½ oz per lb), max ≈ 960 ml
+        breast milk  ≈ 150 ml/kg/day while small, levelling off around
+                       750 ml/day (typical 570–900) from ~1 to 6 months
+        first week   ramps up from ≈ 60 ml/kg/day on day 1
+        with solids  eases down: ≈ 650 ml at 9 mo, ≈ 500 ml at 12 mo
+      Mixed feeding blends the two by the share of formula bottles.
+    · No weight entered → a typical weight for (adjusted) age is used
+      and the app says so. Weight is projected forward from the baby's
+      own recent gain, else a typical gain for age, so the goal and the
+      forecast grow with the baby.
+    · Nursing can't be measured; a nursing feed counts as an estimate.
+  Sources: AAP/HealthyChildren "Amount and Schedule of Formula
+  Feedings"; KellyMom / LactEd intake studies (1–6 mo); NHS formula
+  guidance (150–200 ml/kg); CDC "Breast Milk Storage and Preparation".
+  This is a tracker, not medical advice.
+
+  Storage: localStorage on the phone only. Backup = one JSON file.
+  Single file, no build step. Fredoka + Nunito. Web Audio sounds.
+  ═══════════════════════════════════════════════════════════════════
+-->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F993;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fff7ea; --card:#ffffff; --ink:#2d2838; --soft:#6f6880; --line:#efe4d3;
+  --sky1:#ffd9a8; --sky2:#ffeccd; --hill1:#bfe3a8; --hill2:#9fd68f; --sun:#ffb347;
+  --milk:#fffdf6; --glass:#d6d2e6; --accent:#ff7a6b; --good:#2aa889;
+  --shadow:0 6px 20px rgba(80,50,20,.10);
+  --zink:#2d2838;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1b1830; --card:#272342; --ink:#f4efff; --soft:#b0a8cc; --line:#383258;
+    --shadow:0 6px 20px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:16px;line-height:1.4;overscroll-behavior-y:none}
+h1,h2,h3,.fd{font-family:Fredoka,system-ui,sans-serif;font-weight:600;margin:0}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:10px 12px;width:100%;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+#app{max-width:480px;margin:0 auto;min-height:100%;position:relative;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top)) 16px 6px}
+.top h1{font-size:22px}
+.top small{display:block;color:var(--soft);font-family:Nunito;font-weight:700;font-size:13px}
+.iconbtn{width:42px;height:42px;border-radius:50%;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center}
+.iconbtn svg{width:22px;height:22px}
+svg.ic{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+main{padding:0 16px}
+.card{background:var(--card);border-radius:22px;padding:16px;box-shadow:var(--shadow);margin:14px 0;animation:rise .45s cubic-bezier(.2,.9,.3,1.2) both}
+.card:nth-child(2){animation-delay:.05s}.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}.card:nth-child(5){animation-delay:.2s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+.card h2{font-size:17px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card h2 small{font-family:Nunito;font-weight:700;font-size:12.5px;color:var(--soft)}
+.muted{color:var(--soft);font-size:13.5px}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;background:var(--bg);border:2px solid var(--line);font-weight:800;font-size:14px;transition:transform .15s,background .2s,border-color .2s}
+.pill:active{transform:scale(.94)}
+.pill.on{background:var(--c,var(--accent));border-color:transparent;color:#fff}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.btn{display:block;width:100%;padding:15px;border-radius:18px;background:var(--ink);color:var(--bg);font-family:Fredoka;font-weight:600;font-size:18px;transition:transform .12s;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn.alt{background:var(--bg);color:var(--ink);border:2px solid var(--line)}
+.btn.c{background:var(--c,var(--accent));color:#fff}
+.link{color:var(--soft);font-weight:800;text-decoration:underline;font-size:14px;padding:10px}
+.seg{display:flex;background:var(--bg);border-radius:14px;padding:4px;gap:4px;border:2px solid var(--line)}
+.seg button{flex:1;padding:9px 6px;border-radius:10px;font-weight:800;font-size:14px;transition:background .2s,color .2s}
+.seg button.on{background:var(--ink);color:var(--bg)}
+label.f{display:block;font-weight:800;font-size:13px;color:var(--soft);margin:12px 0 5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── hero scene ── */
+.scene{position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(var(--sky1),var(--sky2) 70%);box-shadow:var(--shadow);padding:54px 8px 0;margin-top:8px;isolation:isolate}
+.scene.night{--sky1:#2a2556;--sky2:#4b3f7d;--hill1:#3f5d6b;--hill2:#2f4a59;--sun:#fff3c4}
+.sun{position:absolute;top:18px;right:26px;width:54px;height:54px;border-radius:50%;background:var(--sun);box-shadow:0 0 0 10px color-mix(in srgb,var(--sun) 25%,transparent),0 0 0 22px color-mix(in srgb,var(--sun) 12%,transparent);animation:pulse 5s ease-in-out infinite;z-index:-1}
+.night .sun{box-shadow:0 0 30px #fff3c488}
+.night .sun::after{content:"";position:absolute;top:-6px;left:14px;width:48px;height:48px;border-radius:50%;background:#332c63}
+@keyframes pulse{50%{transform:scale(1.07)}}
+.cloud{position:absolute;top:26px;left:-90px;width:74px;height:24px;border-radius:99px;background:#fff;opacity:.75;animation:drift 38s linear infinite;z-index:-1}
+.cloud::before{content:"";position:absolute;width:34px;height:30px;border-radius:50%;background:inherit;left:14px;top:-14px}
+.cloud.b{top:64px;transform:scale(.7);animation-duration:55s;animation-delay:-20s}
+.night .cloud{opacity:.15}
+@keyframes drift{to{left:110%}}
+.star{position:absolute;width:4px;height:4px;border-radius:50%;background:#fff;animation:twinkle 2.4s ease-in-out infinite;z-index:-1}
+@keyframes twinkle{50%{opacity:.2;transform:scale(.6)}}
+.hills{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:-1}
+.bubble{position:relative;margin:0 14px 6px;background:var(--card);border-radius:18px;padding:11px 14px;font-weight:700;font-size:14.5px;box-shadow:var(--shadow);animation:pop .5s cubic-bezier(.2,1.4,.4,1) both}
+.bubble::after{content:"";position:absolute;bottom:-8px;left:50%;margin-left:-9px;width:18px;height:18px;background:var(--card);transform:rotate(45deg);border-radius:4px}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.foals{display:flex;justify-content:center;align-items:flex-end;gap:2px}
+.foal{flex:1;max-width:210px;display:flex;flex-direction:column;align-items:center;padding-bottom:12px;transition:transform .2s}
+.foal:active{transform:scale(.95)}
+.foal svg{width:100%;max-width:190px;height:auto;overflow:visible}
+.tag{margin-top:4px;background:var(--card);border-radius:16px;padding:6px 12px;text-align:center;box-shadow:var(--shadow);border-bottom:4px solid var(--c);min-width:104px}
+.tag b{font-family:Fredoka;font-weight:600;font-size:16px;display:block}
+.tag span{font-size:12.5px;font-weight:800;color:var(--soft)}
+.tag i{font-style:normal;color:var(--c);font-family:Fredoka;font-weight:700}
+
+/* ── zebra ── */
+.z-all{animation:bob 3.2s ease-in-out infinite;transform-origin:100px 214px}
+@keyframes bob{50%{transform:scale(1.015,.975)}}
+.z-tail{transform-origin:146px 176px;animation:wag 1.6s ease-in-out infinite}
+@keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(14deg)}}
+.z-ear{transform-origin:62px 50px;animation:twitch 6s ease-in-out infinite}
+.z-ear.r{transform-origin:138px 50px;animation-delay:-2.6s}
+@keyframes twitch{0%,90%,100%{transform:rotate(0)}94%{transform:rotate(-12deg)}97%{transform:rotate(5deg)}}
+.z-eyes{transform-origin:100px 80px;animation:blink 4.5s infinite}
+@keyframes blink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
+.z-wave{animation:wave 2.6s linear infinite}
+@keyframes wave{to{transform:translateX(-100px)}}
+.z-happy,.z-sleep,.z-zz{display:none}
+.zebra.happy .z-eyes,.zebra.sleepy .z-eyes{display:none}
+.zebra.happy .z-happy{display:block}
+.zebra.sleepy .z-sleep,.zebra.sleepy .z-zz{display:block}
+.z-zz text{font-family:Fredoka;font-weight:700;fill:var(--ink);animation:zz 2.8s ease-in-out infinite;opacity:0}
+.z-zz text:nth-child(2){animation-delay:.9s}
+@keyframes zz{20%{opacity:.8}80%,100%{opacity:0;transform:translate(10px,-18px)}}
+.zebra.sleepy .z-tail{animation-duration:4s}
+.zebra.jump{animation:jump .62s cubic-bezier(.3,0,.4,1) 3}
+@keyframes jump{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-34px) rotate(-7deg)}55%{transform:translateY(-38px) rotate(7deg)}85%{transform:translateY(0) scale(1.06,.92)}}
+.zebra.nod{animation:nod .5s ease-in-out 2}
+@keyframes nod{50%{transform:rotate(5deg) translateY(3px)}}
+.zebra.dance{animation:dance .8s ease-in-out infinite}
+@keyframes dance{0%,100%{transform:rotate(-7deg) translateY(0)}25%{transform:rotate(0) translateY(-22px)}50%{transform:rotate(7deg) translateY(0)}75%{transform:rotate(0) translateY(-22px)}}
+
+/* ── lists ── */
+.feed{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:2px dashed var(--line);width:100%;text-align:left}
+.feed:first-of-type{border-top:0}
+.feed .t{font-family:Fredoka;font-weight:500;width:62px;font-size:14px;color:var(--soft);flex:none}
+.feed .pct{font-family:Fredoka;font-weight:600;font-size:13px;padding:4px 9px;border-radius:99px;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);flex:none}
+.week{display:flex;gap:6px;align-items:flex-end;height:96px}
+.week .d{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;font-size:12px;font-weight:800;color:var(--soft)}
+.week .bars{display:flex;gap:3px;align-items:flex-end;height:72px;width:100%;justify-content:center;border-bottom:2px solid var(--line)}
+.week .bar{width:9px;border-radius:6px 6px 0 0;background:var(--c);transform-origin:bottom;animation:growbar .7s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes growbar{from{transform:scaleY(0)}}
+.week .d.today{color:var(--ink)}
+
+/* ── nav ── */
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:flex;justify-content:space-around;align-items:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(60,40,10,.10);z-index:20}
+nav button.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;font-weight:800;color:var(--soft);padding:6px 0;transition:color .2s}
+nav button.tab svg{width:24px;height:24px;transition:transform .3s cubic-bezier(.2,1.6,.4,1)}
+nav button.tab.on{color:var(--ink)}
+nav button.tab.on svg{transform:translateY(-3px) scale(1.15)}
+.fab{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;margin-top:-34px;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 50%,transparent);border:5px solid var(--bg);flex:none;transition:transform .15s;animation:fabpulse 3s ease-in-out infinite}
+.fab:active{transform:scale(.9) rotate(90deg)}
+.fab svg{width:30px;height:30px;stroke-width:3}
+@keyframes fabpulse{50%{box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 50%,transparent),0 0 0 9px color-mix(in srgb,var(--accent) 16%,transparent)}}
+
+/* ── sheet ── */
+.scrim{position:fixed;inset:0;background:rgba(30,20,40,.45);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;bottom:0;width:100%;max-width:480px;max-height:94dvh;overflow:auto;background:var(--card);border-radius:28px 28px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));z-index:41;transform:translate(-50%,105%);transition:transform .38s cubic-bezier(.2,.9,.25,1.05)}
+.sheet.on{transform:translate(-50%,0)}
+.sheet .grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 10px}
+.sheet h2{font-size:20px;margin-bottom:10px}
+
+/* ── bottle ── */
+.pour{display:flex;align-items:center;gap:6px;margin:10px 0 6px}
+.bottle{width:44%;max-width:170px;flex:none;touch-action:none;cursor:ns-resize;user-select:none}
+.bottle svg{width:100%;height:auto;display:block;overflow:visible}
+.bottle:focus-visible{outline:3px solid var(--c);border-radius:20px}
+.readout{flex:1;text-align:center;min-width:0}
+.readout .big{font-family:Fredoka;font-weight:700;font-size:46px;line-height:1;color:var(--c)}
+.readout .big small{font-size:20px;font-weight:600}
+.readout .sub{font-weight:800;color:var(--soft);margin-top:2px}
+.readout svg{width:120px;margin:6px auto -6px;display:block;overflow:visible}
+.chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.chips .pill{padding:6px 11px;font-size:13px}
+.stepper{display:flex;align-items:center;gap:8px;justify-content:space-between;background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:5px}
+.stepper button{width:38px;height:38px;border-radius:10px;background:var(--card);font-family:Fredoka;font-weight:700;font-size:22px;box-shadow:0 2px 6px rgba(0,0,0,.08);transition:transform .1s;flex:none}
+.stepper button:active{transform:scale(.85)}
+.stepper b{font-family:Fredoka;font-weight:600;white-space:nowrap}
+
+/* ── celebrate ── */
+.cele{position:fixed;inset:0;z-index:60;display:none;place-items:center;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(6px);text-align:center;padding:24px;overflow:hidden}
+.cele.on{display:grid;animation:fade .25s}
+@keyframes fade{from{opacity:0}}
+.cele .box{max-width:360px;width:100%}
+.cele svg.zebra{width:210px;overflow:visible}
+.cele h2{font-size:30px;margin:6px 0 4px;animation:pop .5s .15s cubic-bezier(.2,1.5,.4,1) both}
+.cele p{margin:0 0 18px;font-weight:700;color:var(--soft)}
+.cele .btn{margin-top:10px}
+.bit{position:absolute;top:-30px;animation:fall linear forwards;pointer-events:none}
+@keyframes fall{to{transform:translateY(110vh) rotate(540deg)}}
+.heart{position:absolute;bottom:35%;font-size:22px;animation:floatup 1.8s ease-out forwards;pointer-events:none}
+@keyframes floatup{to{transform:translateY(-240px) scale(1.5);opacity:0}}
+
+/* ── forecast ── */
+.fc{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:2px dashed var(--line);animation:slidein .5s cubic-bezier(.2,.9,.3,1.1) both}
+.fc:first-of-type{border-top:0}
+@keyframes slidein{from{opacity:0;transform:translateX(26px)}}
+.fc .day{width:52px;flex:none;text-align:center;font-family:Fredoka;font-weight:600;line-height:1.1}
+.fc .day small{display:block;font-family:Nunito;font-weight:800;color:var(--soft);font-size:11.5px}
+.fc .amt{font-family:Fredoka;font-weight:600;font-size:19px;white-space:nowrap}
+.fc .meter{height:10px;border-radius:9px;background:var(--bg);overflow:hidden;display:flex;margin-top:5px}
+.fc .meter i{display:block;height:100%;background:var(--c);transform-origin:left;animation:growx .8s cubic-bezier(.2,.9,.3,1) both}
+@keyframes growx{from{transform:scaleX(0)}}
+.bags{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.bag{width:15px;height:20px;border-radius:3px 3px 6px 6px;background:var(--glass);border:2px solid var(--zink);position:relative;overflow:hidden;animation:pop .4s cubic-bezier(.2,1.6,.4,1) both}
+.bag::after{content:"";position:absolute;left:0;right:0;bottom:0;height:62%;background:var(--milk)}
+.presenter{display:flex;align-items:center;gap:4px}
+.presenter svg{width:120px;flex:none;overflow:visible}
+.presenter .bubble{margin:0;flex:1}
+.presenter .bubble::after{left:-2px;bottom:50%;margin:0 0 -9px}
+.presenter .bubble b.big{font-family:Fredoka;font-size:24px;display:block;line-height:1.15}
+.check{display:flex;align-items:center;gap:10px;font-weight:800;margin-top:12px;padding:12px 14px;border-radius:16px;background:var(--bg);border:2px solid var(--line);width:100%;text-align:left;transition:background .25s,border-color .25s}
+.check .box{width:26px;height:26px;border-radius:9px;border:3px solid var(--soft);display:grid;place-items:center;flex:none;transition:all .25s cubic-bezier(.2,1.6,.4,1)}
+.check.on{background:color-mix(in srgb,var(--good) 14%,transparent);border-color:var(--good)}
+.check.on .box{background:var(--good);border-color:var(--good);transform:scale(1.12)}
+.check .box svg{width:16px;height:16px;stroke:#fff;stroke-width:4;opacity:0}
+.check.on .box svg{opacity:1}
+ul.tips{margin:0;padding-left:20px;font-size:14px}
+ul.tips li{margin:5px 0}
+a{color:inherit}
+.math{background:var(--bg);border-radius:14px;padding:12px;font-size:14px;font-weight:700}
+.math b{font-family:Fredoka;font-size:28px;color:var(--c);display:block;line-height:1.1}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;text-align:right;border-top:2px dashed var(--line)}
+th{font-size:12px;color:var(--soft);border-top:0}
+td:first-child,th:first-child{text-align:left;font-weight:800}
+.note{background:color-mix(in srgb,var(--sun) 22%,transparent);border-radius:14px;padding:11px 13px;font-size:13.5px;font-weight:700;margin-top:10px}
+.onb{padding:20px 4px 30px;text-align:center}
+.onb svg.zebra{width:170px;overflow:visible}
+.onb .card{text-align:left}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div><h1 id="title">Zuzu</h1><small id="sub"></small></div>
+    <button class="iconbtn" id="snd" aria-label="Toggle sounds"></button>
+  </div>
+  <main id="view"></main>
+  <nav id="nav"></nav>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="cele" id="cele"></div>
+
+<script>
+'use strict';
+/* ════════════ helpers ════════════ */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAY=864e5, OZ=29.5735, LB=0.45359237;
+const COLORS=['#ff7a6b','#2bb3a3','#8d7bea','#f2a71b','#4c9bea','#e86aa6'];
+const uid=()=>Math.random().toString(36).slice(2,9);
+const pad=n=>String(n).padStart(2,'0');
+const dayKey=d=>{d=new Date(d);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const parseDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const startOf=d=>{d=new Date(d);d.setHours(0,0,0,0);return d};
+const addDays=(d,n)=>{d=new Date(d);d.setDate(d.getDate()+n);return d};
+const daysBetween=(a,b)=>Math.round((startOf(b)-startOf(a))/DAY);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const timeStr=t=>new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const ICON={
+  home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  cloud:'<path d="M7 15a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.5A3.3 3.3 0 0 1 17.5 15z"/><path d="M9 19v1M13 18.5v2.5M17 19v1"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  grow:'<path d="M12 21v-9m0 0c0-4-3-6-7-6 0 4 3 6 7 6zm0-2c0-3 2-5 6-5 0 3-2 5-6 5z"/>',
+  more:'<path d="M4 7h8M18 7h2M4 17h2M12 17h8"/><circle cx="15" cy="7" r="2.5"/><circle cx="9" cy="17" r="2.5"/>',
+  sndOn:'<path d="M4 10v4h4l5 4V6l-5 4z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11"/>',
+  sndOff:'<path d="M4 10v4h4l5 4V6l-5 4z"/><path d="M17 9.5l5 5M22 9.5l-5 5"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+};
+const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+
+/* ════════════ state ════════════ */
+const KEY='milkzebra.v1';
+let S=null;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+function blank(){return{v:1,unit:'ml',wUnit:'kg',sound:true,quietNights:true,bagMl:150,bufferPct:5,stashMl:null,thawed:{},babies:[],feeds:[],sel:null}}
+let tab='today';
+const baby=id=>S.babies.find(b=>b.id===id)||S.babies[0];
+
+/* ════════════ units ════════════ */
+function amt(ml,unit=true){
+  if(S.unit==='oz'){const v=(ml/OZ).toFixed(1).replace(/\.0$/,'');return v+(unit?' oz':'')}
+  return Math.round(ml)+(unit?' ml':'');
+}
+const goalAmt=ml=>amt(S.unit==='oz'?ml:Math.round(ml/10)*10);
+const stepMl=()=>S.unit==='oz'?OZ/4:5;          // slider snap
+const bigStep=()=>S.unit==='oz'?OZ/2:10;        // bottle-size stepper
+function fmtW(kg){
+  if(S.wUnit==='lb'){const t=Math.round(kg/LB*16);return Math.floor(t/16)+' lb '+(t%16)+' oz'}
+  return kg.toFixed(2)+' kg';
+}
+function weightFields(p,kg){
+  if(S.wUnit==='lb'){const t=kg?Math.round(kg/LB*16):null;
+    return `<div class="two"><input id="${p}lb" type="number" inputmode="decimal" min="0" placeholder="lb" value="${t!=null?Math.floor(t/16):''}"><input id="${p}oz" type="number" inputmode="decimal" min="0" max="15.9" placeholder="oz" value="${t!=null?t%16:''}"></div>`}
+  return `<input id="${p}kg" type="number" inputmode="decimal" step="0.01" min="0" placeholder="kg, e.g. 4.25" value="${kg?kg.toFixed(2):''}">`;
+}
+function readWeight(p){
+  let kg;
+  if(S.wUnit==='lb'){const l=parseFloat($('#'+p+'lb').value)||0,o=parseFloat($('#'+p+'oz').value)||0;kg=(l+o/16)*LB}
+  else kg=parseFloat($('#'+p+'kg').value)||0;
+  return kg>0.4&&kg<30?kg:null;
+}
+
+/* ════════════ the guideline engine ════════════ */
+const ageDays=(b,d)=>daysBetween(parseDay(b.birth),d);
+const adjDays=(b,d)=>ageDays(b,d)-(b.weeksEarly||0)*7;
+function ageLabel(b,d=new Date()){
+  const a=ageDays(b,d); if(a<0)return 'not born yet';
+  let s=a<14?a+' day'+(a===1?'':'s'):a<84?Math.floor(a/7)+' weeks':Math.floor(a/30.44)+' months';
+  if(b.weeksEarly>0){const j=adjDays(b,d);s+=' · '+(j<0?Math.ceil(-j/7)+' wk to due date':(j<84?Math.floor(j/7)+' wk':Math.floor(j/30.44)+' mo')+' adjusted')}
+  return s;
+}
+// typical weight (kg) by adjusted age in months — average of WHO girl/boy medians
+const WT=[[0,3.3],[1,4.4],[2,5.4],[3,6.1],[4,6.7],[5,7.2],[6,7.6],[9,8.6],[12,9.3],[18,10.6],[24,11.8]];
+function typicalWeight(adj){
+  if(adj<0)return Math.max(1,3.3+adj*0.026);
+  const m=adj/30.44;
+  for(let i=1;i<WT.length;i++)if(m<=WT[i][0]){const [a,x]=WT[i-1],[c,y]=WT[i];return x+(y-x)*(m-a)/(c-a)}
+  return 11.8;
+}
+const typicalGain=adj=>adj<0?.026:adj<90?.028:adj<180?.019:.011;   // kg/day
+function weightAt(b,date){
+  const logs=[...(b.weights||[])].sort((x,y)=>x.d<y.d?-1:1);
+  if(!logs.length)return{kg:typicalWeight(adjDays(b,date)),est:true,typical:true};
+  const k=dayKey(date);
+  if(k<=logs[0].d)return{kg:logs[0].kg,est:k<logs[0].d};
+  for(let i=1;i<logs.length;i++)if(k<=logs[i].d){
+    const a=logs[i-1],c=logs[i],f=daysBetween(parseDay(a.d),date)/Math.max(1,daysBetween(parseDay(a.d),parseDay(c.d)));
+    return{kg:a.kg+(c.kg-a.kg)*f,est:k!==c.d};
+  }
+  const last=logs[logs.length-1],n=daysBetween(parseDay(last.d),date);
+  if(n===0)return{kg:last.kg,est:false};
+  let slope=null;
+  if(logs.length>1){const p=logs[logs.length-2],dd=daysBetween(parseDay(p.d),parseDay(last.d));if(dd>=5)slope=clamp((last.kg-p.kg)/dd,.005,.045)}
+  let kg=last.kg;const a0=adjDays(b,parseDay(last.d));
+  for(let i=0;i<n;i++)kg+=(slope!=null&&i<30)?slope:typicalGain(a0+i);
+  return{kg,est:true,stale:n};
+}
+const feedsPerDay=b=>Math.max(1,b.plan.bm+b.plan.fo+b.plan.nu);
+function target(b,date=new Date()){
+  const fpd=feedsPerDay(b);
+  if(b.override>0)return{ml:b.override,src:'doctor',per:b.override/fpd,why:`Your care team's number: ${goalAmt(b.override)} a day.`};
+  const a=Math.max(0,ageDays(b,date)),adj=adjDays(b,date),W=weightAt(b,date);
+  const ramp=k=>a<7?60+(k-60)*a/7:k;
+  const bmRaw=ramp(150)*W.kg,foRaw=ramp(165)*W.kg;
+  const bm=Math.min(bmRaw,750),fo=Math.min(foRaw,960);
+  const fs=b.plan.fo/fpd;
+  let ml=fs*fo+(1-fs)*bm;
+  const perKg=Math.round(fs*ramp(165)+(1-fs)*ramp(150));
+  let why=`${fmtW(W.kg)}${W.typical?' (typical for age — add a real weight!)':W.est?' (estimated)':''} × ${perKg} ml per kg`;
+  if(a<7)why+=' (first-week ramp)';
+  if(ml<fs*foRaw+(1-fs)*bmRaw-1)why+=fs>=.99?', capped near 960 ml':', levelling off around 750 ml as breast-milk intake does from 1–6 months';
+  if(b.solids&&adj>=182){const m=adj/30.44,cap=m<=9?900-(m-6)/3*250:Math.max(500,650-(m-9)/3*150);
+    if(cap<ml){ml=cap;why+=', easing down as solids take over'}}
+  return{ml,src:'guide',per:ml/fpd,why:why+'.',W,low:ml*.85,high:ml*1.15};
+}
+
+/* ════════════ feeds ════════════ */
+const feedsOn=(bid,date)=>{const a=+startOf(date),z=a+DAY;return S.feeds.filter(f=>f.b===bid&&f.t>=a&&f.t<z)};
+const drankOn=(bid,date)=>feedsOn(bid,date).reduce((s,f)=>s+f.ml,0);
+const KIND={bm:'Breast milk bottle',fo:'Formula bottle',nu:'Nursing'};
+const KSHORT={bm:'Breast milk',fo:'Formula',nu:'Nursing'};
+
+/* ════════════ zebra ════════════ */
+function zebraSVG(id,color,cls=''){
+  const ink='var(--zink)';
+  const side=`<path d="M38 60q16 3 24-5M36 80q14 4 22 0M41 99q10 3 17 0M47 142q16 5 25-2M46 160q17 7 27 2M50 178q15 7 23 5M44 196q10-9 22-5"/>`;
+  const stripes=`<g fill="none" stroke="${ink}" stroke-width="7" stroke-linecap="round">${side}<g transform="matrix(-1 0 0 1 200 0)">${side}</g>
+    <path d="M87 40q13 9 26 0M92 53q8 5 16 0M79 180h20M79 193h20M101 180h20M101 193h20"/></g>`;
+  const sil=`<ellipse cx="100" cy="160" rx="47" ry="45"/><ellipse cx="60" cy="201" rx="21" ry="13"/><ellipse cx="140" cy="201" rx="21" ry="13"/>
+    <rect x="80" y="150" width="18" height="64" rx="9"/><rect x="102" y="150" width="18" height="64" rx="9"/>
+    <ellipse cx="100" cy="80" rx="55" ry="49"/>
+    <ellipse cx="56" cy="36" rx="14" ry="25" transform="rotate(-24 56 36)"/><ellipse cx="144" cy="36" rx="14" ry="25" transform="rotate(24 144 36)"/>`;
+  return `<svg class="zebra ${cls}" id="z-${id}" viewBox="0 -10 200 232" aria-hidden="true">
+  <defs><clipPath id="zs-${id}">${sil}</clipPath><clipPath id="zl-${id}"><rect id="zr-${id}" x="-10" y="214" width="220" height="260"/></clipPath><g id="zt-${id}">${stripes}</g></defs>
+  <ellipse cx="100" cy="215" rx="70" ry="7" fill="#000" opacity=".12"/>
+  <g class="z-all">
+    <g class="z-tail"><path d="M144 178q26-2 28-26" fill="none" stroke="${ink}" stroke-width="6" stroke-linecap="round"/><circle cx="172" cy="148" r="9" fill="${ink}"/></g>
+    <g fill="${ink}" stroke="${ink}" stroke-width="7" stroke-linejoin="round">${sil}</g>
+    <g clip-path="url(#zs-${id})">
+      <rect x="-10" y="-10" width="220" height="240" fill="var(--glass)"/>
+      <g id="zm-${id}" transform="translate(0 214)"><path class="z-wave" d="M-10 0q25-9 50 0t50 0 50 0 50 0 50 0 50 0 50 0V260H-10z" fill="var(--milk)"/></g>
+      <use href="#zt-${id}" opacity=".13"/>
+      <g clip-path="url(#zl-${id})"><use href="#zt-${id}"/><g fill="${ink}"><rect x="78" y="204" width="22" height="12"/><rect x="100" y="204" width="22" height="12"/><ellipse cx="46" cy="206" rx="9" ry="12"/><ellipse cx="154" cy="206" rx="9" ry="12"/></g></g>
+    </g>
+    <ellipse cx="56" cy="38" rx="6" ry="14" transform="rotate(-24 56 38)" fill="#ffb3b8"/><ellipse cx="144" cy="38" rx="6" ry="14" transform="rotate(24 144 38)" fill="#ffb3b8"/>
+    <path d="M80 42Q80 14 93 27Q98 6 105 25Q115 10 115 30Q126 24 120 44Q100 30 80 42Z" fill="${ink}"/>
+    <path d="M60 119Q100 141 140 119L138 133Q100 155 62 133Z" fill="${color}"/><path d="M118 136l10 24 9-7 4 3-3-27z" fill="${color}"/><path d="M60 119Q100 141 140 119" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="3"/>
+    <ellipse cx="100" cy="103" rx="33" ry="22" fill="#4a4358"/>
+    <ellipse cx="89" cy="97" rx="3.5" ry="5" fill="#2d2838"/><ellipse cx="111" cy="97" rx="3.5" ry="5" fill="#2d2838"/>
+    <path d="M90 108q10 9 20 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="62" cy="92" r="8" fill="#ff9aa2" opacity=".55"/><circle cx="138" cy="92" r="8" fill="#ff9aa2" opacity=".55"/>
+    <g class="z-eyes"><circle cx="76" cy="74" r="9" fill="#2d2838"/><circle cx="124" cy="74" r="9" fill="#2d2838"/><circle cx="79" cy="71" r="3.2" fill="#fff"/><circle cx="127" cy="71" r="3.2" fill="#fff"/></g>
+    <g class="z-happy" fill="none" stroke="#2d2838" stroke-width="5" stroke-linecap="round"><path d="M67 77q9-11 18 0M115 77q9-11 18 0"/></g>
+    <g class="z-sleep" fill="none" stroke="#2d2838" stroke-width="5" stroke-linecap="round"><path d="M67 74q9 7 18 0M115 74q9 7 18 0"/></g>
+    <g class="z-zz"><text x="150" y="30" font-size="20">z</text><text x="164" y="14" font-size="15">z</text></g>
+  </g></svg>`;
+}
+const Z={cur:{},raf:{},
+  apply(id,p){const y=p>=1?-10:214-clamp(p,0,1)*178;const m=$('#zm-'+id),r=$('#zr-'+id);if(m)m.setAttribute('transform',`translate(0 ${y})`);if(r)r.setAttribute('y',y)},
+  set(id,p,from){
+    const a=from??this.cur[id]??0;this.cur[id]=p;cancelAnimationFrame(this.raf[id]);this.apply(id,a);
+    if(Math.abs(a-p)<.001)return;const t0=performance.now(),D=1100;
+    const step=t=>{const k=clamp((t-t0)/D,0,1),e=1-Math.pow(1-k,3),o=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);
+      this.apply(id,a+(p-a)*(k<1?Math.min(o,1.04):e));if(k<1)this.raf[id]=requestAnimationFrame(step)};
+    this.raf[id]=requestAnimationFrame(step);
+  },
+  mood(id,cls,ms=2000){const z=$('#z-'+id);if(!z)return;z.classList.add(...cls.split(' '));setTimeout(()=>z.classList.remove(...cls.split(' ')),ms)}
+};
+
+/* ════════════ sound + haptics ════════════ */
+let AC=null;
+const isNight=(d=new Date())=>{const h=d.getHours();return h>=20||h<7};
+const soundOn=()=>S&&S.sound&&!(S.quietNights&&isNight());
+function tone(f,dur=.12,delay=0,type='sine',vol=.12){
+  if(!soundOn())return;
+  try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+    const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+delay;o.type=type;o.frequency.setValueAtTime(f,t);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+    o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+.02)}catch(e){}
+}
+const sfx={
+  tick:p=>tone(320+p*520,.06,0,'triangle',.07),
+  tap:()=>tone(520,.07,0,'triangle',.08),
+  bloop:()=>{tone(300,.14);tone(450,.16,.07)},
+  fanfare:()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f,.22,i*.09,'triangle',.13)),
+  soft:()=>{tone(440,.2);tone(554,.26,.12)}
+};
+const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+
+/* ════════════ shell ════════════ */
+function renderShell(){
+  $('#nav').innerHTML=!S||!S.babies.length?'':
+    [['today','home','Today'],['forecast','cloud','Forecast'],null,['grow','grow','Grow'],['more','more','More']].map(t=>
+      t?`<button class="tab ${tab===t[0]?'on':''}" data-tab="${t[0]}">${ic(t[1])}${t[2]}</button>`
+       :`<button class="fab" id="fab" aria-label="Log a feed">${ic('plus')}</button>`).join('');
+  $('#snd').innerHTML=ic(S&&S.sound?'sndOn':'sndOff');
+  $('#snd').style.visibility=S&&S.babies.length?'':'hidden';
+}
+function render(){
+  renderShell();
+  const v=$('#view');
+  if(!S||!S.babies.length){$('#title').textContent='Zuzu';$('#sub').textContent='the milk zebra';v.innerHTML=viewOnboard();Z.set('onb',.55,0);return}
+  const T={today:['Today',new Date().toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})],forecast:['Milk Forecast','What to have ready, day by day'],grow:['Grow','How the daily goal keeps up'],more:['More','Settings, backup & sources']}[tab];
+  $('#title').textContent=T[0];$('#sub').textContent=T[1];
+  v.innerHTML={today:viewToday,forecast:viewForecast,grow:viewGrow,more:viewMore}[tab]();
+  after[tab]&&after[tab]();
+}
+const after={};
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;sfx.tap();render();window.scrollTo(0,0);return}
+  if(e.target.closest('#fab')){openLog();return}
+  if(e.target.closest('#snd')){S.sound=!S.sound;save();renderShell();if(S.sound)sfx.bloop();return}
+  const a=e.target.closest('[data-act]');if(a&&ACT[a.dataset.act])ACT[a.dataset.act](a,e);
+});
+const ACT={};
+
+/* ════════════ TODAY ════════════ */
+function viewToday(){
+  const now=new Date(),night=isNight(now);
+  const stars=night?Array.from({length:14},(_,i)=>`<i class="star" style="left:${(i*37+11)%96}%;top:${(i*23+7)%46}%;animation-delay:${(i%5)*.4}s"></i>`).join(''):'';
+  const foals=S.babies.map(b=>{
+    const t=target(b,now),d=drankOn(b.id,now),p=d/t.ml;
+    return `<button class="foal" data-act="log" data-b="${b.id}" style="--c:${b.color}" aria-label="Log a feed for ${esc(b.name)}">
+      ${zebraSVG(b.id,b.color,night?'sleepy':p>=1?'happy':'')}
+      <div class="tag"><b>${esc(b.name)}</b><span><i>${amt(d,false)}</i> / ${goalAmt(t.ml)} · ${Math.round(p*100)}%</span></div></button>`}).join('');
+  const all=S.feeds.filter(f=>f.t>=+startOf(now)).sort((a,b)=>b.t-a.t);
+  const list=all.length?all.map(f=>{const b=baby(f.b);
+    return `<button class="feed" data-act="edit" data-id="${f.id}" style="--c:${b.color}"><span class="t">${timeStr(f.t)}</span><span class="dot"></span>
+      <span class="grow"><b>${esc(b.name)}</b> <span class="muted">· ${KSHORT[f.kind]}${f.kind==='nu'&&f.min?' · '+f.min+' min':''}</span><br><span class="fd">${f.kind==='nu'?'≈ ':''}${amt(f.ml)}</span>${f.kind!=='nu'?` <span class="muted">of ${amt(f.off)}</span>`:''}</span>
+      ${f.kind!=='nu'?`<span class="pct">${Math.round(f.ml/f.off*100)}%</span>`:''}</button>`}).join('')
+    :`<p class="muted" style="margin:0">Nothing logged yet today. Tap a zebra (or the big +) after a feed.</p>`;
+  const next=S.babies.map(b=>{const t=target(b,now),last=S.feeds.filter(f=>f.b===b.id).sort((x,y)=>y.t-x.t)[0];
+    const ago=last?Math.round((now-last.t)/6e4):null;
+    return `<div class="row" style="--c:${b.color};padding:6px 0"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ago==null?'no feeds yet':'last fed '+(ago<60?ago+' min':Math.floor(ago/60)+'h '+pad(ago%60)+'m')+' ago'}</span></span>
+      <span style="text-align:right"><span class="fd" style="font-size:18px">≈ ${goalAmt(t.per)}</span><br><span class="muted">a feed · ${feedsPerDay(b)}/day</span></span></div>`}).join('');
+  const days=Array.from({length:7},(_,i)=>addDays(now,i-6));
+  const week=days.map((d,i)=>`<div class="d ${i===6?'today':''}"><div class="bars">${S.babies.map((b,j)=>{const p=drankOn(b.id,d)/target(b,d).ml;
+    return `<i class="bar" title="${Math.round(p*100)}%" style="--c:${b.color};height:${clamp(p,0,1.15)/1.15*100}%;animation-delay:${i*.05+j*.03}s;opacity:${p>0?1:.0}"></i>`}).join('')}</div>${d.toLocaleDateString([], {weekday:'narrow'})}</div>`).join('');
+  return `<div class="scene ${night?'night':''}"><i class="sun"></i><i class="cloud"></i><i class="cloud b"></i>${stars}
+      <svg class="hills" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 60Q90 10 200 50T400 40V120H0z" fill="var(--hill1)"/><path d="M0 90Q120 50 240 84T400 74V120H0z" fill="var(--hill2)"/></svg>
+      <div class="bubble" id="say">${esc(sayToday())}</div><div class="foals">${foals}</div></div>
+    <div class="card"><h2>Next feed <small>a guide, not a rule</small></h2>${next}</div>
+    <div class="card"><h2>Today's feeds <small>tap one to edit</small></h2>${list}</div>
+    <div class="card"><h2>This week <small>share of each day's goal</small></h2><div class="week">${week}</div></div>`;
+}
+after.today=()=>S.babies.forEach(b=>Z.set(b.id,drankOn(b.id,new Date())/target(b).ml));
+function sayToday(){
+  const now=new Date(),h=now.getHours();
+  const st=S.babies.map(b=>({b,p:drankOn(b.id,now)/target(b).ml}));
+  if(st.every(s=>s.p>=1))return `Full tummies all round! ${S.babies.length>1?'Everyone':esc(S.babies[0].name)} hit today's goal. I'm doing my happy trot.`;
+  const done=st.find(s=>s.p>=1);if(done)return `${done.b.name} has reached today's goal — stripes fully earned!`;
+  if(st.every(s=>s.p===0))return isNight(now)?`Shh… night shift. Tap a zebra to log a feed, I'll keep it quiet.`:`${h<12?'Good morning':'Hello'}! Tap a zebra after a feed and slide the milk to what they drank.`;
+  const lo=st.slice().sort((a,b)=>a.p-b.p)[0];
+  return `${lo.b.name} is ${Math.round(lo.p*100)}% of the way through today's milk. Every sip earns a stripe.`;
+}
+ACT.log=el=>openLog(el.dataset.b);
+ACT.edit=el=>openLog(null,S.feeds.find(f=>f.id===el.dataset.id));
+
+/* ════════════ LOG SHEET (bottle slider) ════════════ */
+let L=null;
+function openSheet(html){$('#sheet').innerHTML='<div class="grab"></div>'+html;$('#sheet').classList.add('on');$('#scrim').classList.add('on');$('#sheet').scrollTop=0}
+function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');L=null}
+$('#scrim').addEventListener('click',closeSheet);
+function defaultOffer(b,kind){
+  const last=S.feeds.filter(f=>f.b===b.id&&f.kind===kind).sort((x,y)=>y.t-x.t)[0];
+  if(last)return last.off;
+  const s=bigStep();return Math.max(s,Math.ceil(target(b).per/s-.01)*s);
+}
+function openLog(bid,feed){
+  if(feed)L={id:feed.id,b:feed.b,kind:feed.kind,off:feed.off,ml:feed.ml,t:feed.t,min:feed.min||15,side:feed.side||'both',pctMode:false};
+  else{
+    if(!bid){ // pick whoever was fed longest ago
+      const order=S.babies.map(b=>({b,t:(S.feeds.filter(f=>f.b===b.id).sort((x,y)=>y.t-x.t)[0]||{t:0}).t})).sort((a,b)=>a.t-b.t);bid=order[0].b.id}
+    const b=baby(bid),p=b.plan,kind=p.bm>=p.fo&&p.bm>=p.nu?'bm':p.fo>=p.nu?'fo':'nu';
+    const off=defaultOffer(b,kind);L={b:bid,kind,off,ml:off,t:Date.now(),min:15,side:'both',pctMode:false};
+  }
+  sfx.bloop();drawLog();
+}
+function bottleSVG(c){
+  return `<svg viewBox="0 0 160 330"><defs><clipPath id="bc"><rect x="32" y="64" width="96" height="252" rx="30"/></clipPath></defs>
+    <path d="M64 44q0-32 16-32t16 32z" fill="#f7c9a6" stroke="var(--zink)" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="44" y="42" width="72" height="26" rx="10" fill="${c}" stroke="var(--zink)" stroke-width="5"/>
+    <rect x="32" y="64" width="96" height="252" rx="30" fill="var(--glass)"/>
+    <g clip-path="url(#bc)"><g id="bm" transform="translate(0 316)"><path class="z-wave" d="M-10 0q25-8 50 0t50 0 50 0 50 0 50 0 50 0V300H-10z" fill="var(--milk)"/><path class="z-wave" d="M-10 0q25-8 50 0t50 0 50 0 50 0 50 0 50 0" fill="none" stroke="${c}" stroke-width="4" opacity=".7"/></g>
+      <path d="M44 90v200" stroke="#fff" stroke-width="9" stroke-linecap="round" opacity=".5"/></g>
+    <g stroke="var(--zink)" stroke-width="3" stroke-linecap="round" opacity=".45"><path d="M112 250h-18M112 194h-26M112 138h-18M112 82h-26"/></g>
+    <rect x="32" y="64" width="96" height="252" rx="30" fill="none" stroke="var(--zink)" stroke-width="5"/>
+    <g id="bh" transform="translate(0 316)"><circle cx="134" cy="0" r="17" fill="${c}" stroke="#fff" stroke-width="4"/><path d="M134-8l-5 5h10zM134 8l-5-5h10z" fill="#fff"/></g></svg>`;
+}
+function drawLog(){
+  const b=baby(L.b);
+  openSheet(`<h2>${L.id?'Edit feed':'How much did they drink?'}</h2>
+    <div class="row" style="flex-wrap:wrap;gap:6px">${S.babies.map(x=>`<button class="pill ${x.id===L.b?'on':''}" style="--c:${x.color}" data-act="lb" data-b="${x.id}">${esc(x.name)}</button>`).join('')}</div>
+    <div class="seg" style="margin-top:10px">${Object.keys(KSHORT).map(k=>`<button class="${L.kind===k?'on':''}" data-act="lk" data-k="${k}">${KSHORT[k]}</button>`).join('')}</div>
+    <div class="pour" style="--c:${b.color}">
+      <div class="bottle" id="bottle" tabindex="0" role="slider" aria-label="Amount drunk" aria-valuemin="0">${bottleSVG(b.color)}</div>
+      <div class="readout"><button data-act="lmode" aria-label="Switch between amount and percent"><div class="big" id="rbig"></div><div class="sub" id="rsub"></div></button>
+        ${zebraSVG('log',b.color)}</div>
+    </div>
+    <p class="muted" style="text-align:center;margin:0 0 8px">${L.kind==='nu'?`Nursing can't be measured, so this is Zuzu's best guess — slide it if you know better.`:`Slide the milk up or down to what ${esc(b.name)} actually drank.`}</p>
+    <div class="chips">${[['All of it',1],['¾',.75],['½',.5],['¼',.25]].map(c=>`<button class="pill" data-act="lq" data-q="${c[1]}">${c[0]}</button>`).join('')}</div>
+    ${L.kind==='nu'?`<div class="two"><div><label class="f">Minutes</label><div class="stepper"><button data-act="lmin" data-d="-5">−</button><b id="lmin">${L.min} min</b><button data-act="lmin" data-d="5">+</button></div></div>
+        <div><label class="f">Side</label><div class="seg">${[['left','L'],['both','Both'],['right','R']].map(s=>`<button class="${L.side===s[0]?'on':''}" data-act="lside" data-s="${s[0]}">${s[1]}</button>`).join('')}</div></div></div>`
+      :`<div class="two"><div><label class="f">Bottle held</label><div class="stepper"><button data-act="loff" data-d="-1">−</button><b id="loff"></b><button data-act="loff" data-d="1">+</button></div></div>
+        <div><label class="f">When</label><input type="time" id="ltime" value="${pad(new Date(L.t).getHours())}:${pad(new Date(L.t).getMinutes())}"></div></div>`}
+    ${L.kind==='nu'?`<label class="f">When</label><input type="time" id="ltime" value="${pad(new Date(L.t).getHours())}:${pad(new Date(L.t).getMinutes())}">`:''}
+    <button class="btn c" style="--c:${b.color};margin-top:16px" data-act="lsave">${L.id?'Save changes':'Save feed'}</button>
+    ${L.id?`<button class="link" style="display:block;margin:4px auto 0" data-act="ldel">Delete this feed</button>`:''}`);
+  Z.set('log',L.ml/L.off,0);bindBottle();paintBottle(true);
+}
+const BT=82,BB=306;
+function paintBottle(first){
+  const p=clamp(L.ml/L.off,0,1),y=BB-p*(BB-BT);
+  $('#bm').setAttribute('transform',`translate(0 ${y})`);$('#bh').setAttribute('transform',`translate(0 ${y})`);
+  const pct=Math.round(p*100)+'%',a=amt(L.ml,false),u=S.unit;
+  $('#rbig').innerHTML=L.pctMode?pct:`${L.kind==='nu'?'≈':''}${a}<small> ${u}</small>`;
+  $('#rsub').textContent=L.pctMode?amt(L.ml)+' of '+amt(L.off):(L.kind==='nu'?'estimated':pct+' of the bottle');
+  const lo=$('#loff');if(lo)lo.textContent=amt(L.off);
+  const bt=$('#bottle');bt.setAttribute('aria-valuemax',Math.round(L.off));bt.setAttribute('aria-valuenow',Math.round(L.ml));bt.setAttribute('aria-valuetext',amt(L.ml));
+  if(!first){Z.cur.log=p;Z.apply('log',p)}
+  $('#z-log').classList.toggle('happy',p>=.9);
+}
+function setMl(ml,quiet){
+  const s=stepMl(),v=clamp(Math.round(ml/s)*s,0,L.off),nv=L.off-v<s/2?L.off:v;
+  if(Math.abs(nv-L.ml)>.01){L.ml=nv;if(!quiet){sfx.tick(L.ml/L.off);buzz(4)}paintBottle()}
+}
+function bindBottle(){
+  const el=$('#bottle');let drag=false;
+  const at=e=>{const r=$('svg',el).getBoundingClientRect(),y=(e.clientY-r.top)/r.height*330;setMl(clamp((BB-y)/(BB-BT),0,1)*L.off)};
+  el.addEventListener('pointerdown',e=>{drag=true;el.setPointerCapture(e.pointerId);at(e)});
+  el.addEventListener('pointermove',e=>drag&&at(e));
+  const up=()=>{if(drag){drag=false;if(L&&L.ml>=L.off)Z.mood('log','nod',900)}};
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+  el.addEventListener('keydown',e=>{const s=stepMl(),m={ArrowUp:s,ArrowRight:s,ArrowDown:-s,ArrowLeft:-s,PageUp:s*4,PageDown:-s*4}[e.key];
+    if(m){e.preventDefault();setMl(L.ml+m)}else if(e.key==='Home'){e.preventDefault();setMl(0)}else if(e.key==='End'){e.preventDefault();setMl(L.off)}});
+}
+const keepTime=()=>{const i=$('#ltime');if(i&&i.value){const [h,m]=i.value.split(':').map(Number),d=new Date(L.t);d.setHours(h,m,0,0);L.t=+d}};
+ACT.lb=el=>{keepTime();const ratio=L.ml/L.off;L.b=el.dataset.b;if(!L.id){L.off=defaultOffer(baby(L.b),L.kind);L.ml=L.off*ratio}sfx.tap();drawLog()};
+ACT.lk=el=>{keepTime();L.kind=el.dataset.k;if(!L.id){L.off=defaultOffer(baby(L.b),L.kind);L.ml=L.off}sfx.tap();drawLog()};
+ACT.lmode=()=>{L.pctMode=!L.pctMode;sfx.tap();paintBottle()};
+ACT.lq=el=>{const q=+el.dataset.q;L.ml=-1;setMl(L.off*q);Z.mood('log','nod',900)};
+ACT.loff=el=>{const s=bigStep(),r=L.ml/L.off;L.off=clamp(Math.round((L.off+el.dataset.d*s)/s)*s,s,s*40);L.ml=clamp(Math.round(L.off*r/stepMl())*stepMl(),0,L.off);sfx.tap();paintBottle()};
+ACT.lmin=el=>{L.min=clamp(L.min+ +el.dataset.d,5,90);$('#lmin').textContent=L.min+' min';sfx.tap()};
+ACT.lside=el=>{L.side=el.dataset.s;$$('[data-act=lside]').forEach(x=>x.classList.toggle('on',x===el));sfx.tap()};
+ACT.ldel=()=>{S.feeds=S.feeds.filter(f=>f.id!==L.id);save();closeSheet();render()};
+ACT.lsave=()=>{
+  keepTime();if(L.t>Date.now()+6e4)L.t-=DAY;   // a time later than now means last night
+  const b=baby(L.b),before=drankOn(b.id,L.t)-(L.id?(S.feeds.find(f=>f.id===L.id)||{ml:0}).ml:0);
+  const f={id:L.id||uid(),b:L.b,t:L.t,kind:L.kind,off:L.off,ml:L.ml};if(L.kind==='nu'){f.min=L.min;f.side=L.side}
+  const wasEdit=!!L.id;S.feeds=S.feeds.filter(x=>x.id!==f.id);S.feeds.push(f);S.sel=b.id;save();
+  closeSheet();tab='today';render();
+  if(!wasEdit)celebrate(f,before);
+};
+
+/* ════════════ celebration ════════════ */
+function celebrate(f,before){
+  const b=baby(f.b),T=target(b,f.t),after=before+f.ml,full=f.ml/f.off>=.9,goal=before<T.ml&&after>=T.ml;
+  const other=S.babies.find(x=>x.id!==b.id&&!S.feeds.some(g=>g.b===x.id&&Math.abs(g.t-f.t)<25*6e4));
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  const head=goal?pick(['Goal reached!','All stripes earned!']):full?pick(['Full feed!','Clean bottle!','Bottoms up!','Zebra-approved!']):f.ml>0?pick(['Nice sipping!','Every sip counts','Logged!']):'Logged';
+  const line=goal?`${b.name} has had ${amt(after)} today — that's the whole daily goal.`
+    :full?`${b.name} drank ${f.kind==='nu'?'about ':''}${amt(f.ml)}. Today: ${amt(after)} of ${goalAmt(T.ml)}.`
+    :`${b.name} drank ${amt(f.ml)}${f.kind!=='nu'?` of ${amt(f.off)}`:''}. Little feeds are normal — today is at ${Math.round(after/T.ml*100)}%.`;
+  const c=$('#cele');
+  c.innerHTML=`<div class="box">${zebraSVG('cele',b.color,(full||goal?'happy dance':'nod'))}<h2 style="color:${b.color}">${head}</h2><p>${esc(line)}</p>
+    ${other?`<button class="btn c" style="--c:${other.color}" data-act="cnext" data-b="${other.id}">Now log ${esc(other.name)}</button>`:''}
+    <button class="btn ${other?'alt':''}" data-act="cdone">Done</button></div>`;
+  c.classList.add('on');Z.set('cele',clamp(after/T.ml,0,1),clamp(before/T.ml,0,1));
+  if(full||goal){sfx.fanfare();buzz(goal?[30,60,30,60,80]:[20,50,40]);
+    const cols=[b.color,'#ffd166','#fff','#8ed1fc','#ffb3b8'];
+    for(let i=0;i<(goal?60:34);i++){const s=document.createElement('i'),z=8+Math.random()*10,drop=i%3===0;s.className='bit';
+      s.style.cssText=`left:${Math.random()*100}%;width:${z}px;height:${drop?z*1.3:z}px;background:${cols[i%cols.length]};border-radius:${drop?'50% 50% 50% 50%/65% 65% 35% 35%':i%3===1?'50%':'3px'};animation-duration:${1.6+Math.random()*1.8}s;animation-delay:${Math.random()*.6}s;box-shadow:0 0 0 1.5px rgba(45,40,56,.12)`;c.appendChild(s)}
+  }else{sfx.soft();buzz(15);
+    for(let i=0;i<6;i++){const s=document.createElement('i');s.className='heart';s.textContent='♥';s.style.cssText=`left:${30+Math.random()*40}%;color:${b.color};animation-delay:${i*.18}s`;c.appendChild(s)}}
+}
+ACT.cdone=()=>{$('#cele').classList.remove('on');$('#cele').innerHTML=''};
+ACT.cnext=el=>{ACT.cdone();openLog(el.dataset.b)};
+
+/* ════════════ FORECAST ════════════ */
+function forecastDay(date){
+  const buf=1+S.bufferPct/100;let thaw=0,form=0;
+  const per=S.babies.map(b=>{const t=target(b,date),n=feedsPerDay(b),th=t.ml*b.plan.bm/n*buf,fo=t.ml*b.plan.fo/n;thaw+=th;form+=fo;return{b,th,fo,ml:t.ml}});
+  return{date,thaw,form,per,bags:Math.ceil(thaw/S.bagMl-.02)};
+}
+function viewForecast(){
+  const now=new Date(),days=Array.from({length:7},(_,i)=>forecastDay(addDays(now,i+1)));
+  const tom=days[0],anyThaw=days.some(d=>d.thaw>1),anyForm=days.some(d=>d.form>1),k=dayKey(tom.date),done=!!S.thawed[k];
+  const max=Math.max(...days.map(d=>d.thaw+d.form),1);
+  const total=days.reduce((s,d)=>s+d.thaw,0),totalF=days.reduce((s,d)=>s+d.form,0);
+  const rows=days.map((d,i)=>`<div class="fc" style="animation-delay:${i*.06}s"><div class="day">${i===0?'Tmrw':d.date.toLocaleDateString([], {weekday:'short'})}<small>${d.date.toLocaleDateString([], {month:'short',day:'numeric'})}</small></div>
+      <div class="grow">${anyThaw?`<span class="amt">${goalAmt(d.thaw)}</span> <span class="muted">to thaw · ${d.bags} bag${d.bags===1?'':'s'}</span>`:`<span class="amt">${goalAmt(d.form)}</span> <span class="muted">formula</span>`}
+        ${anyThaw&&d.form>1?`<br><span class="muted">+ ${goalAmt(d.form)} formula to mix</span>`:''}
+        <div class="meter" style="width:${Math.max(8,(d.thaw+d.form)/max*100)}%">${d.per.map(p=>`<i style="--c:${p.b.color};width:${(p.th+p.fo)/(d.thaw+d.form||1)*100}%;animation-delay:${.2+i*.06}s" title="${esc(p.b.name)}"></i>`).join('')}</div></div></div>`).join('');
+  const stashDays=S.stashMl!=null&&anyThaw?(()=>{let left=S.stashMl,n=0;for(let i=1;i<400&&left>0;i++){left-=forecastDay(addDays(now,i)).thaw;if(left>=0)n++}return n})():null;
+  return `<div class="card presenter-card"><div class="presenter">${zebraSVG('fc',S.babies[0].color,done?'happy':'')}
+      <div class="bubble">${anyThaw?`Tonight, move<b class="big">${tom.bags} bag${tom.bags===1?'':'s'} · ${goalAmt(tom.thaw)}</b>from the freezer to the fridge for tomorrow.`
+        :`No frozen milk in the plan, so nothing to thaw.${anyForm?`<b class="big">${goalAmt(tom.form)}</b>of formula covers tomorrow.`:' Set bottles of breast milk under Grow → Feeding plan.'}`}</div></div>
+      ${anyThaw?`<div class="bags">${Array.from({length:Math.min(tom.bags,24)},(_,i)=>`<i class="bag" style="animation-delay:${.3+i*.07}s"></i>`).join('')}</div>
+      <div class="muted" style="margin-top:8px">${tom.per.filter(p=>p.th>1).map(p=>`${esc(p.b.name)} ${goalAmt(p.th)}`).join(' · ')}${S.bufferPct?` · includes ${S.bufferPct}% spare`:''}</div>
+      <button class="check ${done?'on':''}" data-act="thawed" data-k="${k}" data-ml="${Math.round(tom.thaw)}"><span class="box">${ic('check')}</span>${done?'In the fridge. Nice work!':'Tap when it\'s in the fridge'}</button>`:''}</div>
+    <div class="card"><h2>7-day Milk Forecast <small>${anyThaw?goalAmt(total)+' to thaw':goalAmt(totalF)+' formula'} this week</small></h2>${rows}
+      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px 14px">${S.babies.map(b=>`<span class="row muted" style="--c:${b.color};gap:6px"><span class="dot"></span>${esc(b.name)}</span>`).join('')}</div></div>
+    ${anyThaw?`<div class="card"><h2>Freezer stash <small>optional</small></h2>
+      <div class="row"><div class="grow"><input id="stash" type="number" inputmode="decimal" min="0" placeholder="Total frozen, in ${S.unit}" value="${S.stashMl!=null?amt(S.stashMl,false):''}"></div><button class="pill" data-act="stash">Save</button></div>
+      ${stashDays!=null?`<div class="math" style="margin-top:10px;--c:var(--good)"><b>${stashDays>=399?'A year+':stashDays+' day'+(stashDays===1?'':'s')}</b>of frozen milk left at this pace${stashDays<7?' — time to top up the freezer or plan a bridge.':'.'}</div>`:`<p class="muted" style="margin:8px 0 0">Tell me what's in the freezer and I'll count down how many days it lasts. It drops each time you tick tonight's thaw.</p>`}</div>`:''}
+    <div class="card"><h2>Thawing, safely</h2><ul class="tips">
+      <li>Thaw the <b>oldest milk first</b>, in the fridge overnight (about 12 hours).</li>
+      <li>Use fridge-thawed milk within <b>24 hours</b> of it being fully thawed.</li>
+      <li>Once warmed or at room temperature: within <b>2 hours</b>.</li>
+      <li>Leftovers from a feed: finish within 2 hours, then discard. <b>Never refreeze</b>.</li>
+      <li>Thaw in feed-sized portions so less gets poured away.</li></ul>
+      <p class="muted" style="margin:10px 0 0">From the CDC's <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">breast milk storage guidance</a> for healthy full-term babies. Babies born early or in hospital may have stricter rules — follow your care team.</p></div>`;
+}
+after.forecast=()=>Z.set('fc',.7,.2);
+ACT.thawed=el=>{const k=el.dataset.k,on=!S.thawed[k];if(on)S.thawed[k]=1;else delete S.thawed[k];
+  if(S.stashMl!=null)S.stashMl=Math.max(0,S.stashMl+(on?-1:1)*+el.dataset.ml);
+  Object.keys(S.thawed).forEach(x=>{if(x<dayKey(addDays(new Date(),-3)))delete S.thawed[x]});
+  save();render();if(on){sfx.fanfare();buzz([20,40,30]);Z.mood('fc','jump',1900)}};
+ACT.stash=()=>{const v=parseFloat($('#stash').value);S.stashMl=isNaN(v)?null:v*(S.unit==='oz'?OZ:1);save();sfx.bloop();render()};
+
+/* ════════════ GROW ════════════ */
+function viewGrow(){
+  const b=baby(S.sel),now=new Date(),T=target(b,now),p=b.plan;
+  const pts=[];for(let d=-14;d<=182;d+=2)pts.push([d,target(b,addDays(now,d)).ml]);
+  const maxY=Math.max(...pts.map(q=>q[1]),drankMax(b))*1.18,X=d=>20+(d+14)/196*300,Y=v=>140-v/maxY*120;
+  const line=pts.map((q,i)=>(i?'L':'M')+X(q[0]).toFixed(1)+' '+Y(q[1]).toFixed(1)).join('');
+  const dots=Array.from({length:14},(_,i)=>{const d=addDays(now,-i-1),v=drankOn(b.id,d);return v>0?`<circle cx="${X(-i-1)}" cy="${Y(v)}" r="3.5" fill="${b.color}" opacity=".55"/>`:''}).join('');
+  const marks=[[0,'now'],[61,'+2 mo'],[122,'+4 mo'],[182,'+6 mo']].map(m=>`<text x="${X(m[0])}" y="158" text-anchor="${m[0]>150?'end':m[0]===0?'start':'middle'}" font-size="11" font-weight="800" fill="var(--soft)">${m[1]}</text>`).join('');
+  const rows=[[0,'Now'],[14,'In 2 weeks'],[30,'In 1 month'],[61,'In 2 months'],[91,'In 3 months'],[182,'In 6 months']].map(r=>{const d=addDays(now,r[0]),t=target(b,d);
+    return `<tr><td>${r[1]}</td><td>${t.W?fmtW(t.W.kg):'—'}</td><td class="fd">${goalAmt(t.ml)}</td><td>${goalAmt(t.per)}</td></tr>`}).join('');
+  const logs=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1);
+  const st=(k,lab)=>`<div><label class="f">${lab}</label><div class="stepper"><button data-act="plan" data-k="${k}" data-d="-1">−</button><b>${p[k]}</b><button data-act="plan" data-k="${k}" data-d="1">+</button></div></div>`;
+  return `${S.babies.length>1?`<div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${S.babies.map(x=>`<button class="pill ${x.id===b.id?'on':''}" style="--c:${x.color}" data-act="sel" data-b="${x.id}">${esc(x.name)}</button>`).join('')}</div>`:''}
+    <div class="card" style="--c:${b.color}"><h2>${esc(b.name)}'s daily goal <small>${ageLabel(b)}</small></h2>
+      <div class="math"><b>${goalAmt(T.ml)} a day</b>≈ ${goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br><span class="muted">${esc(T.why)}</span></div>
+      ${T.W&&T.W.stale>21?`<div class="note">The last weigh-in was ${T.W.stale} days ago, so I'm estimating growth since. A fresh weight sharpens the goal and the forecast.</div>`:''}
+      ${b.weeksEarly>0&&!b.override?`<div class="note">Born ${b.weeksEarly} weeks early: babies born early often have their own plan (fortified milk, a different amount per kg). If your care team gave you a daily number, enter it below and I'll use that instead.</div>`:''}
+      <p class="muted" style="margin:10px 0 0">Appetite varies day to day. Steady weight gain and plenty of wet nappies matter more than hitting a number.</p></div>
+    <div class="card"><h2>The months ahead <small>dots = what was drunk</small></h2>
+      <svg viewBox="0 0 340 164" style="width:100%;overflow:visible"><path d="${line}L${X(182)} 140L${X(-14)} 140Z" fill="${b.color}" opacity=".14"/><path d="${line}" fill="none" stroke="${b.color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"><animate attributeName="stroke-dashoffset" to="0" dur="1.1s" fill="freeze" calcMode="spline" keySplines=".2 .8 .3 1" keyTimes="0;1" values="1;0"/></path>
+        <line x1="20" y1="140" x2="320" y2="140" stroke="var(--line)" stroke-width="2"/>${dots}
+        <line x1="${X(0)}" y1="${Y(T.ml)}" x2="${X(0)}" y2="140" stroke="var(--soft)" stroke-width="2" stroke-dasharray="3 4"/><circle cx="${X(0)}" cy="${Y(T.ml)}" r="6" fill="${b.color}" stroke="var(--card)" stroke-width="3"/>${marks}<text x="${X(0)+10}" y="${Y(T.ml)-10}" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(T.ml)}</text><text x="${X(182)}" y="${Y(pts[pts.length-1][1])-10}" text-anchor="end" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(pts[pts.length-1][1])}</text></svg>
+      <table><tr><th></th><th>Weight</th><th>Per day</th><th>Per feed</th></tr>${rows}</table>
+      <p class="muted" style="margin:8px 0 0">Future weights are projected from ${logs.length>1?esc(b.name)+"'s own recent gain, then":''} typical growth for age.</p></div>
+    <div class="card"><h2>Weight log</h2>
+      <div class="two"><div><label class="f" style="margin-top:0">Weight</label>${weightFields('w',null)}</div><div><label class="f" style="margin-top:0">Date</label><input type="date" id="wd" value="${dayKey(now)}" max="${dayKey(now)}"></div></div>
+      <button class="btn c" style="--c:${b.color};margin-top:12px;padding:12px" data-act="addw">Add weight</button>
+      ${logs.map(w=>`<div class="feed"><span class="grow"><b>${fmtW(w.kg)}</b> <span class="muted">· ${parseDay(w.d).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})}</span></span><button class="link" data-act="delw" data-d="${w.d}" style="padding:0">remove</button></div>`).join('')}</div>
+    <div class="card"><h2>Feeding plan <small>feeds in a usual day</small></h2>
+      <div class="two" style="grid-template-columns:1fr 1fr 1fr">${st('bm','Milk bottles')}${st('fo','Formula')}${st('nu','Nursing')}</div>
+      <p class="muted" style="margin:10px 0 0">The Milk Forecast thaws for the breast-milk bottles only. Formula follows the higher formula guideline; a mix is blended.</p>
+      <button class="check ${b.solids?'on':''}" data-act="solids"><span class="box">${ic('check')}</span>Eating solid foods</button>
+      <label class="f">Daily amount from your care team (${S.unit}) — overrides the guide</label>
+      <div class="row"><div class="grow"><input id="ov" type="number" inputmode="decimal" min="0" placeholder="leave empty to use the guide" value="${b.override?amt(b.override,false):''}"></div><button class="pill" data-act="ov">Save</button></div></div>`;
+}
+const drankMax=b=>Math.max(0,...Array.from({length:14},(_,i)=>drankOn(b.id,addDays(new Date(),-i-1))));
+ACT.sel=el=>{S.sel=el.dataset.b;save();sfx.tap();render()};
+ACT.plan=el=>{const b=baby(S.sel),k=el.dataset.k;b.plan[k]=clamp(b.plan[k]+ +el.dataset.d,0,14);if(b.plan.bm+b.plan.fo+b.plan.nu===0)b.plan[k]=1;save();sfx.tap();keepScroll()};
+ACT.solids=()=>{const b=baby(S.sel);b.solids=!b.solids;save();sfx.tap();keepScroll()};
+ACT.ov=()=>{const b=baby(S.sel),v=parseFloat($('#ov').value);b.override=v>0?v*(S.unit==='oz'?OZ:1):null;save();sfx.bloop();keepScroll()};
+ACT.addw=()=>{const b=baby(S.sel),kg=readWeight('w'),d=$('#wd').value;if(!kg||!d){alert('Enter a weight and a date.');return}
+  b.weights=(b.weights||[]).filter(w=>w.d!==d);b.weights.push({d,kg});save();sfx.fanfare();render();window.scrollTo(0,0)};
+ACT.delw=el=>{const b=baby(S.sel);b.weights=b.weights.filter(w=>w.d!==el.dataset.d);save();keepScroll()};
+function keepScroll(){const y=window.scrollY;render();window.scrollTo(0,y)}
+
+/* ════════════ MORE ════════════ */
+function viewMore(){
+  const sg=(act,opts,cur)=>`<div class="seg">${opts.map(o=>`<button class="${String(cur)===String(o[0])?'on':''}" data-act="${act}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`;
+  return `<div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
+      ${S.babies.length<3?`<button class="btn alt" style="margin-top:10px;padding:11px" data-act="ebaby">Add a baby</button>`:''}</div>
+    <div class="card"><h2>Units</h2><label class="f" style="margin-top:0">Milk</label>${sg('unit',[['ml','Millilitres'],['oz','Ounces']],S.unit)}
+      <label class="f">Weight</label>${sg('wunit',[['kg','kg'],['lb','lb + oz']],S.wUnit)}</div>
+    <div class="card"><h2>Milk Forecast</h2><label class="f" style="margin-top:0">Freezer bag size (${S.unit})</label>
+      <div class="row"><div class="grow"><input id="bag" type="number" inputmode="decimal" min="1" value="${amt(S.bagMl,false)}"></div><button class="pill" data-act="bag">Save</button></div>
+      <label class="f">Spare milk on top, for spills and hungry days</label>${sg('buf',[[0,'None'],[5,'5%'],[10,'10%'],[15,'15%']],S.bufferPct)}</div>
+    <div class="card"><h2>Sounds</h2>
+      <button class="check ${S.sound?'on':''}" data-act="snd2" style="margin-top:0"><span class="box">${ic('check')}</span>Play sounds</button>
+      <button class="check ${S.quietNights?'on':''}" data-act="quiet"><span class="box">${ic('check')}</span>Stay silent 8pm–7am</button></div>
+    <div class="card"><h2>Backup</h2><p class="muted" style="margin:0 0 10px">Everything lives on this phone only. Save a backup file to keep it safe or move it to another phone.</p>
+      <div class="two"><button class="btn alt" style="padding:11px" data-act="export">Save backup</button><button class="btn alt" style="padding:11px" data-act="import">Load backup</button></div>
+      <input type="file" id="imp" accept=".json,application/json" hidden>
+      <button class="link" style="display:block;margin:8px auto 0" data-act="reset">Erase everything</button></div>
+    <div class="card"><h2>Where the numbers come from</h2><ul class="tips">
+      <li><b>Formula:</b> about 2½ oz per lb of body weight a day (≈165 ml/kg), usually no more than 32 oz (960 ml) — <a href="https://www.healthychildren.org/English/ages-stages/baby/formula-feeding/Pages/Amount-and-Schedule-of-Formula-Feedings.aspx" target="_blank" rel="noopener">AAP</a>. The <a href="https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/bottle-feeding/formula-milk-questions/" target="_blank" rel="noopener">NHS</a> gives 150–200 ml/kg.</li>
+      <li><b>Breast milk:</b> rises over the first weeks, then holds at about 750 ml (25 oz) a day, typically 570–900 ml, from 1 to 6 months — <a href="https://kellymom.com/bf/pumpingmoms/pumping/milkcalc/" target="_blank" rel="noopener">KellyMom</a>, <a href="https://lacted.org/questions/typical-volumes-of-human-milk-intake-among-infants-and-young-children/" target="_blank" rel="noopener">LactEd</a>.</li>
+      <li><b>After solids start</b> milk eases down towards roughly 500–600 ml by the first birthday.</li>
+      <li><b>Thawing:</b> <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">CDC storage guidance</a>.</li></ul>
+      <div class="note">Zuzu is a friendly tracker, not a doctor. These are averages for healthy full-term babies; your own baby's needs can differ, especially if they were born early. Talk to your care team about feeding worries, poor weight gain or fewer wet nappies.</div></div>`;
+}
+ACT.unit=el=>{S.unit=el.dataset.v;save();sfx.tap();keepScroll()};
+ACT.wunit=el=>{S.wUnit=el.dataset.v;save();sfx.tap();keepScroll()};
+ACT.buf=el=>{S.bufferPct=+el.dataset.v;save();sfx.tap();keepScroll()};
+ACT.bag=()=>{const v=parseFloat($('#bag').value);if(v>0){S.bagMl=v*(S.unit==='oz'?OZ:1);save();sfx.bloop();keepScroll()}};
+ACT.snd2=()=>{S.sound=!S.sound;save();if(S.sound)sfx.bloop();keepScroll()};
+ACT.quiet=()=>{S.quietNights=!S.quietNights;save();keepScroll()};
+ACT.export=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='zuzu-milk-backup-'+dayKey(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+ACT.import=()=>{const i=$('#imp');i.onchange=()=>{const f=i.files[0];if(!f)return;f.text().then(t=>{const d=JSON.parse(t);if(!d||!Array.isArray(d.babies)||!Array.isArray(d.feeds))throw 0;
+  if(confirm('Replace everything on this phone with the backup?')){S=Object.assign(blank(),d);save();tab='today';render()}}).catch(()=>alert("That file doesn't look like a Zuzu backup."))};i.click()};
+ACT.reset=()=>{if(confirm('Erase all babies and feeds from this phone? This cannot be undone.')){localStorage.removeItem(KEY);S=null;tab='today';render()}};
+
+/* ── baby editor ── */
+const STYLES={bm:['Pumped-milk bottles',{bm:7,fo:0,nu:0}],nb:['Nursing + milk bottles',{bm:3,fo:0,nu:4}],mix:['Breast milk + formula',{bm:4,fo:3,nu:0}],fo:['Formula bottles',{bm:0,fo:7,nu:0}],nu:['Mostly nursing',{bm:1,fo:0,nu:7}]};
+function babyFields(p,b,i){
+  return `<label class="f">Name</label><input id="${p}n" maxlength="20" placeholder="Baby ${'ABC'[i]||''}" value="${esc(b?b.name:'')}">
+    <div class="two"><div><label class="f">Birthday</label><input type="date" id="${p}b" max="${dayKey(new Date())}" value="${b?b.birth:''}"></div>
+      <div><label class="f">Born early? (weeks)</label><input type="number" id="${p}e" inputmode="numeric" min="0" max="18" placeholder="0" value="${b&&b.weeksEarly?b.weeksEarly:''}"></div></div>
+    ${b?'':`<label class="f">Latest weight (optional, but makes the goal theirs)</label>${weightFields(p+'w',null)}
+    <label class="f">How do they feed?</label><select id="${p}s">${Object.entries(STYLES).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('')}</select>`}`;
+}
+function readBaby(p,b,i){
+  const name=$('#'+p+'n').value.trim()||('Baby '+('ABC'[i]||'')),birth=$('#'+p+'b').value;
+  if(!birth)return null;
+  const o=b||{id:uid(),color:COLORS[i%COLORS.length],weights:[],solids:false,override:null};
+  o.name=name;o.birth=birth;o.weeksEarly=clamp(parseInt($('#'+p+'e').value)||0,0,18);
+  if(!b){const kg=readWeight(p+'w');if(kg)o.weights.push({d:dayKey(new Date()),kg});o.plan={...STYLES[$('#'+p+'s').value][1]};
+    const a=ageDays(o,new Date()),n=a<30?8:a<90?7:a<180?6:a<270?5:4,tot=o.plan.bm+o.plan.fo+o.plan.nu;   // scale the plan to a usual number of feeds for age
+    ['bm','fo','nu'].forEach(k=>o.plan[k]=Math.round(o.plan[k]/tot*n));if(o.plan.bm+o.plan.fo+o.plan.nu===0)o.plan.bm=n;
+    o.solids=a-o.weeksEarly*7>=182}
+  return o;
+}
+ACT.ebaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,i=b?S.babies.indexOf(b):S.babies.length;
+  openSheet(`<h2>${b?'Edit '+esc(b.name):'Add a baby'}</h2>${babyFields('e',b,i)}
+    ${b?`<label class="f">Colour</label><div class="row" id="cols">${COLORS.map(c=>`<button class="iconbtn" data-act="col" data-c="${c}" style="background:${c};outline:${c===b.color?'4px solid var(--ink)':'none'};outline-offset:2px" aria-label="colour"></button>`).join('')}</div>`:''}
+    <button class="btn" style="margin-top:16px" data-act="sbaby" data-b="${b?b.id:''}" data-i="${i}">Save</button>
+    ${b&&S.babies.length>1?`<button class="link" style="display:block;margin:4px auto 0" data-act="dbaby" data-b="${b.id}">Remove ${esc(b.name)}</button>`:''}`)};
+ACT.col=el=>{$$('#cols button').forEach(x=>x.style.outline=x===el?'4px solid var(--ink)':'none');$('#cols').dataset.c=el.dataset.c};
+ACT.sbaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,o=readBaby('e',b,+el.dataset.i);if(!o){alert('Please add a birthday.');return}
+  const c=$('#cols');if(c&&c.dataset.c)o.color=c.dataset.c;if(!b)S.babies.push(o);save();closeSheet();sfx.bloop();render()};
+ACT.dbaby=el=>{const b=baby(el.dataset.b);if(confirm(`Remove ${b.name} and all of their feeds?`)){S.babies=S.babies.filter(x=>x!==b);S.feeds=S.feeds.filter(f=>f.b!==b.id);S.sel=S.babies[0].id;save();closeSheet();render()}};
+
+/* ════════════ ONBOARDING ════════════ */
+let obN=2;
+function viewOnboard(){
+  if(!S)S=blank();
+  return `<div class="onb">${zebraSVG('onb','#ff7a6b','happy')}
+    <h2 style="font-size:28px;margin-top:4px">Hi, I'm Zuzu!</h2>
+    <p class="muted" style="margin:6px 20px 0;font-size:15px">I keep track of how much your little ones drink, and tell you how much milk to have ready each day.</p>
+    <div class="card"><label class="f" style="margin-top:0">How many babies?</label>
+      <div class="seg">${[1,2,3].map(n=>`<button class="${obN===n?'on':''}" data-act="obn" data-n="${n}">${['One','Two','Three'][n-1]}</button>`).join('')}</div>
+      <label class="f">I think in…</label>
+      <div class="seg">${[['ml','ml & kg'],['oz','oz & lb']].map(u=>`<button class="${S.unit===u[0]?'on':''}" data-act="obu" data-v="${u[0]}">${u[1]}</button>`).join('')}</div></div>
+    ${Array.from({length:obN},(_,i)=>`<div class="card" style="border-top:6px solid ${COLORS[i]}"><h2>${['First','Second','Third'][i]} baby</h2>${babyFields('o'+i,null,i)}</div>`).join('')}
+    <button class="btn" data-act="obgo">Let's go!</button>
+    <button class="link" data-act="demo">or look around with sample twins first</button></div>`;
+}
+const obKeep=()=>$$('#view input,#view select').reduce((m,i)=>(m[i.id]=i.value,m),{});
+const obPut=m=>Object.entries(m).forEach(([k,v])=>{const i=document.getElementById(k);if(i)i.value=v});
+ACT.obn=el=>{const m=obKeep();obN=+el.dataset.n;sfx.tap();render();obPut(m)};
+ACT.obu=el=>{const m=obKeep();S.unit=el.dataset.v;S.wUnit=S.unit==='oz'?'lb':'kg';sfx.tap();render();obPut(m)};
+ACT.obgo=()=>{const bs=[];for(let i=0;i<obN;i++){const o=readBaby('o'+i,null,i);if(!o){alert('Please add a birthday for each baby — the daily goal depends on their age.');return}bs.push(o)}
+  S.babies=bs;S.sel=bs[0].id;save();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
+ACT.demo=()=>{
+  const now=new Date(),birth=dayKey(addDays(now,-74));S=blank();S.demo=true;
+  const mk=(name,c,w)=>({id:uid(),name,color:c,birth,weeksEarly:0,solids:false,override:null,plan:{bm:5,fo:0,nu:2},
+    weights:[{d:birth,kg:w[0]},{d:dayKey(addDays(now,-40)),kg:w[1]},{d:dayKey(addDays(now,-9)),kg:w[2]}]});
+  S.babies=[mk('Milo',COLORS[0],[3.0,4.1,5.05]),mk('Juno',COLORS[1],[2.7,3.7,4.6])];S.sel=S.babies[0].id;S.stashMl=5400;
+  const hours=[1.5,5,8,11,14,17,20.5];
+  for(let d=6;d>=0;d--)S.babies.forEach((b,bi)=>hours.forEach((h,i)=>{
+    const t=+startOf(addDays(now,-d))+(h+bi*.15)*36e5;if(t>Date.now()-20*6e4)return;
+    const nu=i===0||i===6,off=110-bi*10,r=[1,1,.9,.75,1,.6,1,.85][(d*3+i+bi)%8];
+    S.feeds.push(nu?{id:uid(),b:b.id,t,kind:'nu',off:100-bi*10,ml:100-bi*10,min:15,side:'both'}:{id:uid(),b:b.id,t,kind:'bm',off,ml:Math.round(off*r/5)*5})}));
+  save();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
+
+/* ════════════ boot ════════════ */
+if(S&&(!Array.isArray(S.babies)||!Array.isArray(S.feeds)))S=null;
+if(S)S=Object.assign(blank(),S);
+render();
+let lastDay=dayKey(new Date());
+setInterval(()=>{const k=dayKey(new Date());if(k!==lastDay&&!L&&!$('#cele').classList.contains('on')){lastDay=k;render()}},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S&&S.babies.length&&!L&&!$('#sheet').classList.contains('on')&&!$('#cele').classList.contains('on'))render()});
+</script>
+</body>
+</html>
