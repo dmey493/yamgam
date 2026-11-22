@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#ffe9c9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1830" media="(prefers-color-scheme: dark)">
 <meta name="description" content="Zuzu the milk zebra: log how much each baby drank, see the daily goal grow with them, and get a 7-day Milk Forecast of what to thaw.">
-<title>Zuzu · Milk Zebra</title>
+<title>Zuzu the Milk Zebra</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <!--
   ═══════════════════════════════════════════════════════════════════
   ZUZU · MILK ZEBRA — feed tracker + Milk Forecast (phone app)
@@ -59,10 +60,14 @@
   --zink:#2d2838;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg:#1b1830; --card:#272342; --ink:#f4efff; --soft:#b0a8cc; --line:#383258;
-    --shadow:0 6px 20px rgba(0,0,0,.35);
+    --shadow:0 6px 20px rgba(0,0,0,.35); color-scheme:dark;
   }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1830; --card:#272342; --ink:#f4efff; --soft:#b0a8cc; --line:#383258;
+  --shadow:0 6px 20px rgba(0,0,0,.35); color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
@@ -72,13 +77,13 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 input,select{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:10px 12px;width:100%;min-width:0}
 input:focus,select:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
 #app{max-width:480px;margin:0 auto;min-height:100%;position:relative;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
-.top{display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top)) 16px 6px}
+.top{display:flex;align-items:center;justify-content:space-between;padding-block:14px 6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .top h1{font-size:22px}
 .top small{display:block;color:var(--soft);font-family:Nunito;font-weight:700;font-size:13px}
 .iconbtn{width:42px;height:42px;border-radius:50%;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center}
 .iconbtn svg{width:22px;height:22px}
 svg.ic{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-main{padding:0 16px}
+main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .card{background:var(--card);border-radius:22px;padding:16px;box-shadow:var(--shadow);margin:14px 0;animation:rise .45s cubic-bezier(.2,.9,.3,1.2) both}
 .card:nth-child(2){animation-delay:.05s}.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}.card:nth-child(5){animation-delay:.2s}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}}
@@ -253,6 +258,8 @@ th{font-size:12px;color:var(--soft);border-top:0}
 td:first-child,th:first-child{text-align:left;font-weight:800}
 .note{background:color-mix(in srgb,var(--sun) 22%,transparent);border-radius:14px;padding:11px 13px;font-size:13.5px;font-weight:700;margin-top:10px}
 .onb{padding:20px 4px 30px;text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(112px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:99px;font-weight:800;font-size:14px;z-index:80;max-width:88%;text-align:center;animation:pop .35s cubic-bezier(.2,1.4,.4,1) both;box-shadow:var(--shadow)}
+.live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--good);margin-right:7px;animation:twinkle 2s ease-in-out infinite}
 .onb svg.zebra{width:170px;overflow:visible}
 .onb .card{text-align:left}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
@@ -303,10 +310,82 @@ const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</
 const KEY='milkzebra.v1';
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const lsSave=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 function blank(){return{v:1,unit:'ml',wUnit:'kg',sound:true,quietNights:true,bagMl:150,bufferPct:5,stashMl:null,thawed:{},babies:[],feeds:[],sel:null}}
 let tab='today';
 const baby=id=>S.babies.find(b=>b.id===id)||S.babies[0];
+
+/* ════════════ sharing ════════════
+   Opened as a claude.ai Artifact, babies/settings live in one shared doc
+   (app/state) and every feed is its own doc (feeds/<id>), so several
+   people can log at once. Anywhere else (a plain file, Umade) the same
+   code simply keeps everything in localStorage on that one phone.
+   Sounds, selected baby and demo data are always per-phone. */
+const SHARED=['unit','wUnit','bagMl','bufferPct','stashMl','thawed','babies'];
+const stable=v=>JSON.stringify(v,(k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.keys(x).sort().reduce((o,q)=>(o[q]=x[q],o),{}):x);
+const clone=v=>JSON.parse(JSON.stringify(v));
+const sharedObj=()=>clone(SHARED.reduce((o,k)=>(o[k]=S[k]??null,o),{}));
+let DB=null,sync='local',syncedState=null,syncedFeeds=new Map(),ready={s:false,f:false},R={state:null,feeds:[]},reconciled=false,dirty=false,wq=Promise.resolve(),stateTimer=0;
+let lastFeeds=new Map(),lastState='';
+function snapLocal(){lastFeeds=new Map(S.feeds.map(f=>[f.id,stable(f)]));lastState=stable(sharedObj())}
+function save(){
+  if(S&&!S.demo){S.pend=S.pend||{up:{},del:{}};const ids=new Set();
+    S.feeds.forEach(f=>{ids.add(f.id);if(lastFeeds.get(f.id)!==stable(f)){S.pend.up[f.id]=1;delete S.pend.del[f.id]}});
+    lastFeeds.forEach((v,id)=>{if(!ids.has(id)){S.pend.del[id]=1;delete S.pend.up[id]}});
+    if(stable(sharedObj())!==lastState)S.pendState=1;snapLocal()}
+  lsSave();push();
+}
+function unpend(id){if(S.pend){delete S.pend.up[id];delete S.pend.del[id];lsSave()}}
+function wfail(e){if(e&&(e.code==='invalid_argument'||e.code==='not_granted'||e.code==='revoked')&&sync!=='readonly'){sync='readonly';S.pendState=0;S.pend={up:{},del:{}};lsSave();toast("You have view-only access, so changes made here aren't shared.")}}
+const enqueue=fn=>{wq=wq.then(fn).catch(wfail)};
+function push(){
+  if(!DB||!reconciled||S.demo||sync==='readonly')return;
+  const ids=new Set();
+  S.feeds.forEach(f=>{ids.add(f.id);const js=stable(f);if(syncedFeeds.get(f.id)!==js){syncedFeeds.set(f.id,js);const body=clone(f);enqueue(()=>DB.doc('feeds/'+f.id).set(body).then(()=>unpend(f.id)))}});
+  [...syncedFeeds.keys()].forEach(id=>{if(!ids.has(id)){syncedFeeds.delete(id);enqueue(()=>DB.doc('feeds/'+id).delete().then(()=>unpend(id)))}});
+  if(stable(sharedObj())!==syncedState&&(S.babies.length||syncedState!==null)){clearTimeout(stateTimer);
+    stateTimer=setTimeout(()=>{const o=sharedObj(),j=stable(o);if(j===syncedState)return;syncedState=j;enqueue(()=>DB.doc('app/state').set(o).then(()=>{if(stable(sharedObj())===j){S.pendState=0;lsSave()}}))},500)}
+}
+function reconcile(){
+  if(!ready.s||!ready.f)return;
+  let changed=!reconciled;reconciled=true;if(sync!=='readonly')sync='shared';
+  const mine={sound:S.sound,quietNights:S.quietNights,sel:S.sel};
+  if(S.demo){if(!R.state){render();return}S=Object.assign(blank(),mine)}
+  const rj=R.state?stable(R.state):null;
+  if(R.state){
+    if(!S.pendState){
+      if(rj!==stable(sharedObj())){SHARED.forEach(k=>{if(R.state[k]!=null||k==='stashMl')S[k]=clone(R.state[k])});changed=true}
+      S.pendState=0}
+  }else if(syncedState!==null){S=Object.assign(blank(),mine);changed=true}
+  syncedState=rj;
+  const pend=S.pend||{up:{},del:{}},byT=(a,b)=>a.t-b.t;
+  const merged=R.feeds.filter(f=>!pend.del[f.id]&&!pend.up[f.id]).concat(S.feeds.filter(f=>pend.up[f.id])).sort(byT);
+  if(stable(merged)!==stable([...S.feeds].sort(byT))){S.feeds=merged;changed=true}
+  syncedFeeds=new Map(R.feeds.map(f=>[f.id,stable(f)]));
+  snapLocal();lsSave();push();
+  if(changed)rerender();
+}
+function rerender(){
+  const a=document.activeElement,typing=a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
+  if(L||typing||$('#sheet').classList.contains('on')||$('#cele').classList.contains('on')){dirty=true;return}
+  dirty=false;const y=window.scrollY;render();window.scrollTo(0,y);
+}
+document.addEventListener('focusout',()=>setTimeout(()=>{if(dirty)rerender()},150));
+function initSync(){
+  if(!(window.claude&&window.claude.use))return;
+  sync='connecting';
+  const giveUp=()=>{if(sync==='connecting'){sync='local';render()}},to=setTimeout(giveUp,10000);
+  window.claude.use('db').then(db=>{
+    if(!db){clearTimeout(to);giveUp();return}
+    DB=db;const dead=()=>{DB=null;sync='local';render()};
+    db.doc('app/state').onSnapshot(s=>{if(s.metadata.fromCache&&!ready.s)return;ready.s=true;R.state=s.exists?clone(s.data()):null;reconcile()},dead);
+    db.collection('feeds').onSnapshot(q=>{if(q.metadata.fromCache&&!ready.f)return;ready.f=true;R.feeds=q.docs.map(d=>clone(d.data())).filter(f=>f&&f.id&&f.b);reconcile()},dead);
+  }).catch(()=>{clearTimeout(to);giveUp()});
+}
+/* in-page confirm + toast (browser dialogs don't show inside an Artifact) */
+let askFn=null;
+function ask(msg,yes,fn){askFn=fn;openSheet(`<h2 style="font-size:19px;line-height:1.3">${esc(msg)}</h2><button class="btn" data-act="askyes">${esc(yes)}</button><button class="btn alt" style="margin-top:10px" data-act="askno">Cancel</button>`)}
+function toast(msg){$$('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3600)}
 
 /* ════════════ units ════════════ */
 function amt(ml,unit=true){
@@ -338,7 +417,7 @@ const adjDays=(b,d)=>ageDays(b,d)-(b.weeksEarly||0)*7;
 function ageLabel(b,d=new Date()){
   const a=ageDays(b,d); if(a<0)return 'not born yet';
   let s=a<14?a+' day'+(a===1?'':'s'):a<84?Math.floor(a/7)+' weeks':Math.floor(a/30.44)+' months';
-  if(b.weeksEarly>0){const j=adjDays(b,d);s+=' · '+(j<0?Math.ceil(-j/7)+' wk to due date':(j<84?Math.floor(j/7)+' wk':Math.floor(j/30.44)+' mo')+' adjusted')}
+  if(b.weeksEarly>0){const j=adjDays(b,d);s+=' · '+(j<0?Math.floor(40+j/7)+' wk corrected':(j<84?Math.floor(j/7)+' wk':Math.floor(j/30.44)+' mo')+' adjusted')}
   return s;
 }
 // typical weight (kg) by adjusted age in months — average of WHO girl/boy medians
@@ -368,22 +447,25 @@ function weightAt(b,date){
   return{kg,est:true,stale:n};
 }
 const feedsPerDay=b=>Math.max(1,b.plan.bm+b.plan.fo+b.plan.nu);
-function target(b,date=new Date()){
-  const fpd=feedsPerDay(b);
-  if(b.override>0)return{ml:b.override,src:'doctor',per:b.override/fpd,why:`Your care team's number: ${goalAmt(b.override)} a day.`};
+const early=b=>(b.weeksEarly||0)>=3;                      // born before 37 weeks
+function setDaily(b){const o=b.ov;if(o&&o.ml>0)return o.mode==='feed'?o.ml*feedsPerDay(b):o.ml;return b.override>0?b.override:0}
+function target(b,date=new Date(),guideOnly=false){
+  const fpd=feedsPerDay(b),od=guideOnly?0:setDaily(b);
+  if(od)return{ml:od,src:'set',per:od/fpd,why:b.ov&&b.ov.mode==='feed'?`You set ${amt(b.ov.ml)} a feed × ${fpd} feeds a day.`:`You set ${goalAmt(od)} a day.`};
   const a=Math.max(0,ageDays(b,date)),adj=adjDays(b,date),W=weightAt(b,date);
-  const ramp=k=>a<7?60+(k-60)*a/7:k;
+  const pre=early(b)&&adj<91;       // early babies: ≈160 ml/kg (teams aim for 150–180) until ~3 months past the due date
+  const ramp=k=>pre?160:a<7?60+(k-60)*a/7:k;
   const bmRaw=ramp(150)*W.kg,foRaw=ramp(165)*W.kg;
   const bm=Math.min(bmRaw,750),fo=Math.min(foRaw,960);
   const fs=b.plan.fo/fpd;
   let ml=fs*fo+(1-fs)*bm;
   const perKg=Math.round(fs*ramp(165)+(1-fs)*ramp(150));
   let why=`${fmtW(W.kg)}${W.typical?' (typical for age — add a real weight!)':W.est?' (estimated)':''} × ${perKg} ml per kg`;
-  if(a<7)why+=' (first-week ramp)';
+  if(pre)why+=' (born early: care teams usually aim for 150–180 ml per kg)';else if(a<7)why+=' (first-week ramp)';
   if(ml<fs*foRaw+(1-fs)*bmRaw-1)why+=fs>=.99?', capped near 960 ml':', levelling off around 750 ml as breast-milk intake does from 1–6 months';
   if(b.solids&&adj>=182){const m=adj/30.44,cap=m<=9?900-(m-6)/3*250:Math.max(500,650-(m-9)/3*150);
     if(cap<ml){ml=cap;why+=', easing down as solids take over'}}
-  return{ml,src:'guide',per:ml/fpd,why:why+'.',W,low:ml*.85,high:ml*1.15};
+  return{ml,src:'guide',per:ml/fpd,why:why+'.',W,low:pre?Math.min(ml,150*W.kg):ml*.85,high:pre?Math.max(ml,Math.min(180*W.kg,960)):ml*1.15};
 }
 
 /* ════════════ feeds ════════════ */
@@ -471,7 +553,10 @@ function renderShell(){
 function render(){
   renderShell();
   const v=$('#view');
-  if(!S||!S.babies.length){$('#title').textContent='Zuzu';$('#sub').textContent='the milk zebra';v.innerHTML=viewOnboard();Z.set('onb',.55,0);return}
+  if(!S)S=blank();
+  if(!S.babies.length){$('#title').textContent='Zuzu';$('#sub').textContent='the milk zebra';
+    if(sync==='connecting'){v.innerHTML=`<div class="onb">${zebraSVG('onb','#ff7a6b','happy')}<h2 style="font-size:24px;margin-top:6px">Fetching the milk log…</h2><p class="muted">One moment while I trot over.</p></div>`;Z.set('onb',1,0);return}
+    v.innerHTML=viewOnboard();Z.set('onb',.55,0);return}
   const T={today:['Today',new Date().toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})],forecast:['Milk Forecast','What to have ready, day by day'],grow:['Grow','How the daily goal keeps up'],more:['More','Settings, backup & sources']}[tab];
   $('#title').textContent=T[0];$('#sub').textContent=T[1];
   v.innerHTML={today:viewToday,forecast:viewForecast,grow:viewGrow,more:viewMore}[tab]();
@@ -485,6 +570,8 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('[data-act]');if(a&&ACT[a.dataset.act])ACT[a.dataset.act](a,e);
 });
 const ACT={};
+ACT.askyes=()=>{const f=askFn;askFn=null;closeSheet();f&&f()};
+ACT.askno=()=>closeSheet();
 
 /* ════════════ TODAY ════════════ */
 function viewToday(){
@@ -503,15 +590,16 @@ function viewToday(){
     :`<p class="muted" style="margin:0">Nothing logged yet today. Tap a zebra (or the big +) after a feed.</p>`;
   const next=S.babies.map(b=>{const t=target(b,now),last=S.feeds.filter(f=>f.b===b.id).sort((x,y)=>y.t-x.t)[0];
     const ago=last?Math.round((now-last.t)/6e4):null;
-    return `<div class="row" style="--c:${b.color};padding:6px 0"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ago==null?'no feeds yet':'last fed '+(ago<60?ago+' min':Math.floor(ago/60)+'h '+pad(ago%60)+'m')+' ago'}</span></span>
-      <span style="text-align:right"><span class="fd" style="font-size:18px">≈ ${goalAmt(t.per)}</span><br><span class="muted">a feed · ${feedsPerDay(b)}/day</span></span></div>`}).join('');
+    return `<button class="feed" data-act="goamt" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ago==null?'no feeds yet':'last fed '+(ago<60?ago+' min':Math.floor(ago/60)+'h '+pad(ago%60)+'m')+' ago'}</span></span>
+      <span style="text-align:right"><span class="fd" style="font-size:18px">${t.src==='set'?'':'≈ '}${t.src==='set'&&b.ov&&b.ov.mode==='feed'?amt(b.ov.ml):goalAmt(t.per)}</span><br><span class="muted">a feed · ${feedsPerDay(b)}/day</span></span></button>`}).join('');
   const days=Array.from({length:7},(_,i)=>addDays(now,i-6));
   const week=days.map((d,i)=>`<div class="d ${i===6?'today':''}"><div class="bars">${S.babies.map((b,j)=>{const p=drankOn(b.id,d)/target(b,d).ml;
     return `<i class="bar" title="${Math.round(p*100)}%" style="--c:${b.color};height:${clamp(p,0,1.15)/1.15*100}%;animation-delay:${i*.05+j*.03}s;opacity:${p>0?1:.0}"></i>`}).join('')}</div>${d.toLocaleDateString([], {weekday:'narrow'})}</div>`).join('');
   return `<div class="scene ${night?'night':''}"><i class="sun"></i><i class="cloud"></i><i class="cloud b"></i>${stars}
       <svg class="hills" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 60Q90 10 200 50T400 40V120H0z" fill="var(--hill1)"/><path d="M0 90Q120 50 240 84T400 74V120H0z" fill="var(--hill2)"/></svg>
       <div class="bubble" id="say">${esc(sayToday())}</div><div class="foals">${foals}</div></div>
-    <div class="card"><h2>Next feed <small>a guide, not a rule</small></h2>${next}</div>
+    ${S.demo?`<div class="note">These are sample twins so you can look around. <button class="link" style="padding:0" data-act="undemo">Start with my own babies</button></div>`:''}
+    <div class="card"><h2>Next feed <small>tap to change the amount</small></h2>${next}</div>
     <div class="card"><h2>Today's feeds <small>tap one to edit</small></h2>${list}</div>
     <div class="card"><h2>This week <small>share of each day's goal</small></h2><div class="week">${week}</div></div>`;
 }
@@ -526,12 +614,14 @@ function sayToday(){
   return `${lo.b.name} is ${Math.round(lo.p*100)}% of the way through today's milk. Every sip earns a stripe.`;
 }
 ACT.log=el=>openLog(el.dataset.b);
+ACT.goamt=el=>{S.sel=el.dataset.b;tab='grow';sfx.tap();render();window.scrollTo(0,0)};
+ACT.undemo=()=>{S=Object.assign(blank(),{unit:S.unit,wUnit:S.wUnit,sound:S.sound});lsSave();snapLocal();tab='today';render();window.scrollTo(0,0);if(reconciled)reconcile()};
 ACT.edit=el=>openLog(null,S.feeds.find(f=>f.id===el.dataset.id));
 
 /* ════════════ LOG SHEET (bottle slider) ════════════ */
 let L=null;
 function openSheet(html){$('#sheet').innerHTML='<div class="grab"></div>'+html;$('#sheet').classList.add('on');$('#scrim').classList.add('on');$('#sheet').scrollTop=0}
-function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');L=null}
+function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');L=null;if(dirty)setTimeout(rerender,50)}
 $('#scrim').addEventListener('click',closeSheet);
 function defaultOffer(b,kind){
   const last=S.feeds.filter(f=>f.b===b.id&&f.kind===kind).sort((x,y)=>y.t-x.t)[0];
@@ -645,7 +735,7 @@ function celebrate(f,before){
   }else{sfx.soft();buzz(15);
     for(let i=0;i<6;i++){const s=document.createElement('i');s.className='heart';s.textContent='♥';s.style.cssText=`left:${30+Math.random()*40}%;color:${b.color};animation-delay:${i*.18}s`;c.appendChild(s)}}
 }
-ACT.cdone=()=>{$('#cele').classList.remove('on');$('#cele').innerHTML=''};
+ACT.cdone=()=>{$('#cele').classList.remove('on');$('#cele').innerHTML='';if(dirty)setTimeout(rerender,50)};
 ACT.cnext=el=>{ACT.cdone();openLog(el.dataset.b)};
 
 /* ════════════ FORECAST ════════════ */
@@ -693,25 +783,33 @@ ACT.stash=()=>{const v=parseFloat($('#stash').value);S.stashMl=isNaN(v)?null:v*(
 /* ════════════ GROW ════════════ */
 function viewGrow(){
   const b=baby(S.sel),now=new Date(),T=target(b,now),p=b.plan;
-  const pts=[];for(let d=-14;d<=182;d+=2)pts.push([d,target(b,addDays(now,d)).ml]);
+  const o=b.ov&&b.ov.ml>0?b.ov:null,G=target(b,now,true),mode=ovMode||(o?o.mode:'feed'),od=o?daysBetween(parseDay(o.d),now):0;
+  const ovVal=o?amt(mode===o.mode?o.ml:mode==='feed'?T.per:T.ml,false):'';
+  const pts=[];for(let d=-14;d<=182;d+=2)pts.push([d,target(b,addDays(now,d),true).ml]);
   const maxY=Math.max(...pts.map(q=>q[1]),drankMax(b))*1.18,X=d=>20+(d+14)/196*300,Y=v=>140-v/maxY*120;
   const line=pts.map((q,i)=>(i?'L':'M')+X(q[0]).toFixed(1)+' '+Y(q[1]).toFixed(1)).join('');
   const dots=Array.from({length:14},(_,i)=>{const d=addDays(now,-i-1),v=drankOn(b.id,d);return v>0?`<circle cx="${X(-i-1)}" cy="${Y(v)}" r="3.5" fill="${b.color}" opacity=".55"/>`:''}).join('');
   const marks=[[0,'now'],[61,'+2 mo'],[122,'+4 mo'],[182,'+6 mo']].map(m=>`<text x="${X(m[0])}" y="158" text-anchor="${m[0]>150?'end':m[0]===0?'start':'middle'}" font-size="11" font-weight="800" fill="var(--soft)">${m[1]}</text>`).join('');
-  const rows=[[0,'Now'],[14,'In 2 weeks'],[30,'In 1 month'],[61,'In 2 months'],[91,'In 3 months'],[182,'In 6 months']].map(r=>{const d=addDays(now,r[0]),t=target(b,d);
+  const rows=[[0,'Now'],[14,'In 2 weeks'],[30,'In 1 month'],[61,'In 2 months'],[91,'In 3 months'],[182,'In 6 months']].map(r=>{const d=addDays(now,r[0]),t=target(b,d,true);
     return `<tr><td>${r[1]}</td><td>${t.W?fmtW(t.W.kg):'—'}</td><td class="fd">${goalAmt(t.ml)}</td><td>${goalAmt(t.per)}</td></tr>`}).join('');
   const logs=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1);
   const st=(k,lab)=>`<div><label class="f">${lab}</label><div class="stepper"><button data-act="plan" data-k="${k}" data-d="-1">−</button><b>${p[k]}</b><button data-act="plan" data-k="${k}" data-d="1">+</button></div></div>`;
   return `${S.babies.length>1?`<div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap">${S.babies.map(x=>`<button class="pill ${x.id===b.id?'on':''}" style="--c:${x.color}" data-act="sel" data-b="${x.id}">${esc(x.name)}</button>`).join('')}</div>`:''}
     <div class="card" style="--c:${b.color}"><h2>${esc(b.name)}'s daily goal <small>${ageLabel(b)}</small></h2>
-      <div class="math"><b>${goalAmt(T.ml)} a day</b>≈ ${goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br><span class="muted">${esc(T.why)}</span></div>
+      <div class="math"><b>${goalAmt(T.ml)} a day</b>${o?'':'≈ '}${goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br><span class="muted">${esc(T.why)}</span></div>
       ${T.W&&T.W.stale>21?`<div class="note">The last weigh-in was ${T.W.stale} days ago, so I'm estimating growth since. A fresh weight sharpens the goal and the forecast.</div>`:''}
-      ${b.weeksEarly>0&&!b.override?`<div class="note">Born ${b.weeksEarly} weeks early: babies born early often have their own plan (fortified milk, a different amount per kg). If your care team gave you a daily number, enter it below and I'll use that instead.</div>`:''}
+      ${b.weeksEarly>0&&!o?`<div class="note">Born at ${40-b.weeksEarly} weeks: babies born early often have their own plan (fortified milk, a set amount per feed). If you know what ${esc(b.name)} takes right now, enter it just below and I'll use that instead of the guide.</div>`:''}
       <p class="muted" style="margin:10px 0 0">Appetite varies day to day. Steady weight gain and plenty of wet nappies matter more than hitting a number.</p></div>
-    <div class="card"><h2>The months ahead <small>dots = what was drunk</small></h2>
+    <div class="card" style="--c:${b.color}"><h2>Amount right now <small>yours to set</small></h2>
+      <div class="seg">${[['feed','Per feed'],['day','Per day']].map(m=>`<button class="${mode===m[0]?'on':''}" data-act="ovmode" data-v="${m[0]}">${m[1]}</button>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><div class="grow"><input id="ov" type="number" inputmode="decimal" min="0" placeholder="${S.unit} ${mode==='feed'?'per feed, e.g. '+(S.unit==='oz'?'1.7':'50'):'per day'}" value="${ovVal}"></div><button class="pill on" style="--c:${b.color}" data-act="ov">Save</button></div>
+      ${o?`<p class="muted" style="margin:10px 0 0">Set ${od<=0?'today':od===1?'yesterday':od+' days ago'}.${od>=7?' Amounts usually go up as they gain weight — is this still right?':''} Today, the bottle and the Milk Forecast all use it. <button class="link" style="padding:0" data-act="ovclear">Use Zuzu's guide instead</button></p>
+        <div class="note">For comparison, the guide for ${esc(b.name)}'s weight is about ${goalAmt(G.ml)} a day (${goalAmt(G.per)} a feed).</div>`
+       :`<p class="muted" style="margin:10px 0 0">Enter what ${esc(b.name)} takes at the moment and Today, the bottle and the Milk Forecast all follow it. Update it whenever the amount goes up. Leave it empty to use the guide.</p>`}</div>
+    <div class="card"><h2>The months ahead <small>${o?'the guide · ':''}dots = what was drunk</small></h2>
       <svg viewBox="0 0 340 164" style="width:100%;overflow:visible"><path d="${line}L${X(182)} 140L${X(-14)} 140Z" fill="${b.color}" opacity=".14"/><path d="${line}" fill="none" stroke="${b.color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"><animate attributeName="stroke-dashoffset" to="0" dur="1.1s" fill="freeze" calcMode="spline" keySplines=".2 .8 .3 1" keyTimes="0;1" values="1;0"/></path>
         <line x1="20" y1="140" x2="320" y2="140" stroke="var(--line)" stroke-width="2"/>${dots}
-        <line x1="${X(0)}" y1="${Y(T.ml)}" x2="${X(0)}" y2="140" stroke="var(--soft)" stroke-width="2" stroke-dasharray="3 4"/><circle cx="${X(0)}" cy="${Y(T.ml)}" r="6" fill="${b.color}" stroke="var(--card)" stroke-width="3"/>${marks}<text x="${X(0)+10}" y="${Y(T.ml)-10}" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(T.ml)}</text><text x="${X(182)}" y="${Y(pts[pts.length-1][1])-10}" text-anchor="end" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(pts[pts.length-1][1])}</text></svg>
+        <line x1="${X(0)}" y1="${Y(G.ml)}" x2="${X(0)}" y2="140" stroke="var(--soft)" stroke-width="2" stroke-dasharray="3 4"/><circle cx="${X(0)}" cy="${Y(G.ml)}" r="6" fill="${b.color}" stroke="var(--card)" stroke-width="3"/>${marks}<text x="${X(0)+10}" y="${Y(G.ml)-10}" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(G.ml)}</text><text x="${X(182)}" y="${Y(pts[pts.length-1][1])-10}" text-anchor="end" font-size="12" font-weight="800" fill="var(--ink)" font-family="Fredoka">${goalAmt(pts[pts.length-1][1])}</text></svg>
       <table><tr><th></th><th>Weight</th><th>Per day</th><th>Per feed</th></tr>${rows}</table>
       <p class="muted" style="margin:8px 0 0">Future weights are projected from ${logs.length>1?esc(b.name)+"'s own recent gain, then":''} typical growth for age.</p></div>
     <div class="card"><h2>Weight log</h2>
@@ -721,16 +819,18 @@ function viewGrow(){
     <div class="card"><h2>Feeding plan <small>feeds in a usual day</small></h2>
       <div class="two" style="grid-template-columns:1fr 1fr 1fr">${st('bm','Milk bottles')}${st('fo','Formula')}${st('nu','Nursing')}</div>
       <p class="muted" style="margin:10px 0 0">The Milk Forecast thaws for the breast-milk bottles only. Formula follows the higher formula guideline; a mix is blended.</p>
-      <button class="check ${b.solids?'on':''}" data-act="solids"><span class="box">${ic('check')}</span>Eating solid foods</button>
-      <label class="f">Daily amount from your care team (${S.unit}) — overrides the guide</label>
-      <div class="row"><div class="grow"><input id="ov" type="number" inputmode="decimal" min="0" placeholder="leave empty to use the guide" value="${b.override?amt(b.override,false):''}"></div><button class="pill" data-act="ov">Save</button></div></div>`;
+      <button class="check ${b.solids?'on':''}" data-act="solids"><span class="box">${ic('check')}</span>Eating solid foods</button></div>`;
 }
+let ovMode=null;
 const drankMax=b=>Math.max(0,...Array.from({length:14},(_,i)=>drankOn(b.id,addDays(new Date(),-i-1))));
-ACT.sel=el=>{S.sel=el.dataset.b;save();sfx.tap();render()};
+ACT.sel=el=>{S.sel=el.dataset.b;ovMode=null;lsSave();sfx.tap();render()};
+ACT.ovmode=el=>{ovMode=el.dataset.v;sfx.tap();keepScroll()};
+ACT.ovclear=()=>{const b=baby(S.sel);b.ov=null;b.override=null;ovMode=null;save();sfx.bloop();keepScroll()};
 ACT.plan=el=>{const b=baby(S.sel),k=el.dataset.k;b.plan[k]=clamp(b.plan[k]+ +el.dataset.d,0,14);if(b.plan.bm+b.plan.fo+b.plan.nu===0)b.plan[k]=1;save();sfx.tap();keepScroll()};
 ACT.solids=()=>{const b=baby(S.sel);b.solids=!b.solids;save();sfx.tap();keepScroll()};
-ACT.ov=()=>{const b=baby(S.sel),v=parseFloat($('#ov').value);b.override=v>0?v*(S.unit==='oz'?OZ:1):null;save();sfx.bloop();keepScroll()};
-ACT.addw=()=>{const b=baby(S.sel),kg=readWeight('w'),d=$('#wd').value;if(!kg||!d){alert('Enter a weight and a date.');return}
+ACT.ov=()=>{const b=baby(S.sel),v=parseFloat($('#ov').value),mode=ovMode||(b.ov&&b.ov.mode)||'feed';b.override=null;
+  b.ov=v>0?{mode,ml:v*(S.unit==='oz'?OZ:1),d:dayKey(new Date())}:null;ovMode=null;save();if(v>0){sfx.fanfare();toast(`Got it: ${amt(b.ov.ml)} ${mode==='feed'?'a feed':'a day'} for ${b.name}.`)}keepScroll()};
+ACT.addw=()=>{const b=baby(S.sel),kg=readWeight('w'),d=$('#wd').value;if(!kg||!d){toast('Enter a weight and a date.');return}
   b.weights=(b.weights||[]).filter(w=>w.d!==d);b.weights.push({d,kg});save();sfx.fanfare();render();window.scrollTo(0,0)};
 ACT.delw=el=>{const b=baby(S.sel);b.weights=b.weights.filter(w=>w.d!==el.dataset.d);save();keepScroll()};
 function keepScroll(){const y=window.scrollY;render();window.scrollTo(0,y)}
@@ -738,7 +838,12 @@ function keepScroll(){const y=window.scrollY;render();window.scrollTo(0,y)}
 /* ════════════ MORE ════════════ */
 function viewMore(){
   const sg=(act,opts,cur)=>`<div class="seg">${opts.map(o=>`<button class="${String(cur)===String(o[0])?'on':''}" data-act="${act}" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`;
-  return `<div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
+  const share={shared:`<span class="live"></span><b>Shared and live.</b> Everyone you share this page with as a Contributor sees each feed as it's logged, and can log their own.`,
+    readonly:`<b>View only.</b> You can see everything, but feeds logged here aren't saved for the others. Ask the owner to make you a Contributor.`,
+    connecting:`Connecting to the shared milk log…`,
+    local:`<b>Saved on this phone only.</b> To log together, open the shared Zuzu page instead and everyone's feeds stay in step.`}[sync];
+  return `<div class="card"><h2>Sharing</h2><p style="margin:0;font-size:14.5px">${share}</p></div>
+    <div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
       ${S.babies.length<3?`<button class="btn alt" style="margin-top:10px;padding:11px" data-act="ebaby">Add a baby</button>`:''}</div>
     <div class="card"><h2>Units</h2><label class="f" style="margin-top:0">Milk</label>${sg('unit',[['ml','Millilitres'],['oz','Ounces']],S.unit)}
       <label class="f">Weight</label>${sg('wunit',[['kg','kg'],['lb','lb + oz']],S.wUnit)}</div>
@@ -748,13 +853,14 @@ function viewMore(){
     <div class="card"><h2>Sounds</h2>
       <button class="check ${S.sound?'on':''}" data-act="snd2" style="margin-top:0"><span class="box">${ic('check')}</span>Play sounds</button>
       <button class="check ${S.quietNights?'on':''}" data-act="quiet"><span class="box">${ic('check')}</span>Stay silent 8pm–7am</button></div>
-    <div class="card"><h2>Backup</h2><p class="muted" style="margin:0 0 10px">Everything lives on this phone only. Save a backup file to keep it safe or move it to another phone.</p>
-      <div class="two"><button class="btn alt" style="padding:11px" data-act="export">Save backup</button><button class="btn alt" style="padding:11px" data-act="import">Load backup</button></div>
+    <div class="card"><h2>Backup</h2><p class="muted" style="margin:0 0 10px">${window.claude?'Load a backup file saved from another copy of Zuzu.':'Save a backup file to keep things safe or move them to another phone.'}</p>
+      <div class="two" ${window.claude?'style="grid-template-columns:1fr"':''}>${window.claude?'':`<button class="btn alt" style="padding:11px" data-act="export">Save backup</button>`}<button class="btn alt" style="padding:11px" data-act="import">Load backup</button></div>
       <input type="file" id="imp" accept=".json,application/json" hidden>
-      <button class="link" style="display:block;margin:8px auto 0" data-act="reset">Erase everything</button></div>
+      <button class="link" style="display:block;margin:8px auto 0" data-act="reset">Erase everything${sync==='shared'?' for everyone':''}</button></div>
     <div class="card"><h2>Where the numbers come from</h2><ul class="tips">
       <li><b>Formula:</b> about 2½ oz per lb of body weight a day (≈165 ml/kg), usually no more than 32 oz (960 ml) — <a href="https://www.healthychildren.org/English/ages-stages/baby/formula-feeding/Pages/Amount-and-Schedule-of-Formula-Feedings.aspx" target="_blank" rel="noopener">AAP</a>. The <a href="https://www.nhs.uk/baby/breastfeeding-and-bottle-feeding/bottle-feeding/formula-milk-questions/" target="_blank" rel="noopener">NHS</a> gives 150–200 ml/kg.</li>
       <li><b>Breast milk:</b> rises over the first weeks, then holds at about 750 ml (25 oz) a day, typically 570–900 ml, from 1 to 6 months — <a href="https://kellymom.com/bf/pumpingmoms/pumping/milkcalc/" target="_blank" rel="noopener">KellyMom</a>, <a href="https://lacted.org/questions/typical-volumes-of-human-milk-intake-among-infants-and-young-children/" target="_blank" rel="noopener">LactEd</a>.</li>
+      <li><b>Born early (before 37 weeks):</b> about 160 ml per kg a day, in the 150–180 range neonatal teams commonly aim for, until around 3 months past the due date. Hospital protocols vary, so your own team's amount always wins.</li>
       <li><b>After solids start</b> milk eases down towards roughly 500–600 ml by the first birthday.</li>
       <li><b>Thawing:</b> <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">CDC storage guidance</a>.</li></ul>
       <div class="note">Zuzu is a friendly tracker, not a doctor. These are averages for healthy full-term babies; your own baby's needs can differ, especially if they were born early. Talk to your care team about feeding worries, poor weight gain or fewer wet nappies.</div></div>`;
@@ -767,27 +873,30 @@ ACT.snd2=()=>{S.sound=!S.sound;save();if(S.sound)sfx.bloop();keepScroll()};
 ACT.quiet=()=>{S.quietNights=!S.quietNights;save();keepScroll()};
 ACT.export=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='zuzu-milk-backup-'+dayKey(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 ACT.import=()=>{const i=$('#imp');i.onchange=()=>{const f=i.files[0];if(!f)return;f.text().then(t=>{const d=JSON.parse(t);if(!d||!Array.isArray(d.babies)||!Array.isArray(d.feeds))throw 0;
-  if(confirm('Replace everything on this phone with the backup?')){S=Object.assign(blank(),d);save();tab='today';render()}}).catch(()=>alert("That file doesn't look like a Zuzu backup."))};i.click()};
-ACT.reset=()=>{if(confirm('Erase all babies and feeds from this phone? This cannot be undone.')){localStorage.removeItem(KEY);S=null;tab='today';render()}};
+  ask(sync==='shared'?'Replace the shared milk log, for everyone, with this backup?':'Replace everything on this phone with the backup?','Replace',()=>{const mine={pend:S.pend,sound:S.sound,quietNights:S.quietNights};S=Object.assign(blank(),d,mine,{demo:false});save();tab='today';render()})}).catch(()=>toast("That file doesn't look like a Zuzu backup."))};i.click()};
+ACT.reset=()=>ask(sync==='shared'?'Erase all babies and feeds for everyone who shares this page? This cannot be undone.':'Erase all babies and feeds from this phone? This cannot be undone.','Erase everything',()=>{
+  const wasDemo=S.demo;S=Object.assign(blank(),{pend:S.pend,sound:S.sound,quietNights:S.quietNights});if(wasDemo){lsSave();snapLocal()}else save();tab='today';render()});
 
 /* ── baby editor ── */
 const STYLES={bm:['Pumped-milk bottles',{bm:7,fo:0,nu:0}],nb:['Nursing + milk bottles',{bm:3,fo:0,nu:4}],mix:['Breast milk + formula',{bm:4,fo:3,nu:0}],fo:['Formula bottles',{bm:0,fo:7,nu:0}],nu:['Mostly nursing',{bm:1,fo:0,nu:7}]};
 function babyFields(p,b,i){
   return `<label class="f">Name</label><input id="${p}n" maxlength="20" placeholder="Baby ${'ABC'[i]||''}" value="${esc(b?b.name:'')}">
     <div class="two"><div><label class="f">Birthday</label><input type="date" id="${p}b" max="${dayKey(new Date())}" value="${b?b.birth:''}"></div>
-      <div><label class="f">Born early? (weeks)</label><input type="number" id="${p}e" inputmode="numeric" min="0" max="18" placeholder="0" value="${b&&b.weeksEarly?b.weeksEarly:''}"></div></div>
+      <div><label class="f">Born at week… of pregnancy</label><input type="number" id="${p}e" inputmode="numeric" min="22" max="42" placeholder="40 = full term" value="${b&&b.weeksEarly?40-b.weeksEarly:''}"></div></div>
     ${b?'':`<label class="f">Latest weight (optional, but makes the goal theirs)</label>${weightFields(p+'w',null)}
+    <label class="f">Amount per feed right now, in ${S.unit} (optional)</label><input type="number" id="${p}a" inputmode="decimal" min="0" placeholder="e.g. ${S.unit==='oz'?'1.7':'50'} — leave empty to use the guide">
     <label class="f">How do they feed?</label><select id="${p}s">${Object.entries(STYLES).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('')}</select>`}`;
 }
 function readBaby(p,b,i){
   const name=$('#'+p+'n').value.trim()||('Baby '+('ABC'[i]||'')),birth=$('#'+p+'b').value;
   if(!birth)return null;
-  const o=b||{id:uid(),color:COLORS[i%COLORS.length],weights:[],solids:false,override:null};
-  o.name=name;o.birth=birth;o.weeksEarly=clamp(parseInt($('#'+p+'e').value)||0,0,18);
+  const o=b||{id:uid(),color:COLORS[i%COLORS.length],weights:[],solids:false,override:null,ov:null};
+  const ga=parseInt($('#'+p+'e').value);o.name=name;o.birth=birth;o.weeksEarly=ga>=22&&ga<40?40-ga:0;
   if(!b){const kg=readWeight(p+'w');if(kg)o.weights.push({d:dayKey(new Date()),kg});o.plan={...STYLES[$('#'+p+'s').value][1]};
-    const a=ageDays(o,new Date()),n=a<30?8:a<90?7:a<180?6:a<270?5:4,tot=o.plan.bm+o.plan.fo+o.plan.nu;   // scale the plan to a usual number of feeds for age
+    const pf=parseFloat($('#'+p+'a').value);if(pf>0)o.ov={mode:'feed',ml:pf*(S.unit==='oz'?OZ:1),d:dayKey(new Date())};
+    const a=ageDays(o,new Date())-o.weeksEarly*7,n=a<30?8:a<90?7:a<180?6:a<270?5:4,tot=o.plan.bm+o.plan.fo+o.plan.nu;   // scale the plan to a usual number of feeds for age
     ['bm','fo','nu'].forEach(k=>o.plan[k]=Math.round(o.plan[k]/tot*n));if(o.plan.bm+o.plan.fo+o.plan.nu===0)o.plan.bm=n;
-    o.solids=a-o.weeksEarly*7>=182}
+    o.solids=a>=182}
   return o;
 }
 ACT.ebaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,i=b?S.babies.indexOf(b):S.babies.length;
@@ -796,9 +905,9 @@ ACT.ebaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,i=b?S.babies.indexOf
     <button class="btn" style="margin-top:16px" data-act="sbaby" data-b="${b?b.id:''}" data-i="${i}">Save</button>
     ${b&&S.babies.length>1?`<button class="link" style="display:block;margin:4px auto 0" data-act="dbaby" data-b="${b.id}">Remove ${esc(b.name)}</button>`:''}`)};
 ACT.col=el=>{$$('#cols button').forEach(x=>x.style.outline=x===el?'4px solid var(--ink)':'none');$('#cols').dataset.c=el.dataset.c};
-ACT.sbaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,o=readBaby('e',b,+el.dataset.i);if(!o){alert('Please add a birthday.');return}
+ACT.sbaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,o=readBaby('e',b,+el.dataset.i);if(!o){toast('Please add a birthday.');return}
   const c=$('#cols');if(c&&c.dataset.c)o.color=c.dataset.c;if(!b)S.babies.push(o);save();closeSheet();sfx.bloop();render()};
-ACT.dbaby=el=>{const b=baby(el.dataset.b);if(confirm(`Remove ${b.name} and all of their feeds?`)){S.babies=S.babies.filter(x=>x!==b);S.feeds=S.feeds.filter(f=>f.b!==b.id);S.sel=S.babies[0].id;save();closeSheet();render()}};
+ACT.dbaby=el=>{const b=baby(el.dataset.b);ask(`Remove ${b.name} and all of their feeds?`,'Remove',()=>{S.babies=S.babies.filter(x=>x!==b);S.feeds=S.feeds.filter(f=>f.b!==b.id);S.sel=S.babies[0].id;save();render()})};
 
 /* ════════════ ONBOARDING ════════════ */
 let obN=2;
@@ -819,10 +928,10 @@ const obKeep=()=>$$('#view input,#view select').reduce((m,i)=>(m[i.id]=i.value,m
 const obPut=m=>Object.entries(m).forEach(([k,v])=>{const i=document.getElementById(k);if(i)i.value=v});
 ACT.obn=el=>{const m=obKeep();obN=+el.dataset.n;sfx.tap();render();obPut(m)};
 ACT.obu=el=>{const m=obKeep();S.unit=el.dataset.v;S.wUnit=S.unit==='oz'?'lb':'kg';sfx.tap();render();obPut(m)};
-ACT.obgo=()=>{const bs=[];for(let i=0;i<obN;i++){const o=readBaby('o'+i,null,i);if(!o){alert('Please add a birthday for each baby — the daily goal depends on their age.');return}bs.push(o)}
-  S.babies=bs;S.sel=bs[0].id;save();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
+ACT.obgo=()=>{const bs=[];for(let i=0;i<obN;i++){const o=readBaby('o'+i,null,i);if(!o){toast('Please add a birthday for each baby. The daily goal depends on their age.');return}bs.push(o)}
+  S.babies=bs;S.sel=bs[0].id;S.demo=false;save();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
 ACT.demo=()=>{
-  const now=new Date(),birth=dayKey(addDays(now,-74));S=blank();S.demo=true;
+  const now=new Date(),birth=dayKey(addDays(now,-74));S=Object.assign(blank(),{unit:S.unit,wUnit:S.wUnit});S.demo=true;
   const mk=(name,c,w)=>({id:uid(),name,color:c,birth,weeksEarly:0,solids:false,override:null,plan:{bm:5,fo:0,nu:2},
     weights:[{d:birth,kg:w[0]},{d:dayKey(addDays(now,-40)),kg:w[1]},{d:dayKey(addDays(now,-9)),kg:w[2]}]});
   S.babies=[mk('Milo',COLORS[0],[3.0,4.1,5.05]),mk('Juno',COLORS[1],[2.7,3.7,4.6])];S.sel=S.babies[0].id;S.stashMl=5400;
@@ -831,11 +940,12 @@ ACT.demo=()=>{
     const t=+startOf(addDays(now,-d))+(h+bi*.15)*36e5;if(t>Date.now()-20*6e4)return;
     const nu=i===0||i===6,off=110-bi*10,r=[1,1,.9,.75,1,.6,1,.85][(d*3+i+bi)%8];
     S.feeds.push(nu?{id:uid(),b:b.id,t,kind:'nu',off:100-bi*10,ml:100-bi*10,min:15,side:'both'}:{id:uid(),b:b.id,t,kind:'bm',off,ml:Math.round(off*r/5)*5})}));
-  save();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
+  lsSave();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
 
 /* ════════════ boot ════════════ */
 if(S&&(!Array.isArray(S.babies)||!Array.isArray(S.feeds)))S=null;
-if(S)S=Object.assign(blank(),S);
+S=Object.assign(blank(),S||{});
+snapLocal();initSync();
 render();
 let lastDay=dayKey(new Date());
 setInterval(()=>{const k=dayKey(new Date());if(k!==lastDay&&!L&&!$('#cele').classList.contains('on')){lastDay=k;render()}},60000);
