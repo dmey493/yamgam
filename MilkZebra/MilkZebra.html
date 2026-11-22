@@ -258,6 +258,18 @@ th{font-size:12px;color:var(--soft);border-top:0}
 td:first-child,th:first-child{text-align:left;font-weight:800}
 .note{background:color-mix(in srgb,var(--sun) 22%,transparent);border-radius:14px;padding:11px 13px;font-size:13.5px;font-weight:700;margin-top:10px}
 .onb{padding:20px 4px 30px;text-align:center}
+.still .card,.still .fc,.still .bar,.still .bubble,.still .fc .meter i,.still .bag{animation:none}
+.due.now{color:var(--good);font-weight:800}.due.late{color:var(--accent);font-weight:800}
+.dots{display:inline-flex;gap:4px;vertical-align:middle}
+.dots i{width:11px;height:14px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;background:var(--line);transition:background .3s}
+.dots i.on{background:#4c9bea;animation:pop .4s cubic-bezier(.2,1.8,.4,1) both}
+.drow{padding:10px 0;border-top:2px dashed var(--line)}.drow:first-of-type{border-top:0}
+.drow .pill{padding:6px 12px;font-size:13.5px}
+.vs{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;font-size:14px;font-weight:700}
+.vs .meter{height:12px;border-radius:9px;background:var(--bg);overflow:hidden}.vs .meter i{display:block;height:100%;border-radius:9px;background:var(--c);transform-origin:left;animation:growx .8s cubic-bezier(.2,.9,.3,1) both}
+.badge{font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:99px;background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good);white-space:nowrap}
+.badge.warn{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.pbig{font-family:Fredoka;font-weight:700;font-size:52px;line-height:1;text-align:center;color:var(--accent)}.pbig small{font-size:22px}
 .toast{position:fixed;left:50%;bottom:calc(112px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:99px;font-weight:800;font-size:14px;z-index:80;max-width:88%;text-align:center;animation:pop .35s cubic-bezier(.2,1.4,.4,1) both;box-shadow:var(--shadow)}
 .live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--good);margin-right:7px;animation:twinkle 2s ease-in-out infinite}
 .onb svg.zebra{width:170px;overflow:visible}
@@ -311,7 +323,7 @@ const KEY='milkzebra.v1';
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 const lsSave=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
-function blank(){return{v:1,unit:'ml',wUnit:'kg',sound:true,quietNights:true,bagMl:150,bufferPct:5,stashMl:null,thawed:{},babies:[],feeds:[],sel:null}}
+function blank(){return{v:1,unit:'ml',wUnit:'kg',sound:true,quietNights:true,bagMl:150,bufferPct:5,stashMl:null,thawed:{},babies:[],feeds:[],log:[],bags:[],remindH:3,sel:null}}
 let tab='today';
 const baby=id=>S.babies.find(b=>b.id===id)||S.babies[0];
 
@@ -321,34 +333,38 @@ const baby=id=>S.babies.find(b=>b.id===id)||S.babies[0];
    people can log at once. Anywhere else (a plain file, Umade) the same
    code simply keeps everything in localStorage on that one phone.
    Sounds, selected baby and demo data are always per-phone. */
-const SHARED=['unit','wUnit','bagMl','bufferPct','stashMl','thawed','babies'];
+const SHARED=['unit','wUnit','bagMl','bufferPct','stashMl','thawed','babies','bags','remindH'];
+const COLS=['feeds','log'];   // feeds/<id> = one feed; log/<id> = a pump, diaper or wasted-milk entry
 const stable=v=>JSON.stringify(v,(k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.keys(x).sort().reduce((o,q)=>(o[q]=x[q],o),{}):x);
 const clone=v=>JSON.parse(JSON.stringify(v));
 const sharedObj=()=>clone(SHARED.reduce((o,k)=>(o[k]=S[k]??null,o),{}));
-let DB=null,sync='local',syncedState=null,syncedFeeds=new Map(),ready={s:false,f:false},R={state:null,feeds:[]},reconciled=false,dirty=false,wq=Promise.resolve(),stateTimer=0;
-let lastFeeds=new Map(),lastState='';
-function snapLocal(){lastFeeds=new Map(S.feeds.map(f=>[f.id,stable(f)]));lastState=stable(sharedObj())}
+let DB=null,sync='local',syncedState=null,synced={feeds:new Map(),log:new Map()},ready={s:false,feeds:false,log:false},R={state:null,feeds:[],log:[]},reconciled=false,dirty=false,wq=Promise.resolve(),stateTimer=0;
+let last={feeds:new Map(),log:new Map()},lastState='';
+function pendOf(){const p=S.pend||{};COLS.forEach(c=>{if(!p[c])p[c]={up:{},del:{}}});
+  if(p.up){Object.assign(p.feeds.up,p.up);Object.assign(p.feeds.del,p.del||{});delete p.up;delete p.del}S.pend=p;return p}
+function snapLocal(){COLS.forEach(c=>last[c]=new Map(S[c].map(f=>[f.id,stable(f)])));lastState=stable(sharedObj())}
 function save(){
-  if(S&&!S.demo){S.pend=S.pend||{up:{},del:{}};const ids=new Set();
-    S.feeds.forEach(f=>{ids.add(f.id);if(lastFeeds.get(f.id)!==stable(f)){S.pend.up[f.id]=1;delete S.pend.del[f.id]}});
-    lastFeeds.forEach((v,id)=>{if(!ids.has(id)){S.pend.del[id]=1;delete S.pend.up[id]}});
-    if(stable(sharedObj())!==lastState)S.pendState=1;snapLocal()}
-  lsSave();push();
+  if(S&&!S.demo&&window.claude){const P=pendOf();
+    COLS.forEach(c=>{const ids=new Set(),q=P[c];
+      S[c].forEach(f=>{ids.add(f.id);if(last[c].get(f.id)!==stable(f)){q.up[f.id]=1;delete q.del[f.id]}});
+      last[c].forEach((v,id)=>{if(!ids.has(id)){q.del[id]=1;delete q.up[id]}})});
+    if(stable(sharedObj())!==lastState)S.pendState=1}
+  snapLocal();lsSave();push();
 }
-function unpend(id){if(S.pend){delete S.pend.up[id];delete S.pend.del[id];lsSave()}}
-function wfail(e){if(e&&(e.code==='invalid_argument'||e.code==='not_granted'||e.code==='revoked')&&sync!=='readonly'){sync='readonly';S.pendState=0;S.pend={up:{},del:{}};lsSave();toast("You have view-only access, so changes made here aren't shared.")}}
+function unpend(c,id){const q=pendOf()[c];delete q.up[id];delete q.del[id];lsSave()}
+function wfail(e){if(e&&(e.code==='invalid_argument'||e.code==='not_granted'||e.code==='revoked')&&sync!=='readonly'){sync='readonly';S.pendState=0;S.pend=null;lsSave();toast("You have view-only access, so changes made here aren't shared.")}}
 const enqueue=fn=>{wq=wq.then(fn).catch(wfail)};
 function push(){
   if(!DB||!reconciled||S.demo||sync==='readonly')return;
-  const ids=new Set();
-  S.feeds.forEach(f=>{ids.add(f.id);const js=stable(f);if(syncedFeeds.get(f.id)!==js){syncedFeeds.set(f.id,js);const body=clone(f);enqueue(()=>DB.doc('feeds/'+f.id).set(body).then(()=>unpend(f.id)))}});
-  [...syncedFeeds.keys()].forEach(id=>{if(!ids.has(id)){syncedFeeds.delete(id);enqueue(()=>DB.doc('feeds/'+id).delete().then(()=>unpend(id)))}});
+  COLS.forEach(c=>{const ids=new Set(),m=synced[c];
+    S[c].forEach(f=>{ids.add(f.id);const js=stable(f);if(m.get(f.id)!==js){m.set(f.id,js);const body=clone(f);enqueue(()=>DB.doc(c+'/'+f.id).set(body).then(()=>unpend(c,f.id)))}});
+    [...m.keys()].forEach(id=>{if(!ids.has(id)){m.delete(id);enqueue(()=>DB.doc(c+'/'+id).delete().then(()=>unpend(c,id)))}})});
   if(stable(sharedObj())!==syncedState&&(S.babies.length||syncedState!==null)){clearTimeout(stateTimer);
     stateTimer=setTimeout(()=>{const o=sharedObj(),j=stable(o);if(j===syncedState)return;syncedState=j;enqueue(()=>DB.doc('app/state').set(o).then(()=>{if(stable(sharedObj())===j){S.pendState=0;lsSave()}}))},500)}
 }
 function reconcile(){
-  if(!ready.s||!ready.f)return;
-  let changed=!reconciled;reconciled=true;if(sync!=='readonly')sync='shared';
+  if(!ready.s||COLS.some(c=>!ready[c]))return;
+  const first=!reconciled;let changed=first;reconciled=true;if(sync!=='readonly')sync='shared';
   const mine={sound:S.sound,quietNights:S.quietNights,sel:S.sel};
   if(S.demo){if(!R.state){render();return}S=Object.assign(blank(),mine)}
   const rj=R.state?stable(R.state):null;
@@ -358,17 +374,21 @@ function reconcile(){
       S.pendState=0}
   }else if(syncedState!==null){S=Object.assign(blank(),mine);changed=true}
   syncedState=rj;
-  const pend=S.pend||{up:{},del:{}},byT=(a,b)=>a.t-b.t;
-  const merged=R.feeds.filter(f=>!pend.del[f.id]&&!pend.up[f.id]).concat(S.feeds.filter(f=>pend.up[f.id])).sort(byT);
-  if(stable(merged)!==stable([...S.feeds].sort(byT))){S.feeds=merged;changed=true}
-  syncedFeeds=new Map(R.feeds.map(f=>[f.id,stable(f)]));
+  const P=pendOf(),byT=(a,b)=>a.t-b.t||(a.id<b.id?-1:1);
+  COLS.forEach(c=>{const q=P[c];
+    const merged=R[c].filter(f=>!q.del[f.id]&&!q.up[f.id]).concat(S[c].filter(f=>q.up[f.id])).sort(byT);
+    if(stable(merged)!==stable([...S[c]].sort(byT))){S[c]=merged;changed=true}
+    synced[c]=new Map(R[c].map(f=>[f.id,stable(f)]))});
   snapLocal();lsSave();push();
+  if(first&&prune())save();
   if(changed)rerender();
 }
+// keep 90 days of history so the shared log stays small and quick
+function prune(){const cut=Date.now()-90*DAY,n=S.feeds.length+S.log.length;S.feeds=S.feeds.filter(f=>f.t>=cut);S.log=S.log.filter(f=>f.t>=cut);return S.feeds.length+S.log.length<n}
 function rerender(){
   const a=document.activeElement,typing=a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
   if(L||typing||$('#sheet').classList.contains('on')||$('#cele').classList.contains('on')){dirty=true;return}
-  dirty=false;const y=window.scrollY;render();window.scrollTo(0,y);
+  dirty=false;const y=window.scrollY;$('#view').classList.add('still');render();window.scrollTo(0,y);
 }
 document.addEventListener('focusout',()=>setTimeout(()=>{if(dirty)rerender()},150));
 function initSync(){
@@ -379,7 +399,7 @@ function initSync(){
     if(!db){clearTimeout(to);giveUp();return}
     DB=db;const dead=()=>{DB=null;sync='local';render()};
     db.doc('app/state').onSnapshot(s=>{if(s.metadata.fromCache&&!ready.s)return;ready.s=true;R.state=s.exists?clone(s.data()):null;reconcile()},dead);
-    db.collection('feeds').onSnapshot(q=>{if(q.metadata.fromCache&&!ready.f)return;ready.f=true;R.feeds=q.docs.map(d=>clone(d.data())).filter(f=>f&&f.id&&f.b);reconcile()},dead);
+    COLS.forEach(c=>db.collection(c).onSnapshot(q=>{if(q.metadata.fromCache&&!ready[c])return;ready[c]=true;R[c]=q.docs.map(d=>clone(d.data())).filter(f=>f&&f.id&&f.t);reconcile()},dead));
   }).catch(()=>{clearTimeout(to);giveUp()});
 }
 /* in-page confirm + toast (browser dialogs don't show inside an Artifact) */
@@ -471,6 +491,28 @@ function target(b,date=new Date(),guideOnly=false){
 /* ════════════ feeds ════════════ */
 const feedsOn=(bid,date)=>{const a=+startOf(date),z=a+DAY;return S.feeds.filter(f=>f.b===bid&&f.t>=a&&f.t<z)};
 const drankOn=(bid,date)=>feedsOn(bid,date).reduce((s,f)=>s+f.ml,0);
+const lastFeed=bid=>S.feeds.filter(f=>f.b===bid).sort((x,y)=>y.t-x.t)[0];
+const dur=m=>m<60?m+' min':Math.floor(m/60)+'h '+pad(m%60)+'m';
+const toMl=v=>v*(S.unit==='oz'?OZ:1);
+const logOn=(type,date)=>{const a=+startOf(date),z=a+DAY;return S.log.filter(e=>e.type===type&&e.t>=a&&e.t<z)};
+function dueInfo(b,now=Date.now()){
+  if(!S.remindH)return null;const l=lastFeed(b.id);if(!l)return null;
+  const at=l.t+S.remindH*36e5,m=Math.round((at-now)/6e4);
+  return{at,m,id:l.id,text:m>5?'next in '+dur(m):m>=-5?'feed time!':'due '+dur(-m)+' ago',cls:m>5?'':m>=-5?'now':'late'};
+}
+const alerted={};
+function tick(){
+  if(!S||!S.babies.length)return;
+  S.babies.forEach(b=>{const d=dueInfo(b),el=$(`[data-due="${b.id}"]`);
+    if(el&&d){el.textContent=d.text;el.className='due '+d.cls}
+    if(d&&d.m<=0&&d.m>-30&&alerted[b.id]!==d.id){alerted[b.id]=d.id;
+      if(!L&&!$('#cele').classList.contains('on')){toast(`Time for ${b.name}'s feed`);sfx.soft();buzz([60,80,60]);Z.mood(b.id,'jump',1900)}
+      try{if(window.Notification&&Notification.permission==='granted'&&document.hidden)new Notification(`Time for ${b.name}'s feed`,{body:'Zuzu has the bottle ready.'})}catch(e){}}});
+}
+// in Umade the phone can ring even when the app is closed
+function schedule(b){try{const l=lastFeed(b.id),n=window.umade&&window.umade.notifications;if(!n)return;
+  if(!S.remindH||!l){n.cancel&&n.cancel('feed-'+b.id);return}const at=l.t+S.remindH*36e5;
+  if(at>Date.now())n.schedule({id:'feed-'+b.id,title:`Time for ${b.name}'s feed`,body:'Zuzu has the bottle ready.',at})}catch(e){}}
 const KIND={bm:'Breast milk bottle',fo:'Formula bottle',nu:'Nursing'};
 const KSHORT={bm:'Breast milk',fo:'Formula',nu:'Nursing'};
 
@@ -564,7 +606,7 @@ function render(){
 }
 const after={};
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;sfx.tap();render();window.scrollTo(0,0);return}
+  const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;sfx.tap();$('#view').classList.remove('still');render();window.scrollTo(0,0);return}
   if(e.target.closest('#fab')){openLog();return}
   if(e.target.closest('#snd')){S.sound=!S.sound;save();renderShell();if(S.sound)sfx.bloop();return}
   const a=e.target.closest('[data-act]');if(a&&ACT[a.dataset.act])ACT[a.dataset.act](a,e);
@@ -589,8 +631,8 @@ function viewToday(){
       ${f.kind!=='nu'?`<span class="pct">${Math.round(f.ml/f.off*100)}%</span>`:''}</button>`}).join('')
     :`<p class="muted" style="margin:0">Nothing logged yet today. Tap a zebra (or the big +) after a feed.</p>`;
   const next=S.babies.map(b=>{const t=target(b,now),last=S.feeds.filter(f=>f.b===b.id).sort((x,y)=>y.t-x.t)[0];
-    const ago=last?Math.round((now-last.t)/6e4):null;
-    return `<button class="feed" data-act="goamt" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ago==null?'no feeds yet':'last fed '+(ago<60?ago+' min':Math.floor(ago/60)+'h '+pad(ago%60)+'m')+' ago'}</span></span>
+    const ago=last?Math.round((now-last.t)/6e4):null,du=dueInfo(b);
+    return `<button class="feed" data-act="goamt" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ago==null?'no feeds yet':'last fed '+(ago<60?ago+' min':Math.floor(ago/60)+'h '+pad(ago%60)+'m')+' ago'}${du?` · <span class="due ${du.cls}" data-due="${b.id}">${du.text}</span>`:''}</span></span>
       <span style="text-align:right"><span class="fd" style="font-size:18px">${t.src==='set'?'':'≈ '}${t.src==='set'&&b.ov&&b.ov.mode==='feed'?amt(b.ov.ml):goalAmt(t.per)}</span><br><span class="muted">a feed · ${feedsPerDay(b)}/day</span></span></button>`}).join('');
   const days=Array.from({length:7},(_,i)=>addDays(now,i-6));
   const week=days.map((d,i)=>`<div class="d ${i===6?'today':''}"><div class="bars">${S.babies.map((b,j)=>{const p=drankOn(b.id,d)/target(b,d).ml;
@@ -600,10 +642,65 @@ function viewToday(){
       <div class="bubble" id="say">${esc(sayToday())}</div><div class="foals">${foals}</div></div>
     ${S.demo?`<div class="note">These are sample twins so you can look around. <button class="link" style="padding:0" data-act="undemo">Start with my own babies</button></div>`:''}
     <div class="card"><h2>Next feed <small>tap to change the amount</small></h2>${next}</div>
+    ${diaperCard(now)}
     <div class="card"><h2>Today's feeds <small>tap one to edit</small></h2>${list}</div>
+    ${pumpCard(now)}
     <div class="card"><h2>This week <small>share of each day's goal</small></h2><div class="week">${week}</div></div>`;
 }
 after.today=()=>S.babies.forEach(b=>Z.set(b.id,drankOn(b.id,new Date())/target(b).ml));
+/* ── diapers ── */
+function diaperCard(now){
+  const rows=S.babies.map(b=>{const es=logOn('diaper',now).filter(e=>e.b===b.id),wet=es.filter(e=>e.kind!=='dirty').length,dirty=es.filter(e=>e.kind!=='wet').length;
+    return `<div class="drow" style="--c:${b.color}"><button class="row" data-act="dlist" data-b="${b.id}" style="width:100%;text-align:left"><span class="dot"></span><b class="grow">${esc(b.name)}</b>
+        <span class="dots" aria-hidden="true">${Array.from({length:6},(_,i)=>`<i class="${i<wet?'on':''}"></i>`).join('')}</span><span class="muted">${wet} wet · ${dirty} dirty</span></button>
+      <div class="row" style="margin-top:8px;gap:6px">${[['wet','Wet'],['dirty','Dirty'],['both','Both']].map(k=>`<button class="pill grow" style="justify-content:center" data-act="diaper" data-b="${b.id}" data-k="${k[0]}">+ ${k[1]}</button>`).join('')}</div></div>`}).join('');
+  return `<div class="card"><h2>Diapers <small>6+ wet a day is a good sign</small></h2>${rows}</div>`;
+}
+ACT.diaper=el=>{const b=baby(el.dataset.b),k=el.dataset.k;S.log.push({id:uid(),type:'diaper',t:Date.now(),b:b.id,kind:k});save();
+  const wet=logOn('diaper',new Date()).filter(e=>e.b===b.id&&e.kind!=='dirty').length;keepScroll();buzz(12);
+  if(k!=='dirty'&&wet===6){sfx.fanfare();Z.mood(b.id,'jump',1900);toast(`Six wet diapers for ${b.name} today. That's the good-sign number!`)}else{sfx.bloop();toast(`${{wet:'Wet',dirty:'Dirty',both:'Wet + dirty'}[k]} diaper logged for ${b.name}`)}};
+ACT.dlist=el=>{const b=baby(el.dataset.b),es=logOn('diaper',new Date()).filter(e=>e.b===b.id).sort((x,y)=>y.t-x.t);
+  openSheet(`<h2>${esc(b.name)}'s diapers today</h2>${es.length?es.map(e=>`<div class="feed"><span class="t">${timeStr(e.t)}</span><b class="grow">${{wet:'Wet',dirty:'Dirty',both:'Wet + dirty'}[e.kind]}</b><button class="link" style="padding:0" data-act="logdel" data-id="${e.id}">remove</button></div>`).join(''):'<p class="muted">None logged yet today.</p>'}
+    <p class="muted" style="margin:12px 0">From about day five, six or more wet diapers in 24 hours usually means a baby is getting enough milk. Fewer than that, or very dark urine, is worth a call to your care team.</p><button class="btn alt" data-act="askno">Close</button>`)};
+ACT.logdel=el=>{S.log=S.log.filter(e=>e.id!==el.dataset.id);save();closeSheet();keepScroll()};
+
+/* ── pumping ── */
+function pumpCard(now){
+  const ps=logOn('pump',now),tot=ps.reduce((s,e)=>s+e.ml,0);
+  if(!ps.length&&!S.babies.some(b=>b.plan.bm>0||b.plan.nu>0))return '';
+  const drank=S.feeds.filter(f=>f.kind==='bm'&&f.t>=+startOf(now)).reduce((s,f)=>s+f.ml,0),mx=Math.max(tot,drank,1);
+  return `<div class="card"><h2>Pumping <small>${ps.length} session${ps.length===1?'':'s'} today</small></h2>
+    <div class="vs"><span>Pumped</span><div class="meter" style="--c:var(--good)"><i style="width:${tot/mx*100}%"></i></div><b class="fd">${amt(tot)}</b>
+      <span>Drunk</span><div class="meter" style="--c:var(--accent)"><i style="width:${drank/mx*100}%"></i></div><b class="fd">${amt(drank)}</b></div>
+    <p class="muted" style="margin:8px 0 12px">Breast-milk bottles drunk today, next to what was pumped.</p>
+    <button class="btn alt" style="padding:12px" data-act="popen">Log a pump</button></div>`;
+}
+let PS=null;
+ACT.popen=()=>{const lastP=S.log.filter(e=>e.type==='pump').sort((x,y)=>y.t-x.t)[0];PS={ml:lastP?lastP.ml:bigStep()*10,dest:lastP?lastP.dest:'fridge',bags:1,min:lastP&&lastP.min||20};sfx.bloop();drawPump()};
+function drawPump(){
+  const ps=logOn('pump',new Date()).sort((x,y)=>y.t-x.t),now=new Date();
+  openSheet(`<h2>Log a pump</h2><div class="pbig" id="pbig">${amt(PS.ml,false)}<small> ${S.unit}</small></div>
+    <div class="row" style="margin:12px 0 8px"><div class="stepper grow"><button data-act="pstep" data-d="-1">−</button><b>total pumped</b><button data-act="pstep" data-d="1">+</button></div></div>
+    <div class="chips">${[6,9,12,15,18,24].map(n=>`<button class="pill" data-act="pchip" data-v="${n*bigStep()}">${amt(n*bigStep())}</button>`).join('')}</div>
+    <label class="f">Where is it going?</label><div class="seg">${[['fridge','Fridge'],['freezer','Freezer'],['fed','Feeding now']].map(d=>`<button class="${PS.dest===d[0]?'on':''}" data-act="pdest" data-v="${d[0]}">${d[1]}</button>`).join('')}</div>
+    ${PS.dest==='freezer'?`<label class="f">Split into bags</label><div class="stepper"><button data-act="pbags" data-d="-1">−</button><b>${PS.bags} bag${PS.bags===1?'':'s'} of ${amt(PS.ml/PS.bags)}, dated today</b><button data-act="pbags" data-d="1">+</button></div>`:''}
+    <div class="two"><div><label class="f">Minutes</label><div class="stepper"><button data-act="pmin" data-d="-5">−</button><b>${PS.min} min</b><button data-act="pmin" data-d="5">+</button></div></div>
+      <div><label class="f">When</label><input type="time" id="ptime" value="${pad(now.getHours())}:${pad(now.getMinutes())}"></div></div>
+    <button class="btn" style="margin-top:16px" data-act="psave">Save pump</button>
+    ${ps.length?`<label class="f">Today</label>`+ps.map(e=>`<div class="feed"><span class="t">${timeStr(e.t)}</span><b class="grow">${amt(e.ml)} <span class="muted">· ${{fridge:'fridge',freezer:'freezer',fed:'fed fresh'}[e.dest]||''}</span></b><button class="link" style="padding:0" data-act="logdel" data-id="${e.id}">remove</button></div>`).join(''):''}`);
+}
+const pRedraw=()=>{const t=$('#ptime').value;drawPump();$('#ptime').value=t};
+ACT.pstep=el=>{const st=bigStep();PS.ml=clamp(Math.round((PS.ml+el.dataset.d*st)/st)*st,st,st*100);sfx.tick(Math.min(1,PS.ml/(st*30)));pRedraw()};
+ACT.pchip=el=>{PS.ml=+el.dataset.v;sfx.tap();pRedraw()};
+ACT.pdest=el=>{PS.dest=el.dataset.v;sfx.tap();pRedraw()};
+ACT.pbags=el=>{PS.bags=clamp(PS.bags+ +el.dataset.d,1,8);sfx.tap();pRedraw()};
+ACT.pmin=el=>{PS.min=clamp(PS.min+ +el.dataset.d,5,90);sfx.tap();pRedraw()};
+ACT.psave=()=>{const v=$('#ptime').value,d=new Date();if(v){const [h,m]=v.split(':').map(Number);d.setHours(h,m,0,0);if(+d>Date.now()+6e4)d.setDate(d.getDate()-1)}
+  S.log.push({id:uid(),type:'pump',t:+d,ml:PS.ml,min:PS.min,dest:PS.dest});
+  if(PS.dest==='freezer')for(let i=0;i<PS.bags;i++)S.bags.push({id:uid(),d:dayKey(d),ml:PS.ml/PS.bags});
+  const msg=PS.dest==='freezer'?`${amt(PS.ml)} pumped. ${PS.bags} bag${PS.bags===1?'':'s'} added to the freezer list.`:`${amt(PS.ml)} pumped. Lovely work!`;
+  save();closeSheet();keepScroll();sfx.fanfare();buzz([20,40,30]);S.babies.forEach(b=>Z.mood(b.id,'nod',900));toast(msg)};
+
 function sayToday(){
   const now=new Date(),h=now.getHours();
   const st=S.babies.map(b=>({b,p:drankOn(b.id,now)/target(b).ml}));
@@ -629,12 +726,12 @@ function defaultOffer(b,kind){
   const s=bigStep();return Math.max(s,Math.ceil(target(b).per/s-.01)*s);
 }
 function openLog(bid,feed){
-  if(feed)L={id:feed.id,b:feed.b,kind:feed.kind,off:feed.off,ml:feed.ml,t:feed.t,min:feed.min||15,side:feed.side||'both',pctMode:false};
+  if(feed)L={id:feed.id,b:feed.b,kind:feed.kind,off:feed.off,ml:feed.ml,t:feed.t,min:feed.min||15,side:feed.side||'both',pctMode:false,saved:!!(feed&&feed.saved)};
   else{
     if(!bid){ // pick whoever was fed longest ago
       const order=S.babies.map(b=>({b,t:(S.feeds.filter(f=>f.b===b.id).sort((x,y)=>y.t-x.t)[0]||{t:0}).t})).sort((a,b)=>a.t-b.t);bid=order[0].b.id}
     const b=baby(bid),p=b.plan,kind=p.bm>=p.fo&&p.bm>=p.nu?'bm':p.fo>=p.nu?'fo':'nu';
-    const off=defaultOffer(b,kind);L={b:bid,kind,off,ml:off,t:Date.now(),min:15,side:'both',pctMode:false};
+    const off=defaultOffer(b,kind);L={b:bid,kind,off,ml:off,t:Date.now(),min:15,side:'both',pctMode:false,saved:!!(feed&&feed.saved)};
   }
   sfx.bloop();drawLog();
 }
@@ -661,6 +758,7 @@ function drawLog(){
     </div>
     <p class="muted" style="text-align:center;margin:0 0 8px">${L.kind==='nu'?`Nursing can't be measured, so this is Zuzu's best guess — slide it if you know better.`:`Slide the milk up or down to what ${esc(b.name)} actually drank.`}</p>
     <div class="chips">${[['All of it',1],['¾',.75],['½',.5],['¼',.25]].map(c=>`<button class="pill" data-act="lq" data-q="${c[1]}">${c[0]}</button>`).join('')}</div>
+    ${L.kind!=='nu'?`<button class="check ${L.saved?'on':''}" data-act="lkeep" style="padding:9px 12px;font-size:14px"><span class="box">${ic('check')}</span>Leftover kept for the next feed, not poured away</button>`:''}
     ${L.kind==='nu'?`<div class="two"><div><label class="f">Minutes</label><div class="stepper"><button data-act="lmin" data-d="-5">−</button><b id="lmin">${L.min} min</b><button data-act="lmin" data-d="5">+</button></div></div>
         <div><label class="f">Side</label><div class="seg">${[['left','L'],['both','Both'],['right','R']].map(s=>`<button class="${L.side===s[0]?'on':''}" data-act="lside" data-s="${s[0]}">${s[1]}</button>`).join('')}</div></div></div>`
       :`<div class="two"><div><label class="f">Bottle held</label><div class="stepper"><button data-act="loff" data-d="-1">−</button><b id="loff"></b><button data-act="loff" data-d="1">+</button></div></div>
@@ -699,6 +797,7 @@ function bindBottle(){
 const keepTime=()=>{const i=$('#ltime');if(i&&i.value){const [h,m]=i.value.split(':').map(Number),d=new Date(L.t);d.setHours(h,m,0,0);L.t=+d}};
 ACT.lb=el=>{keepTime();const ratio=L.ml/L.off;L.b=el.dataset.b;if(!L.id){L.off=defaultOffer(baby(L.b),L.kind);L.ml=L.off*ratio}sfx.tap();drawLog()};
 ACT.lk=el=>{keepTime();L.kind=el.dataset.k;if(!L.id){L.off=defaultOffer(baby(L.b),L.kind);L.ml=L.off}sfx.tap();drawLog()};
+ACT.lkeep=el=>{L.saved=!L.saved;el.classList.toggle('on',L.saved);sfx.tap()};
 ACT.lmode=()=>{L.pctMode=!L.pctMode;sfx.tap();paintBottle()};
 ACT.lq=el=>{const q=+el.dataset.q;L.ml=-1;setMl(L.off*q);Z.mood('log','nod',900)};
 ACT.loff=el=>{const s=bigStep(),r=L.ml/L.off;L.off=clamp(Math.round((L.off+el.dataset.d*s)/s)*s,s,s*40);L.ml=clamp(Math.round(L.off*r/stepMl())*stepMl(),0,L.off);sfx.tap();paintBottle()};
@@ -708,9 +807,9 @@ ACT.ldel=()=>{S.feeds=S.feeds.filter(f=>f.id!==L.id);save();closeSheet();render(
 ACT.lsave=()=>{
   keepTime();if(L.t>Date.now()+6e4)L.t-=DAY;   // a time later than now means last night
   const b=baby(L.b),before=drankOn(b.id,L.t)-(L.id?(S.feeds.find(f=>f.id===L.id)||{ml:0}).ml:0);
-  const f={id:L.id||uid(),b:L.b,t:L.t,kind:L.kind,off:L.off,ml:L.ml};if(L.kind==='nu'){f.min=L.min;f.side=L.side}
+  const f={id:L.id||uid(),b:L.b,t:L.t,kind:L.kind,off:L.off,ml:L.ml};if(L.kind==='nu'){f.min=L.min;f.side=L.side}else if(L.saved&&L.ml<L.off)f.saved=true;
   const wasEdit=!!L.id;S.feeds=S.feeds.filter(x=>x.id!==f.id);S.feeds.push(f);S.sel=b.id;save();
-  closeSheet();tab='today';render();
+  closeSheet();tab='today';render();schedule(b);
   if(!wasEdit)celebrate(f,before);
 };
 
@@ -744,41 +843,87 @@ function forecastDay(date){
   const per=S.babies.map(b=>{const t=target(b,date),n=feedsPerDay(b),th=t.ml*b.plan.bm/n*buf,fo=t.ml*b.plan.fo/n;thaw+=th;form+=fo;return{b,th,fo,ml:t.ml}});
   return{date,thaw,form,per,bags:Math.ceil(thaw/S.bagMl-.02)};
 }
+const bagsSorted=()=>[...S.bags].sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+const bagTotal=()=>S.bags.reduce((s,g)=>s+g.ml,0);
+const shortDay=d=>parseDay(d).toLocaleDateString([], {month:'short',day:'numeric'});
+function pickBags(need){const out=[];let sum=0;for(const g of bagsSorted()){if(sum>=need-5)break;out.push(g);sum+=g.ml}return{out,sum}}   // oldest first
+function groupBags(list){const m=new Map();list.forEach(g=>{const k=g.d+'|'+Math.round(g.ml);if(!m.has(k))m.set(k,{d:g.d,ml:g.ml,n:0,id:g.id});m.get(k).n++});return[...m.values()]}
+function wasteStats(){
+  const a=+startOf(addDays(new Date(),-6));let left=0,other=0,offered=0;const per={};
+  S.feeds.forEach(f=>{if(f.t<a||f.kind==='nu')return;offered+=f.off;const w=f.saved?0:Math.max(0,f.off-f.ml);left+=w;(per[f.b]=per[f.b]||[]).push({w,off:f.off})});
+  S.log.forEach(e=>{if(e.type==='waste'&&e.t>=a)other+=e.ml});
+  return{left,other,offered,per};
+}
 function viewForecast(){
   const now=new Date(),days=Array.from({length:7},(_,i)=>forecastDay(addDays(now,i+1)));
-  const tom=days[0],anyThaw=days.some(d=>d.thaw>1),anyForm=days.some(d=>d.form>1),k=dayKey(tom.date),done=!!S.thawed[k];
+  const tom=days[0],anyThaw=days.some(d=>d.thaw>1),anyForm=days.some(d=>d.form>1),k=dayKey(tom.date),done=S.thawed[k]||null;
+  const tracked=S.bags.length>0||!!(done&&done.bags);
+  const pick=done&&done.bags?{out:done.bags,sum:done.bags.reduce((s,g)=>s+g.ml,0)}:pickBags(tom.thaw);
+  const nb=tracked?pick.out.length:tom.bags,short=tracked&&!done&&pick.sum<tom.thaw-5;
   const max=Math.max(...days.map(d=>d.thaw+d.form),1);
   const total=days.reduce((s,d)=>s+d.thaw,0),totalF=days.reduce((s,d)=>s+d.form,0);
   const rows=days.map((d,i)=>`<div class="fc" style="animation-delay:${i*.06}s"><div class="day">${i===0?'Tmrw':d.date.toLocaleDateString([], {weekday:'short'})}<small>${d.date.toLocaleDateString([], {month:'short',day:'numeric'})}</small></div>
-      <div class="grow">${anyThaw?`<span class="amt">${goalAmt(d.thaw)}</span> <span class="muted">to thaw · ${d.bags} bag${d.bags===1?'':'s'}</span>`:`<span class="amt">${goalAmt(d.form)}</span> <span class="muted">formula</span>`}
+      <div class="grow">${anyThaw?`<span class="amt">${goalAmt(d.thaw)}</span> <span class="muted">to thaw${tracked?'':` · ${d.bags} bag${d.bags===1?'':'s'}`}</span>`:`<span class="amt">${goalAmt(d.form)}</span> <span class="muted">formula</span>`}
         ${anyThaw&&d.form>1?`<br><span class="muted">+ ${goalAmt(d.form)} formula to mix</span>`:''}
         <div class="meter" style="width:${Math.max(8,(d.thaw+d.form)/max*100)}%">${d.per.map(p=>`<i style="--c:${p.b.color};width:${(p.th+p.fo)/(d.thaw+d.form||1)*100}%;animation-delay:${.2+i*.06}s" title="${esc(p.b.name)}"></i>`).join('')}</div></div></div>`).join('');
-  const stashDays=S.stashMl!=null&&anyThaw?(()=>{let left=S.stashMl,n=0;for(let i=1;i<400&&left>0;i++){left-=forecastDay(addDays(now,i)).thaw;if(left>=0)n++}return n})():null;
+  const stashDays=S.bags.length&&anyThaw?(()=>{let left=bagTotal(),n=0;for(let i=1;i<400&&left>0;i++){left-=forecastDay(addDays(now,i)).thaw;if(left>=0)n++}return n})():null;
+  const groups=groupBags(bagsSorted()),W=wasteStats(),wTot=W.left+W.other;
+  const tips=S.babies.map(b=>{const a=W.per[b.id]||[];if(a.length<4)return '';const avg=a.reduce((s,x)=>s+x.w,0)/a.length,off=a.reduce((s,x)=>s+x.off,0)/a.length,st=stepMl();
+    return avg>=st*2?`<li>${esc(b.name)} leaves about <b>${amt(Math.round(avg/st)*st)}</b> a bottle. Try starting with ${amt(Math.max(st,Math.round((off-avg)/st)*st))} and topping up if still hungry.</li>`:''}).join('');
+  const wl=S.log.filter(e=>e.type==='waste'&&e.t>=+startOf(addDays(now,-6))).sort((x,y)=>y.t-x.t);
   return `<div class="card presenter-card"><div class="presenter">${zebraSVG('fc',S.babies[0].color,done?'happy':'')}
-      <div class="bubble">${anyThaw?`Tonight, move<b class="big">${tom.bags} bag${tom.bags===1?'':'s'} · ${goalAmt(tom.thaw)}</b>from the freezer to the fridge for tomorrow.`
-        :`No frozen milk in the plan, so nothing to thaw.${anyForm?`<b class="big">${goalAmt(tom.form)}</b>of formula covers tomorrow.`:' Set bottles of breast milk under Grow → Feeding plan.'}`}</div></div>
-      ${anyThaw?`<div class="bags">${Array.from({length:Math.min(tom.bags,24)},(_,i)=>`<i class="bag" style="animation-delay:${.3+i*.07}s"></i>`).join('')}</div>
+      <div class="bubble">${!anyThaw?`No frozen milk in the plan, so nothing to thaw.${anyForm?`<b class="big">${goalAmt(tom.form)}</b>of formula covers tomorrow.`:' Set bottles of breast milk under Grow → Feeding plan.'}`
+        :tracked&&!nb?`The freezer list is empty, so there is nothing to thaw tonight. Tomorrow needs about <b>${goalAmt(tom.thaw)}</b>.`
+        :`Tonight, move<b class="big">${nb} bag${nb===1?'':'s'} · ${tracked?amt(pick.sum):goalAmt(tom.thaw)}</b>from the freezer to the fridge for tomorrow.`}</div></div>
+      ${anyThaw&&nb?`<div class="bags">${Array.from({length:Math.min(nb,24)},(_,i)=>`<i class="bag" style="animation-delay:${.3+i*.07}s"></i>`).join('')}</div>
+      ${tracked?`<div class="chips" style="justify-content:flex-start;margin-top:10px"><span class="muted" style="align-self:center">Oldest first:</span>${groupBags(pick.out).map(g=>`<span class="pill">${g.n} × ${shortDay(g.d)} · ${amt(g.ml)}</span>`).join('')}</div>`:''}
+      ${short?`<div class="note">Tomorrow needs about ${goalAmt(tom.thaw)} and the freezer has ${amt(pick.sum)}. Fresh milk or formula will need to cover the rest.</div>`:''}
       <div class="muted" style="margin-top:8px">${tom.per.filter(p=>p.th>1).map(p=>`${esc(p.b.name)} ${goalAmt(p.th)}`).join(' · ')}${S.bufferPct?` · includes ${S.bufferPct}% spare`:''}</div>
       <button class="check ${done?'on':''}" data-act="thawed" data-k="${k}" data-ml="${Math.round(tom.thaw)}"><span class="box">${ic('check')}</span>${done?'In the fridge. Nice work!':'Tap when it\'s in the fridge'}</button>`:''}</div>
     <div class="card"><h2>7-day Milk Forecast <small>${anyThaw?goalAmt(total)+' to thaw':goalAmt(totalF)+' formula'} this week</small></h2>${rows}
       <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px 14px">${S.babies.map(b=>`<span class="row muted" style="--c:${b.color};gap:6px"><span class="dot"></span>${esc(b.name)}</span>`).join('')}</div></div>
-    ${anyThaw?`<div class="card"><h2>Freezer stash <small>optional</small></h2>
-      <div class="row"><div class="grow"><input id="stash" type="number" inputmode="decimal" min="0" placeholder="Total frozen, in ${S.unit}" value="${S.stashMl!=null?amt(S.stashMl,false):''}"></div><button class="pill" data-act="stash">Save</button></div>
-      ${stashDays!=null?`<div class="math" style="margin-top:10px;--c:var(--good)"><b>${stashDays>=399?'A year+':stashDays+' day'+(stashDays===1?'':'s')}</b>of frozen milk left at this pace${stashDays<7?' — time to top up the freezer or plan a bridge.':'.'}</div>`:`<p class="muted" style="margin:8px 0 0">Tell me what's in the freezer and I'll count down how many days it lasts. It drops each time you tick tonight's thaw.</p>`}</div>`:''}
+    <div class="card"><h2>Freezer <small>${S.bags.length?S.bags.length+' bag'+(S.bags.length===1?'':'s')+' · '+amt(bagTotal()):'oldest gets used first'}</small></h2>
+      ${stashDays!=null?`<div class="math" style="--c:var(--good);margin-bottom:6px"><b>${stashDays>=399?'A year+':stashDays+' day'+(stashDays===1?'':'s')}</b>of frozen milk at this pace${stashDays<7?'. Time to top up the freezer or plan a bridge.':'.'}</div>`:''}
+      ${groups.map((g,i)=>{const age=daysBetween(parseDay(g.d),now);return `<div class="feed"><span class="grow"><b>${shortDay(g.d)}</b> <span class="muted">· ${g.n} × ${amt(g.ml)}</span><br>
+          ${age>=365?'<span class="badge warn">over 12 months</span>':age>=180?'<span class="badge warn">over 6 months, use soon</span>':i===0?'<span class="badge">use first</span>':`<span class="muted">${age<1?'today':age+' day'+(age===1?'':'s')+' old'}</span>`}</span>
+          <button class="pill" data-act="bagdel" data-id="${g.id}" aria-label="Remove one bag">− 1</button></div>`}).join('')||`<p class="muted" style="margin:0 0 4px">Add your frozen bags with the date they were pumped. Zuzu will pick the oldest ones each night and count down how long the stash lasts. Pumps you send to the freezer land here by themselves.</p>`}
+      <label class="f">Add bags</label>
+      <div class="two" style="grid-template-columns:1.35fr 1fr .8fr"><input type="date" id="bd" value="${dayKey(now)}" max="${dayKey(now)}" aria-label="Date pumped"><input type="number" id="bml" inputmode="decimal" min="1" value="${amt(S.bagMl,false)}" aria-label="Amount in each bag, ${S.unit}"><input type="number" id="bn" inputmode="numeric" min="1" max="40" value="1" aria-label="How many bags"></div>
+      <div class="muted" style="margin:4px 2px 10px">date pumped · ${S.unit} in each · how many</div>
+      <button class="btn alt" style="padding:12px" data-act="bagadd">Add to freezer</button></div>
+    <div class="card"><h2>Poured away <small>last 7 days</small></h2>
+      <div class="math" style="--c:var(--accent)"><b>${amt(wTot)}</b>${amt(W.left)} left in bottles · ${amt(W.other)} spilled or expired${W.offered>0?` · ${Math.round(W.left/W.offered*100)}% of what was offered`:''}</div>
+      ${tips?`<ul class="tips" style="margin-top:10px">${tips}</ul>`:`<p class="muted" style="margin:10px 0 0">A little left in the bottle is normal. Leftovers count here unless you tick "kept for the next feed" when logging.</p>`}
+      ${wl.map(e=>`<div class="feed"><span class="t">${shortDay(dayKey(e.t))}</span><b class="grow">${amt(e.ml)} <span class="muted">· ${esc(e.why||'')}</span></b><button class="link" style="padding:0" data-act="logdel" data-id="${e.id}">remove</button></div>`).join('')}
+      <button class="btn alt" style="padding:12px;margin-top:12px" data-act="wopen">Log spilled or expired milk</button></div>
     <div class="card"><h2>Thawing, safely</h2><ul class="tips">
       <li>Thaw the <b>oldest milk first</b>, in the fridge overnight (about 12 hours).</li>
       <li>Use fridge-thawed milk within <b>24 hours</b> of it being fully thawed.</li>
       <li>Once warmed or at room temperature: within <b>2 hours</b>.</li>
       <li>Leftovers from a feed: finish within 2 hours, then discard. <b>Never refreeze</b>.</li>
+      <li>Frozen milk is best within <b>6 months</b> and acceptable up to 12.</li>
       <li>Thaw in feed-sized portions so less gets poured away.</li></ul>
-      <p class="muted" style="margin:10px 0 0">From the CDC's <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">breast milk storage guidance</a> for healthy full-term babies. Babies born early or in hospital may have stricter rules — follow your care team.</p></div>`;
+      <p class="muted" style="margin:10px 0 0">From the CDC's <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">breast milk storage guidance</a> for healthy full-term babies. Babies born early or in hospital may have stricter rules, so follow your care team.</p></div>`;
 }
 after.forecast=()=>Z.set('fc',.7,.2);
-ACT.thawed=el=>{const k=el.dataset.k,on=!S.thawed[k];if(on)S.thawed[k]=1;else delete S.thawed[k];
-  if(S.stashMl!=null)S.stashMl=Math.max(0,S.stashMl+(on?-1:1)*+el.dataset.ml);
+ACT.thawed=el=>{const k=el.dataset.k,cur=S.thawed[k];
+  if(cur){if(cur.bags)S.bags.push(...cur.bags);delete S.thawed[k]}
+  else if(S.bags.length){const p=pickBags(+el.dataset.ml),ids=new Set(p.out.map(g=>g.id));S.bags=S.bags.filter(g=>!ids.has(g.id));S.thawed[k]={bags:p.out}}
+  else S.thawed[k]={n:1};
   Object.keys(S.thawed).forEach(x=>{if(x<dayKey(addDays(new Date(),-3)))delete S.thawed[x]});
-  save();render();if(on){sfx.fanfare();buzz([20,40,30]);Z.mood('fc','jump',1900)}};
-ACT.stash=()=>{const v=parseFloat($('#stash').value);S.stashMl=isNaN(v)?null:v*(S.unit==='oz'?OZ:1);save();sfx.bloop();render()};
+  save();keepScroll();if(!cur){sfx.fanfare();buzz([20,40,30]);Z.mood('fc','jump',1900)}};
+ACT.bagadd=()=>{const d=$('#bd').value,ml=toMl(parseFloat($('#bml').value)),n=clamp(parseInt($('#bn').value)||1,1,40);
+  if(!d||!(ml>0)){toast('Add the date pumped and the amount in each bag.');return}
+  for(let i=0;i<n;i++)S.bags.push({id:uid(),d,ml});save();sfx.fanfare();keepScroll();toast(`${n} bag${n===1?'':'s'} added. Oldest will be used first.`)};
+ACT.bagdel=el=>{S.bags=S.bags.filter(g=>g.id!==el.dataset.id);save();sfx.tap();keepScroll()};
+let WS='Spilled';
+ACT.wopen=()=>{openSheet(`<h2>Milk that didn't get drunk</h2><label class="f" style="margin-top:0">How much (${S.unit})</label><input type="number" id="wml" inputmode="decimal" min="0" placeholder="e.g. ${S.unit==='oz'?'2':'60'}">
+  <label class="f">What happened</label><div class="seg" id="wseg">${['Spilled','Expired','Other'].map(w=>`<button class="${WS===w?'on':''}" data-act="wwhy" data-v="${w}">${w}</button>`).join('')}</div>
+  <p class="muted" style="margin:10px 0 0">It happens to everyone. Logging it just helps the forecast learn how much spare to plan for.</p>
+  <button class="btn" style="margin-top:16px" data-act="wsave">Save</button>`)};
+ACT.wwhy=el=>{WS=el.dataset.v;$$('#wseg button').forEach(x=>x.classList.toggle('on',x===el));sfx.tap()};
+ACT.wsave=()=>{const ml=toMl(parseFloat($('#wml').value));if(!(ml>0)){toast('Enter an amount.');return}
+  S.log.push({id:uid(),type:'waste',t:Date.now(),ml,why:WS});save();closeSheet();keepScroll();sfx.soft();toast('Logged. It happens to everyone.')};
 
 /* ════════════ GROW ════════════ */
 function viewGrow(){
@@ -799,7 +944,7 @@ function viewGrow(){
       <div class="math"><b>${goalAmt(T.ml)} a day</b>${o?'':'≈ '}${goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br><span class="muted">${esc(T.why)}</span></div>
       ${T.W&&T.W.stale>21?`<div class="note">The last weigh-in was ${T.W.stale} days ago, so I'm estimating growth since. A fresh weight sharpens the goal and the forecast.</div>`:''}
       ${b.weeksEarly>0&&!o?`<div class="note">Born at ${40-b.weeksEarly} weeks: babies born early often have their own plan (fortified milk, a set amount per feed). If you know what ${esc(b.name)} takes right now, enter it just below and I'll use that instead of the guide.</div>`:''}
-      <p class="muted" style="margin:10px 0 0">Appetite varies day to day. Steady weight gain and plenty of wet nappies matter more than hitting a number.</p></div>
+      <p class="muted" style="margin:10px 0 0">Appetite varies day to day. Steady weight gain and plenty of wet diapers matter more than hitting a number.</p></div>
     <div class="card" style="--c:${b.color}"><h2>Amount right now <small>yours to set</small></h2>
       <div class="seg">${[['feed','Per feed'],['day','Per day']].map(m=>`<button class="${mode===m[0]?'on':''}" data-act="ovmode" data-v="${m[0]}">${m[1]}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px"><div class="grow"><input id="ov" type="number" inputmode="decimal" min="0" placeholder="${S.unit} ${mode==='feed'?'per feed, e.g. '+(S.unit==='oz'?'1.7':'50'):'per day'}" value="${ovVal}"></div><button class="pill on" style="--c:${b.color}" data-act="ov">Save</button></div>
@@ -833,7 +978,7 @@ ACT.ov=()=>{const b=baby(S.sel),v=parseFloat($('#ov').value),mode=ovMode||(b.ov&
 ACT.addw=()=>{const b=baby(S.sel),kg=readWeight('w'),d=$('#wd').value;if(!kg||!d){toast('Enter a weight and a date.');return}
   b.weights=(b.weights||[]).filter(w=>w.d!==d);b.weights.push({d,kg});save();sfx.fanfare();render();window.scrollTo(0,0)};
 ACT.delw=el=>{const b=baby(S.sel);b.weights=b.weights.filter(w=>w.d!==el.dataset.d);save();keepScroll()};
-function keepScroll(){const y=window.scrollY;render();window.scrollTo(0,y)}
+function keepScroll(){const y=window.scrollY;$('#view').classList.add('still');render();window.scrollTo(0,y)}
 
 /* ════════════ MORE ════════════ */
 function viewMore(){
@@ -850,6 +995,10 @@ function viewMore(){
     <div class="card"><h2>Milk Forecast</h2><label class="f" style="margin-top:0">Freezer bag size (${S.unit})</label>
       <div class="row"><div class="grow"><input id="bag" type="number" inputmode="decimal" min="1" value="${amt(S.bagMl,false)}"></div><button class="pill" data-act="bag">Save</button></div>
       <label class="f">Spare milk on top, for spills and hungry days</label>${sg('buf',[[0,'None'],[5,'5%'],[10,'10%'],[15,'15%']],S.bufferPct)}</div>
+    <div class="card"><h2>Feed reminders</h2><label class="f" style="margin-top:0">Remind me this long after each feed starts</label>
+      <div class="seg">${[[0,'Off'],[2,'2h'],[2.5,'2½h'],[3,'3h'],[3.5,'3½h'],[4,'4h']].map(o=>`<button class="${S.remindH===o[0]?'on':''}" data-act="remind" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
+      <p class="muted" style="margin:10px 0 0">Today shows a countdown for each baby, and Zuzu chimes when a feed is due while this page is open.${window.umade?' On this phone you also get a notification when the app is closed.':' A web page can\'t ring your phone while it is closed.'}</p>
+      ${!window.claude&&window.Notification&&Notification.permission==='default'?`<button class="btn alt" style="padding:11px;margin-top:10px" data-act="notif">Allow notifications</button>`:''}</div>
     <div class="card"><h2>Sounds</h2>
       <button class="check ${S.sound?'on':''}" data-act="snd2" style="margin-top:0"><span class="box">${ic('check')}</span>Play sounds</button>
       <button class="check ${S.quietNights?'on':''}" data-act="quiet"><span class="box">${ic('check')}</span>Stay silent 8pm–7am</button></div>
@@ -862,9 +1011,12 @@ function viewMore(){
       <li><b>Breast milk:</b> rises over the first weeks, then holds at about 750 ml (25 oz) a day, typically 570–900 ml, from 1 to 6 months — <a href="https://kellymom.com/bf/pumpingmoms/pumping/milkcalc/" target="_blank" rel="noopener">KellyMom</a>, <a href="https://lacted.org/questions/typical-volumes-of-human-milk-intake-among-infants-and-young-children/" target="_blank" rel="noopener">LactEd</a>.</li>
       <li><b>Born early (before 37 weeks):</b> about 160 ml per kg a day, in the 150–180 range neonatal teams commonly aim for, until around 3 months past the due date. Hospital protocols vary, so your own team's amount always wins.</li>
       <li><b>After solids start</b> milk eases down towards roughly 500–600 ml by the first birthday.</li>
+      <li><b>Diapers:</b> from about day five, six or more wet diapers a day is the usual sign of enough milk (AAP).</li>
       <li><b>Thawing:</b> <a href="https://www.cdc.gov/breastfeeding/breast-milk-preparation-and-storage/handling-breastmilk.html" target="_blank" rel="noopener">CDC storage guidance</a>.</li></ul>
-      <div class="note">Zuzu is a friendly tracker, not a doctor. These are averages for healthy full-term babies; your own baby's needs can differ, especially if they were born early. Talk to your care team about feeding worries, poor weight gain or fewer wet nappies.</div></div>`;
+      <div class="note">Zuzu is a friendly tracker, not a doctor. These are averages for healthy full-term babies; your own baby's needs can differ, especially if they were born early. Talk to your care team about feeding worries, poor weight gain or fewer wet diapers.</div></div>`;
 }
+ACT.remind=el=>{S.remindH=+el.dataset.v;save();sfx.tap();S.babies.forEach(schedule);keepScroll()};
+ACT.notif=()=>{try{Notification.requestPermission().then(()=>keepScroll())}catch(e){}};
 ACT.unit=el=>{S.unit=el.dataset.v;save();sfx.tap();keepScroll()};
 ACT.wunit=el=>{S.wUnit=el.dataset.v;save();sfx.tap();keepScroll()};
 ACT.buf=el=>{S.bufferPct=+el.dataset.v;save();sfx.tap();keepScroll()};
@@ -934,18 +1086,26 @@ ACT.demo=()=>{
   const now=new Date(),birth=dayKey(addDays(now,-74));S=Object.assign(blank(),{unit:S.unit,wUnit:S.wUnit});S.demo=true;
   const mk=(name,c,w)=>({id:uid(),name,color:c,birth,weeksEarly:0,solids:false,override:null,plan:{bm:5,fo:0,nu:2},
     weights:[{d:birth,kg:w[0]},{d:dayKey(addDays(now,-40)),kg:w[1]},{d:dayKey(addDays(now,-9)),kg:w[2]}]});
-  S.babies=[mk('Milo',COLORS[0],[3.0,4.1,5.05]),mk('Juno',COLORS[1],[2.7,3.7,4.6])];S.sel=S.babies[0].id;S.stashMl=5400;
+  S.babies=[mk('Milo',COLORS[0],[3.0,4.1,5.05]),mk('Juno',COLORS[1],[2.7,3.7,4.6])];S.sel=S.babies[0].id;
   const hours=[1.5,5,8,11,14,17,20.5];
   for(let d=6;d>=0;d--)S.babies.forEach((b,bi)=>hours.forEach((h,i)=>{
     const t=+startOf(addDays(now,-d))+(h+bi*.15)*36e5;if(t>Date.now()-20*6e4)return;
     const nu=i===0||i===6,off=110-bi*10,r=[1,1,.9,.75,1,.6,1,.85][(d*3+i+bi)%8];
     S.feeds.push(nu?{id:uid(),b:b.id,t,kind:'nu',off:100-bi*10,ml:100-bi*10,min:15,side:'both'}:{id:uid(),b:b.id,t,kind:'bm',off,ml:Math.round(off*r/5)*5})}));
-  lsSave();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
+  [[-41,4],[-33,5],[-20,6],[-12,6],[-5,5],[-2,4]].forEach(([d,n])=>{for(let i=0;i<n;i++)S.bags.push({id:uid(),d:dayKey(addDays(now,d)),ml:150})});
+  const t0=+startOf(now),past=h=>t0+h*36e5<Date.now();
+  [2,6.5,10.5,14].filter(past).forEach((h,i)=>S.log.push({id:uid(),type:'pump',t:t0+h*36e5,ml:[160,190,150,140][i],min:20,dest:i%2?'freezer':'fridge'}));
+  S.babies.forEach((b,bi)=>[1.7,5.2,8.3,11.4,14.2,17.3].filter(past).forEach((h,i)=>S.log.push({id:uid(),type:'diaper',t:t0+(h+bi*.2)*36e5,b:b.id,kind:['wet','both','wet','dirty','wet','both'][(i+bi)%6]})));
+  S.log.push({id:uid(),type:'waste',t:Date.now()-2*DAY,ml:60,why:'Spilled'});
+  lsSave();snapLocal();tab='today';sfx.fanfare();render();window.scrollTo(0,0)};
 
 /* ════════════ boot ════════════ */
 if(S&&(!Array.isArray(S.babies)||!Array.isArray(S.feeds)))S=null;
 S=Object.assign(blank(),S||{});
+if(!Array.isArray(S.log))S.log=[];if(!Array.isArray(S.bags))S.bags=[];
+if(!window.claude)prune();
 snapLocal();initSync();
+setInterval(tick,30000);setTimeout(tick,2000);
 render();
 let lastDay=dayKey(new Date());
 setInterval(()=>{const k=dayKey(new Date());if(k!==lastDay&&!L&&!$('#cele').classList.contains('on')){lastDay=k;render()}},60000);
