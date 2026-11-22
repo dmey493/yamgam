@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#ffe9c9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1830" media="(prefers-color-scheme: dark)">
 <meta name="description" content="JozLee the milk zebra: log how much each baby drank, see the daily goal grow with them, and get a 7-day Milk Forecast of what to thaw.">
-<title>JozLee the Milk Zebra</title>
+<title>JozLee</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!--
   ═══════════════════════════════════════════════════════════════════
-  JOZLEE · MILK ZEBRA — feed tracker + Milk Forecast (phone app)
+  JOZLEE — feed tracker + Milk Forecast (phone app)
   ═══════════════════════════════════════════════════════════════════
   For parents of one, two or three babies. Each baby gets a zebra foal
   that fills with milk (and earns its stripes) as the day's feeds are
@@ -1120,7 +1120,7 @@ ACT.buf=el=>{S.bufferPct=+el.dataset.v;save();sfx.tap();keepScroll()};
 ACT.bag=()=>{const v=parseFloat($('#bag').value);if(v>0){S.bagMl=v*(S.unit==='oz'?OZ:1);save();sfx.bloop();keepScroll()}};
 ACT.snd2=()=>{S.sound=!S.sound;save();if(S.sound)sfx.bloop();keepScroll()};
 ACT.quiet=()=>{S.quietNights=!S.quietNights;save();keepScroll()};
-ACT.export=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='jozlee-milk-backup-'+dayKey(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+ACT.export=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='jozlee-backup-'+dayKey(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 ACT.import=()=>{const i=$('#imp');i.onchange=()=>{const f=i.files[0];if(!f)return;f.text().then(t=>{const d=JSON.parse(t);if(!d||!Array.isArray(d.babies)||!Array.isArray(d.feeds))throw 0;
   ask(sync==='shared'?'Replace the shared milk log, for everyone, with this backup?':'Replace everything on this phone with the backup?','Replace',()=>{const mine={pend:S.pend,sound:S.sound,quietNights:S.quietNights};S=Object.assign(blank(),d,mine,{demo:false});save();tab='today';render()})}).catch(()=>toast("That file doesn't look like a JozLee backup."))};i.click()};
 ACT.reset=()=>ask(sync==='shared'?'Erase all babies and feeds for everyone who shares this page? This cannot be undone.':'Erase all babies and feeds from this phone? This cannot be undone.','Erase everything',()=>{
