@@ -56,7 +56,7 @@
   /* layout: a full-bleed colour band per tab on top, outlined sticker cards below, floating tab bar */
   --bg:#f6f4fb; --card:#ffffff; --ink:#16141a; --soft:#6b6680; --line:#e4e0ee; --edge:#16141a;
   --sun:#ffd23f; --band:#ffd23f; --hill1:#ffc52e; --hill2:#f5b300;
-  --milk:#fffdf6; --glass:#d6d2e6; --accent:#5b4bdb; --good:#1a9e72; --warn:#e2452b;
+  --milk:#fffdf6; --glass:#dedaec; --accent:#5b4bdb; --good:#1a9e72; --warn:#e2452b;
   --shadow:0 5px 0 var(--edge);
   --zink:#2d2838;
 }
@@ -138,16 +138,21 @@ label.f{display:block;font-weight:800;font-size:13px;color:var(--soft);margin:12
 /* ── zebra ── */
 .z-all{animation:bob 3.2s ease-in-out infinite;transform-origin:100px 214px}
 @keyframes bob{50%{transform:scale(1.015,.975)}}
-.z-tail{transform-origin:146px 176px;animation:wag 1.6s ease-in-out infinite}
+.z-tail{transform-origin:134px 186px;animation:wag 1.6s ease-in-out infinite}
 @keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(14deg)}}
 .z-ear{transform-origin:62px 50px;animation:twitch 6s ease-in-out infinite}
 .z-ear.r{transform-origin:138px 50px;animation-delay:-2.6s}
 @keyframes twitch{0%,90%,100%{transform:rotate(0)}94%{transform:rotate(-12deg)}97%{transform:rotate(5deg)}}
-.z-eyes{transform-origin:100px 80px;animation:blink 4.5s infinite}
+.z-eyes{transform-origin:100px 92px;animation:blink 4.5s infinite}
 @keyframes blink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
 .z-wave{animation:wave 2.6s linear infinite}
 @keyframes wave{to{transform:translateX(-100px)}}
-.z-happy,.z-sleep,.z-zz{display:none}
+.z-happy,.z-sleep,.z-zz,.z-open,.z-spark{display:none}
+.zebra.happy .z-open,.zebra.happy .z-spark{display:block}
+.zebra.happy .z-smile{display:none}
+.z-spark path{transform-box:fill-box;transform-origin:center;animation:spark 1.2s ease-in-out infinite}
+.z-spark path:nth-child(2){animation-delay:.5s}
+@keyframes spark{0%,100%{transform:scale(.5) rotate(0)}50%{transform:scale(1.1) rotate(20deg)}}
 .zebra.happy .z-eyes,.zebra.sleepy .z-eyes{display:none}
 .zebra.happy .z-happy{display:block}
 .zebra.sleepy .z-sleep,.zebra.sleepy .z-zz{display:block}
@@ -599,37 +604,45 @@ const KSHORT={bm:'Breast milk',fo:'Formula',nu:'Nursing'};
 
 /* ════════════ zebra ════════════ */
 function zebraSVG(id,color,cls=''){
+  // kawaii proportions: a big round head, a small body, eyes set low and wide, tiny muzzle
   const ink='var(--zink)';
-  const side=`<path d="M38 60q16 3 24-5M36 80q14 4 22 0M41 99q10 3 17 0M47 142q16 5 25-2M46 160q17 7 27 2M50 178q15 7 23 5M44 196q10-9 22-5"/>`;
+  const side=`<path d="M45 47q9 1 15-7M33 65q11 2 18-5M31 85q7 2 12 0M61 160q9 4 15 0M60 177q10 5 17 2"/>`;
   const stripes=`<g fill="none" stroke="${ink}" stroke-width="7" stroke-linecap="round">${side}<g transform="matrix(-1 0 0 1 200 0)">${side}</g>
-    <path d="M87 40q13 9 26 0M92 53q8 5 16 0M79 180h20M79 193h20M101 180h20M101 193h20"/></g>`;
-  const sil=`<ellipse cx="100" cy="160" rx="47" ry="45"/><ellipse cx="60" cy="201" rx="21" ry="13"/><ellipse cx="140" cy="201" rx="21" ry="13"/>
-    <rect x="80" y="150" width="18" height="64" rx="9"/><rect x="102" y="150" width="18" height="64" rx="9"/>
-    <ellipse cx="100" cy="80" rx="55" ry="49"/>
-    <ellipse cx="56" cy="36" rx="14" ry="25" transform="rotate(-24 56 36)"/><ellipse cx="144" cy="36" rx="14" ry="25" transform="rotate(24 144 36)"/>`;
+    <path d="M91 45q9 6 18 0M95 57q5 4 10 0"/></g>`;
+  const sil=`<ellipse cx="100" cy="171" rx="39" ry="36"/><ellipse cx="68" cy="203" rx="17" ry="11"/><ellipse cx="132" cy="203" rx="17" ry="11"/>
+    <rect x="85" y="160" width="14" height="52" rx="7"/><rect x="101" y="160" width="14" height="52" rx="7"/>
+    <ellipse cx="100" cy="84" rx="67" ry="57"/>
+    <ellipse cx="46" cy="33" rx="15" ry="23" transform="rotate(-28 46 33)"/><ellipse cx="154" cy="33" rx="15" ry="23" transform="rotate(28 154 33)"/>`;
+  const star=(x,y,r)=>`<path d="M${x} ${y-r}q${r*.18} ${r*.82} ${r} ${r}q${-r*.82} ${r*.18} ${-r} ${r}q${-r*.18} ${-r*.82} ${-r} ${-r}q${r*.82} ${-r*.18} ${r} ${-r}z"/>`;
   return `<svg class="zebra ${cls}" id="z-${id}" viewBox="0 -10 200 232" aria-hidden="true">
   <defs><clipPath id="zs-${id}">${sil}</clipPath><clipPath id="zl-${id}"><rect id="zr-${id}" x="-10" y="214" width="220" height="260"/></clipPath><g id="zt-${id}">${stripes}</g></defs>
-  <ellipse cx="100" cy="215" rx="70" ry="7" fill="#000" opacity=".12"/>
+  <ellipse cx="100" cy="214" rx="58" ry="6" fill="#000" opacity=".12"/>
   <g class="z-all">
-    <g class="z-tail"><path d="M144 178q26-2 28-26" fill="none" stroke="${ink}" stroke-width="6" stroke-linecap="round"/><circle cx="172" cy="148" r="9" fill="${ink}"/></g>
-    <g fill="${ink}" stroke="${ink}" stroke-width="7" stroke-linejoin="round">${sil}</g>
+    <g class="z-tail"><path d="M134 186q22 0 23-20" fill="none" stroke="${ink}" stroke-width="6" stroke-linecap="round"/><circle cx="158" cy="163" r="9" fill="${ink}"/></g>
+    <g fill="${ink}" stroke="${ink}" stroke-width="6.5" stroke-linejoin="round">${sil}</g>
     <g clip-path="url(#zs-${id})">
       <rect x="-10" y="-10" width="220" height="240" fill="var(--glass)"/>
       <g id="zm-${id}" transform="translate(0 214)"><path class="z-wave" d="M-10 0q25-9 50 0t50 0 50 0 50 0 50 0 50 0 50 0V260H-10z" fill="var(--milk)"/></g>
-      <use href="#zt-${id}" opacity=".13"/>
-      <g clip-path="url(#zl-${id})"><use href="#zt-${id}"/><g fill="${ink}"><rect x="78" y="204" width="22" height="12"/><rect x="100" y="204" width="22" height="12"/><ellipse cx="46" cy="206" rx="9" ry="12"/><ellipse cx="154" cy="206" rx="9" ry="12"/></g></g>
+      <use href="#zt-${id}" opacity=".3"/>
+      <path d="M100 170v42" stroke="${ink}" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+      <g clip-path="url(#zl-${id})"><use href="#zt-${id}"/><g fill="${ink}"><rect x="84" y="205" width="16" height="10"/><rect x="100" y="205" width="16" height="10"/><ellipse cx="55" cy="207" rx="7" ry="10"/><ellipse cx="145" cy="207" rx="7" ry="10"/></g></g>
+      <ellipse cx="72" cy="52" rx="20" ry="9" fill="#fff" opacity=".45" transform="rotate(-24 72 52)"/>
     </g>
-    <ellipse cx="56" cy="38" rx="6" ry="14" transform="rotate(-24 56 38)" fill="#ffb3b8"/><ellipse cx="144" cy="38" rx="6" ry="14" transform="rotate(24 144 38)" fill="#ffb3b8"/>
-    <path d="M80 42Q80 14 93 27Q98 6 105 25Q115 10 115 30Q126 24 120 44Q100 30 80 42Z" fill="${ink}"/>
-    <path d="M60 119Q100 141 140 119L138 133Q100 155 62 133Z" fill="${color}"/><path d="M118 136l10 24 9-7 4 3-3-27z" fill="${color}"/><path d="M60 119Q100 141 140 119" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="3"/>
-    <ellipse cx="100" cy="103" rx="33" ry="22" fill="#4a4358"/>
-    <ellipse cx="89" cy="97" rx="3.5" ry="5" fill="#2d2838"/><ellipse cx="111" cy="97" rx="3.5" ry="5" fill="#2d2838"/>
-    <path d="M90 108q10 9 20 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
-    <circle cx="62" cy="92" r="8" fill="#ff9aa2" opacity=".55"/><circle cx="138" cy="92" r="8" fill="#ff9aa2" opacity=".55"/>
-    <g class="z-eyes"><circle cx="76" cy="74" r="9" fill="#2d2838"/><circle cx="124" cy="74" r="9" fill="#2d2838"/><circle cx="79" cy="71" r="3.2" fill="#fff"/><circle cx="127" cy="71" r="3.2" fill="#fff"/></g>
-    <g class="z-happy" fill="none" stroke="#2d2838" stroke-width="5" stroke-linecap="round"><path d="M67 77q9-11 18 0M115 77q9-11 18 0"/></g>
-    <g class="z-sleep" fill="none" stroke="#2d2838" stroke-width="5" stroke-linecap="round"><path d="M67 74q9 7 18 0M115 74q9 7 18 0"/></g>
-    <g class="z-zz"><text x="150" y="30" font-size="20">z</text><text x="164" y="14" font-size="15">z</text></g>
+    <ellipse cx="46" cy="35" rx="7" ry="14" transform="rotate(-28 46 35)" fill="#ffb3c1"/><ellipse cx="154" cy="35" rx="7" ry="14" transform="rotate(28 154 35)" fill="#ffb3c1"/>
+    <g fill="${ink}"><circle cx="86" cy="31" r="10"/><circle cx="100" cy="24" r="12.5"/><circle cx="114" cy="31" r="10"/><path d="M78 36q22-12 44 0q-22 9-44 0z"/></g>
+    <path d="M66 135Q100 152 134 135L131 146Q100 163 69 146Z" fill="${color}"/><path d="M83 150Q100 158 117 150L101 175Q100 177 99 175Z" fill="${color}" stroke="${color}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M68 137Q100 153 132 137" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="100" cy="113" rx="24" ry="16.5" fill="#4a4358"/>
+    <ellipse cx="91" cy="107" rx="2.6" ry="3.6" fill="#2d2838"/><ellipse cx="109" cy="107" rx="2.6" ry="3.6" fill="#2d2838"/>
+    <path class="z-smile" d="M94 116q6 6 12 0" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+    <path class="z-open" d="M93 115q7 11 14 0z" fill="#ff8fa3" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/>
+    <ellipse cx="47" cy="110" rx="11" ry="7" fill="#ff8fa3" opacity=".6"/><ellipse cx="153" cy="110" rx="11" ry="7" fill="#ff8fa3" opacity=".6"/>
+    <g class="z-eyes"><circle cx="66" cy="92" r="12.5" fill="#2d2838"/><circle cx="134" cy="92" r="12.5" fill="#2d2838"/>
+      <circle cx="70.5" cy="87" r="4.8" fill="#fff"/><circle cx="138.5" cy="87" r="4.8" fill="#fff"/><circle cx="61.5" cy="97" r="2.3" fill="#fff"/><circle cx="129.5" cy="97" r="2.3" fill="#fff"/></g>
+    <g class="z-happy" fill="none" stroke="#2d2838" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"><path d="M55 96q11-14 22 0M123 96q11-14 22 0"/></g>
+    <g class="z-sleep" fill="none" stroke="#2d2838" stroke-width="5" stroke-linecap="round"><path d="M55 92q11 8 22 0M123 92q11 8 22 0"/></g>
+    <g class="z-spark" fill="#fff" stroke="#2d2838" stroke-width="2.5" stroke-linejoin="round">${star(172,54,10)}${star(22,128,7)}</g>
+    <g class="z-zz"><text x="158" y="26" font-size="20">z</text><text x="174" y="10" font-size="15">z</text></g>
   </g></svg>`;
 }
 const Z={cur:{},raf:{},
