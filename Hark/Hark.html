@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hark!</title>
+<!--
+BUILD SIGNATURE (v3)
+Reference:      none. v2 riffed on Duolingo; the user found it sloppy, so this is a library build.
+UI world:       Swiss Grid, as an Advent calendar
+  Native parts:   numbered calendar doors on a strict 4-column grid; a three-cell stat strip with
+                  big numerals; hairline rules under small-caps labels; a door that swings open
+  Invented detail: Hark the aardvark stands on the edge of the red header and toots his snout
+  Type:           Bricolage Grotesque (display, tight) + Figtree (body), system fallbacks
+  Colour:         gold type on every dark field (green, red, blue); ink type on white, cream
+                  and gold fields. Flat fields: red, deep green, gold, night blue and cream. Each step of the
+                  night has its own field; each week has its own colour on the calendar
+  Depth + texture: flat. No shadows, no gradients, 2px ink rules
+  Icons:          none; numerals and words
+UX shape:       Board (dark green field; white doors to do, red doors done, bright green tonight) (the whole season on one calendar) + One Thing Per Screen for a night
+  Navigation:     three text tabs under a rule
+  Main input:     tap a door; one button per screen
+  Density:        comfortable
+Motion flavor:  Precision with spring accents
+  Easing + tempo: ease-out 120 to 350 ms; small overshoot on arrivals
+  Press feel:     ink ripple from the touch point; doors tilt on their hinge
+  Micro:          words arrive one by one; the progress segment fills; numbers count up;
+                  the reading highlight sweeps; a finished door flips and its check draws
+  Signature moment: the calendar door swinging open on its hinge; tapping a date zooms
+                  that door out to fill the screen, and finishing shrinks back into it
+  Sound/haptics:  short chimes, vibration on the door
+  Step change:    Hark carries each step in: he runs a colour across, turns a page, pulls a
+                  blind down, or pushes the gift door into place
+  Idle life:      Hark breathing; tonight's door breathes and glints; the gift door nudges;
+                  the prayer candle flickers
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--tonight:#18A957;--red:#D62828;--green:#0F5C3F;--gold:#FFC83D;--blue:#1B2A4E;--cream:#FFF4DC;--ink:#141414;--mute:#77726A;--line:#E6E2DA;
+--disp:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;--body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#fff;color:var(--ink);font-family:var(--body);font-weight:500;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--disp);font-weight:800;margin:0;letter-spacing:-.03em;line-height:1}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+#app{max-width:480px;margin:0 auto;height:100dvh;display:flex;flex-direction:column}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.cap{font-family:var(--body);font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+/* press + ripple, shared */
+.btn,.door,.tab,.mini,.card{position:relative;overflow:hidden}
+.rip{position:absolute;border-radius:50%;background:currentColor;opacity:.22;transform:scale(0);animation:rip .5s ease-out forwards;pointer-events:none}
+@keyframes rip{to{transform:scale(1);opacity:0}}
+.btn{display:block;width:100%;height:58px;border-radius:10px;background:var(--btnbg,var(--ink));color:var(--btnfg,#fff);font-family:var(--body);font-weight:800;font-size:15px;letter-spacing:.14em;text-transform:uppercase;transition:transform .12s ease-out}
+.btn:active{transform:scale(.97)}
+.btn.white{background:#fff;color:var(--ink)}
+.btn.line{background:transparent;color:var(--fg,var(--ink));box-shadow:inset 0 0 0 2px currentColor}
+.btn.small{width:auto;height:48px;padding:0 18px;display:inline-block;font-size:13px}
+.view{flex:1;overflow-y:auto;min-height:0}
+.view.swap>*{animation:rise .24s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* words that arrive one by one */
+.wd{display:inline-block;opacity:0;transform:translateY(.45em) rotate(2deg);animation:word .34s cubic-bezier(.2,.9,.3,1.25) forwards;animation-delay:calc(var(--d)*1ms)}
+@keyframes word{to{opacity:1;transform:none}}
+/* home */
+.hero{background:var(--red);color:#fff;padding:22px 20px 20px;position:relative;overflow:hidden}
+.hero h1{font-size:64px;letter-spacing:-.05em;position:relative}
+.hero .cap{display:block;margin-top:12px;opacity:.95;position:relative}
+.hero .btn{margin-top:20px;width:calc(100% - 132px)}
+.hero svg{position:absolute;right:2px;bottom:0;width:150px;height:101px;cursor:pointer}
+.ghost{position:absolute;right:-14px;top:-46px;font-family:var(--disp);font-weight:800;font-size:260px;letter-spacing:-.08em;line-height:1;color:#B81F1F;animation:ghost .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes ghost{from{transform:translateX(60px);opacity:0}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:2px solid var(--ink)}
+.stats div{padding:12px 20px 10px}
+.stats div+div{border-left:2px solid var(--ink)}
+.stats b{display:block;font-family:var(--disp);font-weight:800;font-size:30px;letter-spacing:-.04em;line-height:1;color:var(--red)}
+.stats div:nth-child(2) b{color:var(--green)}.stats div:nth-child(3) b{color:var(--blue)}
+.stats b.punch{animation:punch .4s cubic-bezier(.2,.9,.3,1.6)}
+@keyframes punch{40%{transform:scale(1.25)}}
+.stats span{display:block;margin-top:4px;color:var(--mute)}
+.wk{padding:26px 20px 0}
+.wk:last-child{padding-bottom:28px}
+.wk header{display:flex;justify-content:space-between;align-items:baseline;border-top:5px solid var(--wk);padding-top:10px}
+.wk h2{font-size:24px}
+.wk header span{color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.door{aspect-ratio:1;border-radius:8px;background:color-mix(in srgb,var(--wk) 13%,#fff);color:color-mix(in srgb,var(--wk) 45%,#fff);display:flex;flex-direction:column;justify-content:space-between;padding:9px 10px;text-align:left;transition:transform .14s ease-out}
+.fresh .door{animation:tile .34s cubic-bezier(.2,.9,.3,1.35) backwards;animation-delay:calc(var(--i)*16ms)}
+@keyframes tile{from{opacity:0;transform:scale(.8)}}
+.door:active{transform:perspective(300px) rotateY(-14deg) scale(.97);transform-origin:left}
+.door.w{grid-column:span 2;aspect-ratio:auto}
+.door b{font-family:var(--disp);font-weight:800;font-size:36px;letter-spacing:-.05em;line-height:.9}
+.door span{font-size:10px;letter-spacing:.1em}
+.door.open{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 2px var(--wk)}
+.door.done{background:var(--wk);color:var(--wkfg)}
+.door.done svg{position:absolute;right:8px;bottom:8px;width:18px;height:18px}
+.door.done path{stroke-dasharray:30;stroke-dashoffset:0}
+.door.flip{animation:flip .55s cubic-bezier(.3,.9,.3,1.2) .35s backwards}
+.door.flip path{animation:draw .35s ease-out .8s backwards}
+@keyframes flip{from{transform:perspective(400px) rotateY(90deg);background:#fff}}
+@keyframes draw{from{stroke-dashoffset:30}}
+.door.now{background:var(--tonight);color:#fff;animation:breathe 1.8s ease-in-out infinite}
+.door.now:after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.28),transparent);animation:shine 3.2s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.045)}}
+@keyframes shine{0%,60%{left:-60%}100%{left:130%}}
+.door.nope{animation:nope .32s}
+@keyframes nope{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid var(--ink);background:#fff;padding-bottom:env(safe-area-inset-bottom);position:relative}
+.tab{height:56px;color:var(--mute);transition:color .2s}
+.tab.on{color:var(--ink)}
+.ind{position:absolute;top:-2px;left:0;width:33.334%;height:5px;background:var(--red);transition:transform .26s cubic-bezier(.3,.9,.3,1.2)}
+/* cards + extras */
+.page{padding:26px 20px 30px}
+.page h1{font-size:52px;letter-spacing:-.05em}
+.page>.cap{display:block;color:var(--mute);margin-top:10px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:22px}
+.card{border-radius:8px;background:var(--wk);color:var(--wkfg);padding:12px;display:flex;flex-direction:column;gap:8px;min-height:150px;text-align:left;transition:transform .14s ease-out;animation:tile .3s cubic-bezier(.2,.9,.3,1.3) backwards;animation-delay:calc(var(--i)*14ms)}
+.card:active{transform:rotate(-2deg) scale(.97)}
+.card .cap{font-size:10px;opacity:.85}
+.card .m{font-family:var(--disp);font-weight:800;font-size:18px;line-height:1.08;letter-spacing:-.02em;flex:1}
+.card .c{font-size:12px;font-weight:700;opacity:.85}
+.card.locked{background:color-mix(in srgb,var(--wk) 13%,#fff);color:color-mix(in srgb,var(--wk) 45%,#fff);justify-content:flex-start}
+.card.locked b{font-family:var(--disp);font-weight:800;font-size:36px;letter-spacing:-.05em;line-height:.9}
+.sec{border-top:5px solid var(--sc,var(--ink));margin-top:28px;padding-top:12px}
+.sec h2{font-size:24px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=time],textarea{font:inherit;font-weight:700;border:0;box-shadow:inset 0 0 0 2px var(--fg,var(--ink));border-radius:8px;padding:10px 12px;background:transparent;min-height:48px;color:inherit;transition:box-shadow .15s}
+input[type=time]:focus,textarea:focus{outline:0;box-shadow:inset 0 0 0 4px var(--acc,var(--red))}
+textarea{width:100%;min-height:84px;resize:vertical}
+textarea::placeholder{color:inherit;opacity:.6}
+.note{font-size:14px;color:var(--mute);font-weight:600;margin:10px 0 0;line-height:1.4}
+.tl div{padding:10px 0;border-bottom:1px solid var(--line);font-weight:600;font-size:15px;display:grid;grid-template-columns:92px 1fr;gap:10px}
+.tl b{font-family:var(--disp);font-weight:800;letter-spacing:-.02em;color:var(--blue)}
+.tl i{font-style:normal;color:var(--mute);display:block;font-size:13px}
+/* night: every step has its own colour field */
+.night{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);transition:background .4s ease,color .3s;
+ --bg:#fff;--fg:var(--ink);--acc:var(--red);--rule:var(--ink);--sub:var(--mute);--btnbg:var(--ink);--btnfg:#fff;--off:rgba(20,20,20,.14)}
+.night.t-verse{--bg:var(--green);--fg:#fff;--acc:var(--gold);--rule:rgba(255,255,255,.5);--sub:rgba(255,255,255,.8);--btnbg:#fff;--btnfg:var(--ink);--off:rgba(255,255,255,.28)}
+.night.t-idea,.night.t-gift{--bg:var(--red);--fg:#fff;--acc:var(--gold);--rule:rgba(255,255,255,.5);--sub:rgba(255,255,255,.85);--btnbg:#fff;--btnfg:var(--ink);--off:rgba(255,255,255,.3)}
+.night.t-teach{--bg:var(--cream);--acc:var(--red);--sub:#7a6a45}
+.night.t-hymn{--bg:var(--gold);--acc:#8E1B1B;--sub:#5c4500;--off:rgba(20,20,20,.2)}
+.night.t-prayer{--bg:var(--blue);--fg:#fff;--acc:var(--gold);--rule:rgba(255,255,255,.45);--sub:rgba(255,255,255,.8);--btnbg:var(--gold);--btnfg:var(--ink);--off:rgba(255,255,255,.25)}
+.night.t-done{--bg:var(--green);--fg:#fff;--acc:var(--gold);--rule:rgba(255,255,255,.5);--sub:rgba(255,255,255,.8);--btnbg:#fff;--btnfg:var(--ink);--off:rgba(255,255,255,.28)}
+.night .in{max-width:480px;width:100%;margin:0 auto;flex:1;display:flex;flex-direction:column;min-height:0}
+.bar{display:flex;align-items:center;gap:16px;padding:14px 20px 0}
+.x{width:44px;height:44px;margin-left:-12px;display:grid;place-items:center;transition:transform .2s}
+.x:active{transform:rotate(90deg) scale(.9)}
+.x svg{width:22px;height:22px}
+.seg{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px}
+.seg i{height:5px;background:var(--off);position:relative;overflow:hidden;border-radius:3px}
+.seg i.on:after{content:"";position:absolute;inset:0;background:var(--fg);border-radius:3px}
+.seg i.cur:after{background:var(--acc);transform-origin:left;animation:fill .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fill{from{transform:scaleX(0)}}
+.step{padding:6px 20px 0;color:var(--acc);animation:slide .3s cubic-bezier(.2,.8,.2,1) both}
+.stage{flex:1;overflow-y:auto;padding:14px 20px 20px;min-height:0;animation:slide .34s cubic-bezier(.2,.8,.2,1) both}
+@keyframes slide{from{opacity:0;transform:translateX(34px)}}
+.foot{padding:12px 20px calc(16px + env(safe-area-inset-bottom));display:flex;gap:8px;border-top:2px solid var(--rule);animation:up .3s cubic-bezier(.2,.8,.2,1) both}
+@keyframes up{from{transform:translateY(100%)}}
+.verse{font-family:var(--disp);font-weight:700;font-size:27px;line-height:1.28;letter-spacing:-.02em;margin:6px 0 22px}
+.under{display:block;border-top:2px solid var(--rule);padding-top:10px;color:var(--sub);animation:rise .4s .3s both}
+.idea{font-family:var(--disp);font-weight:800;font-size:46px;line-height:1;letter-spacing:-.045em;margin:10px 0 30px}
+.who{display:flex;align-items:center;gap:6px;padding-bottom:10px}
+.who b{flex:1;font-weight:800;font-size:16px;line-height:1.2}
+.mini{min-width:52px;height:44px;font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase;border-radius:8px;box-shadow:inset 0 0 0 2px currentColor;transition:transform .12s}
+.mini:active{transform:scale(.92)}
+.rp{height:5px;background:var(--off);border-radius:3px;margin-bottom:18px;overflow:hidden}
+.rp i{display:block;height:100%;width:0;background:var(--green);border-radius:3px;transition:width .5s ease-out}
+.read{font-size:var(--fs,20px);line-height:1.6;font-weight:500;transition:font-size .25s cubic-bezier(.3,.9,.3,1.4)}
+.read p{margin:0 0 18px}
+.read span{transition:color .3s;background:linear-gradient(var(--gold),var(--gold)) no-repeat left/0 100%;box-decoration-break:clone;-webkit-box-decoration-break:clone;border-radius:3px}
+.read span.cur{animation:sweep .45s ease-out forwards;color:var(--ink)}
+@keyframes sweep{to{background-size:100% 100%}}
+.read span.past{color:var(--green)}
+.eq{display:inline-flex;gap:3px;align-items:flex-end;height:14px;margin-right:10px;vertical-align:-1px}
+.eq i{width:4px;background:currentColor;border-radius:1px;animation:eq .7s ease-in-out infinite alternate}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.5s}
+@keyframes eq{from{height:3px}to{height:14px}}
+.hymn h3{font-size:38px;letter-spacing:-.04em;margin:6px 0 22px}
+.hymn .cap{color:var(--acc)}
+.hymn p{white-space:pre-line;font-size:20px;line-height:1.5;font-weight:600;margin:8px 0 26px;animation:rise .4s both;animation-delay:calc(var(--i)*120ms + 200ms)}
+.flame{width:44px;height:64px;display:block;margin:2px 0 6px}
+.flame path{transform-origin:22px 46px;animation:flick 1.1s ease-in-out infinite alternate}
+.flame path+path{animation-duration:.7s}
+@keyframes flick{from{transform:scale(1,1) skewX(0)}50%{transform:scale(.94,1.06) skewX(-3deg)}to{transform:scale(1.03,.96) skewX(3deg)}}
+.pprompt{font-family:var(--disp);font-weight:800;font-size:32px;line-height:1.04;letter-spacing:-.035em;margin:6px 0 20px}
+.ptext{font-size:19px;line-height:1.55;font-weight:500;border-left:4px solid var(--acc);padding-left:14px;margin:0 0 20px;animation:rise .4s .35s both}
+/* gift */
+.giftbox{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;touch-action:manipulation;user-select:none;perspective:900px}
+.frame{width:230px;height:230px;background:var(--gold);border-radius:10px;position:relative;animation:nudge 2.6s ease-in-out infinite}
+@keyframes nudge{0%,82%,100%{transform:none}86%{transform:rotate(-3deg)}90%{transform:rotate(3deg)}94%{transform:rotate(-2deg)}}
+.frame:before{content:"";position:absolute;inset:0;margin:auto;width:64px;height:64px;background:#fff;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);animation:twirl 6s linear infinite}
+@keyframes twirl{to{transform:rotate(360deg)}}
+.leaf{position:absolute;inset:0;background:#fff;color:var(--red);border-radius:10px;transform-origin:left center;transition:transform .2s cubic-bezier(.3,.9,.3,1.5);display:flex;flex-direction:column;justify-content:space-between;padding:16px 20px;backface-visibility:hidden}
+.leaf b{font-family:var(--disp);font-weight:800;font-size:150px;letter-spacing:-.07em;line-height:.8}
+.leaf span{color:var(--ink)}
+.leaf.swing{transition:transform .45s cubic-bezier(.3,0,.2,1);transform:rotateY(-112deg)!important}
+.hint{margin-top:26px;animation:hintp 1.4s ease-in-out infinite}
+@keyframes hintp{50%{opacity:.55}}
+.ring{width:230px;height:5px;background:rgba(255,255,255,.3);margin-top:14px;border-radius:3px;overflow:hidden}
+.ring i{display:block;height:100%;width:0;background:var(--gold)}
+.flash{position:fixed;inset:0;background:#fff;z-index:50;pointer-events:none;animation:flash .5s ease-out forwards}
+@keyframes flash{from{opacity:.9}to{opacity:0}}
+.prize .card{animation:cardup .55s cubic-bezier(.2,.9,.3,1.3) both;transform-origin:bottom;background:#fff;color:var(--ink);min-height:0;padding:18px;gap:14px}
+@keyframes cardup{from{transform:perspective(600px) rotateX(70deg) translateY(40px);opacity:0}}
+.prize .card .m{font-size:30px;line-height:1.02;letter-spacing:-.035em}
+.prize .card .cap{font-size:11px;color:var(--red);opacity:1}
+.also{border-top:2px solid rgba(255,255,255,.5);margin-top:22px;padding-top:12px;font-weight:600;font-size:17px;line-height:1.45;animation:rise .4s .45s both}
+.also .cap{display:block;margin-bottom:6px;color:var(--gold)}
+/* done */
+.done h2{font-size:56px;letter-spacing:-.05em;margin:0 0 18px}
+.harkbig{width:230px;height:170px;display:block;margin:10px 0 0 -14px;touch-action:manipulation}
+.done .stats{border-top:2px solid var(--rule);border-bottom-color:var(--rule);margin:0 -20px}
+.done .stats div+div{border-left-color:var(--rule)}
+.done .stats b,.done .stats div:nth-child(n) b{color:var(--gold)}
+.done .stats span{color:var(--sub)}
+
+/* rumble */
+@keyframes shake{0%,100%{transform:none}15%{transform:translate(calc(var(--amp)*-1),calc(var(--amp)*.6)) rotate(-.7deg)}30%{transform:translate(var(--amp),calc(var(--amp)*-.5)) rotate(.7deg)}45%{transform:translate(calc(var(--amp)*-.8),calc(var(--amp)*-.4))}60%{transform:translate(calc(var(--amp)*.7),calc(var(--amp)*.5)) rotate(-.4deg)}80%{transform:translate(calc(var(--amp)*-.4),0)}}
+.shake{animation:shake .34s linear}
+.quake{animation:shake .15s linear 7}
+/* a wrapped week */
+.box{display:flex;flex-direction:column;justify-content:flex-end;gap:6px;width:100%;height:170px;border-radius:10px;background:var(--wk);color:var(--wkfg);padding:16px;text-align:left;position:relative;overflow:hidden;margin-top:4px;transition:transform .14s ease-out}
+.box:active{transform:scale(.98)}
+.box b{font-family:var(--disp);font-weight:800;font-size:30px;letter-spacing:-.04em;line-height:1;position:relative}
+.box .cap{position:relative;opacity:.9}
+.box .rv,.box .rh{position:absolute;background:rgba(255,255,255,.28)}
+.box .rv{top:0;bottom:0;right:64px;width:26px}.box .rh{left:0;right:0;top:44px;height:26px}
+.box .bow{position:absolute;right:51px;top:31px;width:52px;height:52px;background:#fff;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.box.ready{animation:nudge 2.2s ease-in-out infinite}
+.box.ready .bow{animation:twirl 5s linear infinite}
+.box.nope{animation:nope .32s}
+.box.burst{animation:pump .5s ease-in forwards}
+@keyframes pump{40%{transform:scale(1.06) rotate(-1.5deg)}70%{transform:scale(1.1) rotate(1.5deg)}100%{transform:scale(.6);opacity:0}}
+.wk.unwrapped .door{animation:tile .4s cubic-bezier(.2,.9,.3,1.5) backwards;animation-delay:calc(var(--i)*55ms)}
+.wk.unwrapped header{animation:rise .35s both}
+/* Hark on each step */
+.step{display:flex;justify-content:space-between;align-items:flex-end;min-height:58px}
+.step .hk{width:92px;height:62px;margin:-8px -6px -4px 0;flex:none}
+/* gift stage */
+.gstage{position:relative;width:230px;height:230px}
+.ghark{position:absolute;left:-92px;bottom:-22px;width:170px;height:115px;z-index:2;pointer-events:none}
+.frame.bump{animation:bump .3s cubic-bezier(.2,.9,.3,1.6)}
+@keyframes bump{35%{transform:scale(1.12) rotate(-2deg)}}
+.leaf.blast{transition:transform .6s cubic-bezier(.3,0,.7,1),opacity .6s ease-in;transform:translate(80vw,-55vh) rotate(75deg) scale(.5)!important;opacity:0}
+.phark{display:block;width:170px;height:129px;margin:-6px 0 -18px auto;position:relative;z-index:2}
+
+/* Hark carries each step in */
+.curtain{position:fixed;inset:0;z-index:45;will-change:transform;backface-visibility:hidden}
+.runner{position:fixed;left:0;top:0;width:200px;height:135px;z-index:46;pointer-events:none;will-change:transform}
+.gstage{animation:pushin .7s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes pushin{from{transform:translateX(-120vw)}}
+
+/* the calendar board: dark green field, white doors */
+.board{background:var(--green)}
+.board .stats{border-bottom-color:rgba(255,255,255,.35);color:#fff}
+.board .stats div+div{border-left-color:rgba(255,255,255,.35)}
+.board .stats b,.board .stats div:nth-child(n) b{color:var(--gold)}
+.board .stats span{color:rgba(255,255,255,.75)}
+.board .wk header{border-top-color:var(--gold)}
+.board .wk h2{color:#fff}
+.board .wk header span{color:rgba(255,255,255,.7)}
+.board .door{background:#fff;color:var(--ink);box-shadow:none}
+.board .door:not(.open):not(.now):not(.done){background:#fff;color:#BDB7AC}
+.board .door.open{background:#fff;color:var(--ink)}
+.board .door.missed span{color:var(--red)}
+.board .door.done{background:var(--red);color:#fff}
+.board .door.now{background:var(--tonight);color:#fff;box-shadow:inset 0 0 0 3px #fff}
+.board .box{background:var(--red);color:#fff}
+.board .box .rv,.board .box .rh{background:var(--gold)}
+.board .box .bow{background:#fff}
+
+/* gold type on every dark field */
+.hero,.hero .cap{color:var(--gold)}
+.board .stats,.board .stats span,.board .wk h2,.board .wk header span{color:var(--gold)}
+.board .door.done,.board .door.done span{color:var(--gold)}
+.board .box,.board .box b,.board .box .cap{color:var(--gold)}
+.board .box .rv,.board .box .rh{background:rgba(255,200,61,.35)}
+.night.t-verse,.night.t-idea,.night.t-gift,.night.t-prayer,.night.t-done{--fg:var(--gold);--sub:rgba(255,200,61,.8);--rule:rgba(255,200,61,.5)}
+.night.t-prayer{--btnbg:var(--gold)}
+.night.t-verse,.night.t-idea,.night.t-gift,.night.t-done{--btnbg:var(--gold);--btnfg:var(--ink)}
+.also .cap,.night .step{color:var(--gold)}
+.night.t-teach .step,.night.t-hymn .step{color:var(--acc)}
+.tabs .tab.on{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<canvas id="fx"></canvas>
+<script>
+"use strict";
+/* ===================== CONTENT ===================== */
+const HYMNS={
+hark:{t:"Hark! The Herald Angels Sing",v:[
+`Hark! the herald angels sing,
+"Glory to the newborn King;
+Peace on earth, and mercy mild,
+God and sinners reconciled!"
+Joyful, all ye nations, rise,
+Join the triumph of the skies;
+With th'angelic host proclaim,
+"Christ is born in Bethlehem!"
+Hark! the herald angels sing,
+"Glory to the newborn King."`,
+`Christ, by highest heaven adored;
+Christ, the everlasting Lord;
+Late in time behold Him come,
+Offspring of the Virgin's womb.
+Veiled in flesh the Godhead see;
+Hail th'incarnate Deity,
+Pleased as man with men to dwell,
+Jesus, our Emmanuel.
+Hark! the herald angels sing,
+"Glory to the newborn King."`,
+`Hail the heaven-born Prince of Peace!
+Hail the Sun of Righteousness!
+Light and life to all He brings,
+Risen with healing in His wings.
+Mild He lays His glory by,
+Born that man no more may die,
+Born to raise the sons of earth,
+Born to give them second birth.
+Hark! the herald angels sing,
+"Glory to the newborn King."`]},
+faithful:{t:"O Come, All Ye Faithful",v:[
+`O come, all ye faithful, joyful and triumphant,
+O come ye, O come ye to Bethlehem;
+Come and behold Him, born the King of angels;
+O come, let us adore Him,
+O come, let us adore Him,
+O come, let us adore Him, Christ the Lord.`,
+`Sing, choirs of angels, sing in exultation,
+Sing, all ye citizens of heaven above;
+Glory to God, all glory in the highest;
+O come, let us adore Him,
+O come, let us adore Him,
+O come, let us adore Him, Christ the Lord.`,
+`Yea, Lord, we greet Thee, born this happy morning;
+Jesus, to Thee be all glory given;
+Word of the Father, now in flesh appearing;
+O come, let us adore Him,
+O come, let us adore Him,
+O come, let us adore Him, Christ the Lord.`]},
+joy:{t:"Joy to the World",v:[
+`Joy to the world! the Lord is come;
+Let earth receive her King;
+Let every heart prepare Him room,
+And heaven and nature sing,
+And heaven and nature sing,
+And heaven, and heaven and nature sing.`,
+`Joy to the earth! the Savior reigns;
+Let men their songs employ;
+While fields and floods, rocks, hills and plains
+Repeat the sounding joy,
+Repeat the sounding joy,
+Repeat, repeat the sounding joy.`,
+`He rules the world with truth and grace,
+And makes the nations prove
+The glories of His righteousness,
+And wonders of His love,
+And wonders of His love,
+And wonders, wonders of His love.`]},
+town:{t:"O Little Town of Bethlehem",v:[
+`O little town of Bethlehem,
+How still we see thee lie!
+Above thy deep and dreamless sleep
+The silent stars go by;
+Yet in thy dark streets shineth
+The everlasting Light;
+The hopes and fears of all the years
+Are met in thee tonight.`,
+`How silently, how silently,
+The wondrous gift is given!
+So God imparts to human hearts
+The blessings of His heaven.
+No ear may hear His coming,
+But in this world of sin,
+Where meek souls will receive Him still,
+The dear Christ enters in.`,
+`O holy Child of Bethlehem,
+Descend to us, we pray;
+Cast out our sin and enter in,
+Be born in us today.
+We hear the Christmas angels
+The great glad tidings tell;
+O come to us, abide with us,
+Our Lord Emmanuel!`]},
+emmanuel:{t:"O Come, O Come, Emmanuel",v:[
+`O come, O come, Emmanuel,
+And ransom captive Israel,
+That mourns in lonely exile here
+Until the Son of God appear.
+Rejoice! Rejoice! Emmanuel
+Shall come to thee, O Israel.`,
+`O come, Thou Dayspring, come and cheer
+Our spirits by Thine advent here;
+Disperse the gloomy clouds of night,
+And death's dark shadows put to flight.
+Rejoice! Rejoice! Emmanuel
+Shall come to thee, O Israel.`,
+`O come, Thou Key of David, come
+And open wide our heavenly home;
+Make safe the way that leads on high,
+And close the path to misery.
+Rejoice! Rejoice! Emmanuel
+Shall come to thee, O Israel.`]},
+expected:{t:"Come, Thou Long-Expected Jesus",v:[
+`Come, Thou long-expected Jesus,
+Born to set Thy people free;
+From our fears and sins release us,
+Let us find our rest in Thee.
+Israel's strength and consolation,
+Hope of all the earth Thou art;
+Dear desire of every nation,
+Joy of every longing heart.`,
+`Born Thy people to deliver,
+Born a child and yet a King,
+Born to reign in us forever,
+Now Thy gracious kingdom bring.
+By Thine own eternal Spirit
+Rule in all our hearts alone;
+By Thine all-sufficient merit,
+Raise us to Thy glorious throne.`]},
+silent:{t:"Silent Night",v:[
+`Silent night, holy night,
+All is calm, all is bright
+Round yon virgin mother and child.
+Holy Infant, so tender and mild,
+Sleep in heavenly peace,
+Sleep in heavenly peace.`,
+`Silent night, holy night,
+Shepherds quake at the sight;
+Glories stream from heaven afar,
+Heavenly hosts sing Alleluia!
+Christ the Savior is born,
+Christ the Savior is born.`,
+`Silent night, holy night,
+Son of God, love's pure light
+Radiant beams from Thy holy face,
+With the dawn of redeeming grace,
+Jesus, Lord, at Thy birth,
+Jesus, Lord, at Thy birth.`]}
+};
+
+/* m = message, v = verse ref, vt = verse text (KJV), c = credit, y = year, p = place, h = hymn id,
+   pt = Praise|Ask, pp = prayer prompt, pr = prayer to read aloud, t = teaching paragraphs,
+   s = surprise in the gift, audio = optional mp3 URL (ElevenLabs narration goes here) */
+const NIGHTS=[
+{m:"He became what we are so we could share his life",v:"2 Corinthians 8:9",y:"c. 180",p:"Lyon, Gaul",c:"Irenaeus, Against Heresies, Book V",h:"hark",pt:"Praise",pp:"Thank Jesus for one part of human life he took on",
+vt:"For ye know the grace of our Lord Jesus Christ, that, though he was rich, yet for your sakes he became poor, that ye through his poverty might be rich.",
+pr:"Lord Jesus, you did not stay far off. You became what we are: you were hungry, tired, a child in a family. Thank you. Bring us all the way home to share your life. Amen.",
+s:"Tomorrow's mission: when you feel tired or hungry tomorrow, remember that he felt it too, and say thank you.",
+t:[`Tonight's message is almost as old as the church itself. Around the year 180, in the city of Lyon, a pastor named Irenaeus put it in one sentence.`,
+`Follow the one true and steadfast Teacher, the Word of God, our Lord Jesus Christ. Out of his boundless love he became what we are, so that he might bring us to be what he is.`,
+`Why did he have to come that way? Because there was no other way for us to learn the things of God. Our Teacher, who is the Word, had to become a man. No one else could show us the Father except the Father's own Word. For who else has known the mind of the Lord? Who else has been his counselor?`,
+`And we could not have learned in any other way than by seeing our Teacher with our own eyes and hearing his voice with our own ears. He came close so that we could copy what he does and do what he says, and so share life with him.`,
+`We had wandered off and been taken captive. So the Word of God, mighty in every way and never failing in justice, came to win back what was his own. He did not do it by force. He did it by giving. The Lord redeemed us with his own blood. He gave his soul for our souls and his body for our bodies. And he poured out the Spirit of the Father to join God and people together: bringing God down to us through the Spirit, and lifting us up to God by his own becoming flesh.`,
+`So this is where Advent begins. He did not shout directions from far away. He came all the way down to where we are, and he will not stop until we share his life.`]},
+{m:"The King moved into our city, so the whole city is safe",v:"Hebrews 2:14-15",y:"c. 320",p:"Alexandria, Egypt",c:"Athanasius, On the Incarnation",h:"faithful",pt:"Ask",pp:"Pray for one person facing fear or grief, by name",
+vt:"Forasmuch then as the children are partakers of flesh and blood, he also himself likewise took part of the same; that through death he might destroy him that had the power of death, that is, the devil; and deliver them who through fear of death were all their lifetime subject to bondage.",
+pr:"King Jesus, you moved into our city and you have not left. Be near tonight to the one we name, who is afraid or grieving. Let them know the King is living here. Amen.",
+s:"Christmas cracker: What do you call a king who moves into your street? A good neighbor. (Tonight, that one is true.)",
+t:[`Tonight we are in Alexandria, in Egypt, in the early 300s. The message is this: the King moved into our city, so the whole city is safe.`,
+`The Word of God was never far from us. He fills all things. But he saw the human race, the people he had made, wasting away. Death ruled over us, and what God had made was coming undone. He could not bear that death should have the mastery, or that his Father's work in us should come to nothing. So he took pity on us and came down to our level.`,
+`He took a body, and a body no different from ours. He made it his own, a temple to live in. And because all of us were under the sentence of death, he gave that body over to death in place of all, and offered it to the Father. He did this out of sheer love for us, so that the law of death might be used up and lose its power. He turned us back from ruin toward life, and by his rising he makes death vanish from us like straw in a fire.`,
+`Think of a great king who enters a large city and makes his home in one of its houses. The whole city is honored. No enemy or bandit dares come down on it any more, because the king is living there. One house holds him, and every house is safer for it.`,
+`So it is with the King of all. He has come into our country and lived in one body among us. Since then, the whole plot of the enemy against the human race has been stopped, and the decay of death that once held us has begun to lose its grip.`,
+`The King has moved in. That is why we do not have to be afraid.`]},
+{m:"Two comings: the manger, then the clouds",v:"Titus 2:11-13",y:"c. 350",p:"Jerusalem",c:"Cyril of Jerusalem, Catechetical Lecture 15",h:"joy",pt:"Ask",pp:"Name one thing to set right before he comes",
+vt:"For the grace of God that bringeth salvation hath appeared to all men, teaching us that, denying ungodliness and worldly lusts, we should live soberly, righteously, and godly, in this present world; looking for that blessed hope, and the glorious appearing of the great God and our Saviour Jesus Christ.",
+pr:"Lord Jesus, you came once in a manger and you are coming again in glory. Show each of us one thing to set right, and give us the courage to do it this week. Come, Lord Jesus. Amen.",
+s:"Tomorrow's mission: set right the one thing you named. A text, an apology, a chore. Small counts.",
+t:[`Jerusalem, about the year 350. A pastor is teaching people who are new to the faith. His message: there are two comings.`,
+`We preach not one coming of Christ only, but a second as well, far more glorious than the first. The first showed his patience. The second will bring the crown of God's kingdom.`,
+`Almost everything about our Lord Jesus Christ is twofold. There are two births: one from God before the ages, and one from a virgin at the end of the ages. There are two descents: one quiet, like rain falling on a fleece, and one still to come, in the open, for all to see.`,
+`In his first coming he was wrapped in swaddling clothes and laid in a manger. In his second he is clothed in light as with a robe. In his first coming he endured the cross and thought nothing of its shame. In his second he comes in glory, with an army of angels around him.`,
+`So we do not rest in his first coming alone. We look for his second too. At his first coming we said, Blessed is he who comes in the name of the Lord. At his second we will say it again, and go out with the angels to meet our Master, and worship him.`,
+`The Savior is coming, not to be judged again, but to judge those who judged him. The first time, he came to teach people gently and win them over. The next time, whether people wish it or not, they will have him as their King.`,
+`So Advent looks two ways. Back to the manger, with thanks. Forward to the clouds, with hope.`]},
+{m:"The Mighty One became a baby; the Shepherd became a lamb",v:"Isaiah 7:14",y:"c. 360",p:"Nisibis, Syria",c:"Ephrem the Syrian, Hymns on the Nativity",h:"town",pt:"Praise",pp:"Take turns naming titles of Jesus",
+vt:"Therefore the Lord himself shall give you a sign; Behold, a virgin shall conceive, and bear a son, and shall call his name Immanuel.",
+pr:"Jesus, you are Immanuel, Shepherd, Lamb, Light, King, Savior. Every name we have said tonight is true, and you are more than all of them. We praise you. Amen.",
+s:"Sticker: IMMANUEL. It means God with us. Say it three times fast.",
+t:[`Tonight's message comes from a song. In Syria in the 300s, a teacher named Ephrem taught his church by writing hymns for them to sing. This is one of them.`,
+`Today the voice that Isaiah spoke long ago has come true. The psalm that David once sang is fulfilled today. The word that Micah once spoke has today come to pass: for out of Bethlehem a Shepherd has come, and his staff rules over souls. The star has risen out of Jacob, just as was promised. The hidden Light has come down, and his beauty has shone out from a human body.`,
+`This is the day that made the prophets glad. What they longed to see, we see. The watchers in heaven are awake and singing tonight, so let us not sleep through it.`,
+`Look at who is lying here. The Mighty One has become a small child. The one who gives food to everything that lives is hungry. The one who holds the whole world in his hand is held in his mother's arms. The Shepherd of all has become a lamb. The one who is rich beyond counting has come down to be poor for us.`,
+`He came down quietly. He was not ashamed to become small. And because he became small, small people like us can come near him.`,
+`On this day, let no one be proud, for the Lord of all has made himself low. On this day, let no one hold a grudge, for God has come to make peace with those who wronged him. On this day the door of heaven is open to our prayers. So let us ask.`]},
+{m:"Christ is born, so go out to meet him",v:"Isaiah 9:2",y:"c. 380",p:"Constantinople",c:"Gregory of Nazianzus, Oration 38",h:"faithful",pt:"Praise",pp:"Praise only tonight: no requests",
+vt:"The people that walked in darkness have seen a great light: they that dwell in the land of the shadow of death, upon them hath the light shined.",
+pr:"Christ is born: we give you glory. Christ has come from heaven: we come out to meet you. Light of the world, we praise you, and tonight we ask for nothing but you. Amen.",
+s:"Tomorrow's mission: the first time you step outside tomorrow, look up and say, Christ is born, give him glory.",
+t:[`Constantinople, about the year 380, on Christmas Day. The preacher opens with a shout. His message: Christ is born, so go out to meet him.`,
+`Christ is born: give him glory! Christ comes from heaven: go out to meet him! Christ is on earth: be lifted up! Sing to the Lord, all the earth. Let the heavens rejoice and the earth be glad, because of him who is of heaven and now is on earth. Christ is in the flesh: rejoice with trembling and with joy. With trembling because of your sins, with joy because of your hope.`,
+`Again the darkness is over. Again the light is made. The people who sat in darkness have seen a great light. The old has passed away; look, everything has become new. The shadows flee, and the truth comes in.`,
+`The one who is without flesh takes flesh. The Word puts on a body. The invisible is seen. The one no hand could touch is touched. The timeless one has a beginning. The Son of God becomes the Son of Man: Jesus Christ, the same yesterday, today and forever.`,
+`This is our festival. This is what we celebrate today: the coming of God to us, so that we might go back to God. So that we might put off the old self and put on the new. As we died in Adam, so we may live in Christ, be born with Christ, and rise with him.`,
+`So let us keep the feast, not as a party for the world, but in a godly way. Not as a day of our weakness, but of our healing. Not as a day of being made, but of being made new.`,
+`Run with the star. Bring your gifts with the wise men. Give glory with the shepherds. Sing with the angels. Christ is born: give him glory.`]},
+{m:"The Maker was made man: Bread hungry, Fountain thirsty",v:"John 1:14",y:"c. 400",p:"Hippo, North Africa",c:"Augustine, Sermon 191 (fresh translation)",h:"hark",pt:"Praise",pp:"Thank him for one weakness he chose",
+vt:"And the Word was made flesh, and dwelt among us, (and we beheld his glory, the glory as of the only begotten of the Father,) full of grace and truth.",
+pr:"Maker of all, you chose to be made small. You chose hunger, thirst, tiredness and death, and you chose them for us. For each weakness we have named tonight: thank you. Amen.",
+s:"Christmas cracker: Who made the stars and then needed a nap? Read tonight's list again. It is not a joke.",
+t:[`North Africa, about the year 400. It is Christmas morning, and a pastor named Augustine stands up to preach. His message: the Maker was made man.`,
+`The Word of the Father, through whom time itself was made, became flesh and gave us his birthday in time. He, without whose say-so not a single day rolls by, chose to have one day for his own human birth. With the Father, he comes before all the ages. Born of a mother on this day, he stepped into the passing years.`,
+`The Maker of man was made man.`,
+`So that the Ruler of the stars might be nursed as a baby. So that the Bread might be hungry. So that the Fountain might be thirsty. So that the Light might sleep. So that the Way might be tired from the journey.`,
+`So that the Truth might be accused by false witnesses. So that the Judge of the living and the dead might be judged by a mortal judge. So that Justice might be condemned by the unjust.`,
+`So that the Vine might be crowned with thorns. So that the Foundation might be hung on a tree. So that Strength might be made weak. So that the Healer might be wounded. So that Life might die.`,
+`He bore all these things for us, things he did not deserve, to set free people who did not deserve it. He had done nothing to earn such evils. We had done nothing to earn such good.`,
+`Pick one line tonight and stay there for a moment. The Bread was hungry. The Light slept. Life died. All of it, for us.`]},
+{m:"Joy is for everyone, so remember who you now are",v:"Colossians 1:12-13",y:"c. 450",p:"Rome",c:"Leo the Great, Sermon 21",h:"joy",pt:"Ask",pp:"Ask for help to leave one old habit behind",
+vt:"Giving thanks unto the Father, which hath made us meet to be partakers of the inheritance of the saints in light: who hath delivered us from the power of darkness, and hath translated us into the kingdom of his dear Son.",
+pr:"Father, you rescued us from the dark and brought us into the kingdom of your Son. Help us remember who we are now. Give us strength to leave behind the habit we have named. Amen.",
+s:"Tomorrow's mission: when the old habit knocks, say out loud, I remember who I am.",
+t:[`Rome, about the year 450. Christmas Day. The message: joy is for everyone, so remember who you now are.`,
+`Our Savior, dearly beloved, was born today: let us be glad. There is no room for sadness on the birthday of Life itself, the Life that swallows up the fear of death and brings us the joy of a promised eternity.`,
+`No one is shut out from this happiness. Everyone has the same reason for joy, because our Lord, the destroyer of sin and death, found no one free from guilt, and so he came to set everyone free. Let the saint rejoice, for he is close to his prize. Let the sinner be glad, for he is invited to be forgiven. Let the outsider take courage, for he is called to life.`,
+`So let us give thanks to God the Father, through his Son, in the Holy Spirit. Because of the great mercy with which he loved us, he took pity on us; and when we were dead in our sins, he made us alive together with Christ, so that in him we might be a new creation.`,
+`Let us then put off the old self with its ways. And since we have been given a share in the birth of Christ, let us turn our backs on the works of the flesh.`,
+`Christian, remember your dignity. You have been made a sharer in God's own nature. Do not go back to your old, low ways by living beneath what you are. Remember whose body you belong to, and who is its Head. Remember that you were rescued from the power of darkness and brought into the light and kingdom of God.`]},
+{m:"Seven names for Jesus, each one a prayer: Come",v:"Isaiah 11:1-2",y:"c. 700s",p:"Monasteries of Europe",c:"The O Antiphons",h:"emmanuel",pt:"Ask",pp:"Pray \"Come\" into one specific situation"},
+{m:"Only God could save us; only a man should. So he is both",v:"Hebrews 2:17",y:"1098",p:"Canterbury, England",c:"Anselm, Why God Became Man",h:"hark",pt:"Praise",pp:"Give thanks for forgiveness, after a quiet confession"},
+{m:"A third, hidden coming: he comes to us now by his word",v:"John 14:23",y:"c. 1140",p:"Clairvaux, France",c:"Bernard of Clairvaux, Advent Sermon 5",h:"expected",pt:"Ask",pp:"Choose one verse to keep tomorrow"},
+{m:"Your King comes to you. You did not go looking for him first",v:"Matthew 21:5",y:"1521",p:"The Wartburg, Germany",c:"Martin Luther, Church Postil, First Sunday in Advent",h:"emmanuel",pt:"Praise",pp:"Thank him for coming to find you"},
+{m:"Not just \"born\" but \"born for you\"",v:"Isaiah 9:6",y:"1522",p:"The Wartburg, Germany",c:"Martin Luther, Church Postil, Christmas Day",h:"town",pt:"Ask",pp:"Pray for one person who does not yet believe it is for them"},
+{m:"Cast off darkness, put on light, now",v:"Romans 13:11-12",y:"1549",p:"England",c:"Thomas Cranmer, the Advent Collect",h:"expected",pt:"Ask",pp:"Name one thing to cast off"},
+{m:"God sends the best news to ordinary, overlooked people",v:"Luke 2:8-12",y:"1555",p:"Geneva",c:"John Calvin, Commentary on Luke 2",h:"silent",pt:"Ask",pp:"Pray for someone overlooked this Christmas"},
+{m:"His birth covers my sin, so his return is comfort, not dread",v:"Hebrews 9:28",y:"1563",p:"Heidelberg, Germany",c:"The Heidelberg Catechism, Q&A 36 and 52",h:"hark",pt:"Praise",pp:"Praise the Judge who was judged for us"},
+{m:"He is born, but have you found him?",v:"Luke 2:12",y:"1618",p:"London",c:"Lancelot Andrewes, Nativity Sermon",h:"faithful",pt:"Ask",pp:"Ask to find Christ in one place tomorrow"},
+{m:"We were made in God's image; now God is made in ours, out of love",v:"1 Timothy 3:16",y:"1692",p:"London",c:"Thomas Watson, A Body of Divinity",h:"silent",pt:"Praise",pp:"Thank him for love nobody earned"},
+{m:"Lion and Lamb in one person",v:"Revelation 5:5-6",y:"1730s",p:"Northampton, Massachusetts",c:"Jonathan Edwards, The Excellency of Christ",h:"hark",pt:"Praise",pp:"Name one lion quality and one lamb quality"},
+{m:"Keep Christmas with prayer and generosity, not excess",v:"Matthew 1:21",y:"c. 1740",p:"England",c:"George Whitefield, The True Way of Keeping Christmas",h:"joy",pt:"Ask",pp:"Pray for one person in need, then pick one act of giving"},
+{m:"Believing is not the same as watching for him",v:"Mark 13:33-37",y:"1830s",p:"Oxford, England",c:"John Henry Newman, Watching",h:"expected",pt:"Ask",pp:"Name one distraction to put down",open:"hold"},
+{m:"Christ is born in little places and little hearts",v:"Micah 5:2",y:"1855",p:"London",c:"Charles Spurgeon, Sermon 57",h:"town",pt:"Ask",pp:"Ask for a humble heart; pray for the children by name"},
+{m:"When the world shakes, lift up your heads",v:"Luke 21:27-28",y:"1859",p:"England",c:"J. C. Ryle, Expository Thoughts on Luke",h:"emmanuel",pt:"Ask",pp:"Bring one fear about the world to God honestly",open:"hold"},
+{m:"Good news of great joy, and it starts with you",v:"Luke 2:10-11",y:"1871",p:"London",c:"Charles Spurgeon, Joy Born at Bethlehem",h:"joy",pt:"Ask",pp:"Pray for one person short on joy this year"},
+{m:"He laid his glory down; have the same mind",v:"Philippians 2:5-8",y:"1893",p:"Princeton, New Jersey",c:"B. B. Warfield, Imitating the Incarnation",h:"hark",pt:"Ask",pp:"Choose one way to spend yourself for someone this week"},
+{m:"Waiting is not wasted: God works for those who wait",v:"Psalm 130:5-6",y:"1896",p:"Wellington, South Africa",c:"Andrew Murray, Waiting on God",h:"expected",pt:"Ask",pp:"Hand over one thing you are waiting for",open:"hold"},
+{m:"The Maker of the stars became small enough to hold",v:"Luke 2:6-7",y:"1925",p:"England",c:"G. K. Chesterton, The Everlasting Man",h:"silent",pt:"Praise",pp:"A minute of quiet wonder, then thanks out loud"},
+{m:"The story itself: a Savior is born",v:"Luke 2:1-20",y:"The first Christmas",p:"Bethlehem",c:"The Gospel of Luke",h:"faithful",pt:"Praise",pp:"Praise only: Christmas morning thanks"}
+];
+const START=new Date(2026,10,29); // Sunday Nov 29, 2026
+const POOL=["Christmas cracker: What do sheep say on Christmas morning? Fleece Navidad.","Tomorrow's mission: tell one person something good God has done for you.","Christmas cracker: Why did the shepherd bring a ladder? He heard the angels were on high.","Tomorrow's mission: do one kind thing in secret.","Sticker: COME, LORD JESUS. The oldest Advent prayer there is."];
+
+/* Teachings for nights 1-7: the author's own words in modern English, first person, no narrator.
+   Rendered from the public-domain English translations (and, for night 6, from the Latin). */
+const WHO=["Irenaeus, pastor in Lyon","Athanasius, pastor in Alexandria","Cyril, pastor in Jerusalem","Ephrem, hymn writer in Syria","Gregory, preacher in Constantinople","Augustine, pastor in Hippo","Leo, pastor in Rome"];
+const TEACH=[
+[`Follow the only true and steadfast Teacher, the Word of God, our Lord Jesus Christ. Through his boundless love he became what we are, so that he might bring us to be what he is himself.`,
+`There is no other way we could have learned the things of God, unless our Teacher, who is the Word, had become man. No one else had the power to reveal to us the things of the Father, except his own Word. For who else has known the mind of the Lord? Who else has been his counselor?`,
+`Again, we could have learned in no other way than by seeing our Teacher, and hearing his voice with our own ears. So that, by copying his works and doing his words, we might have communion with him, and receive growth from the one who is perfect, who was before all creation.`,
+`We were only lately made, by the one who alone is supremely good, the one who has the gift of immortality. We were formed after his likeness, and chosen beforehand in the Father's foreknowledge, we who did not yet exist. And at the appointed time we have received the blessings of salvation through the ministry of the Word, who is perfect in all things: the mighty Word, and truly man. He redeemed us by his own blood, giving himself as a ransom for those who had been led into captivity.`,
+`The enemy ruled over us unjustly. Though by nature we belonged to almighty God, he tore us away and made us his own followers. But the Word of God, powerful in all things and never lacking in his own justice, turned rightly against that rebellion and won back from it what was his own. He did not do it by force, the way the enemy had seized us at the beginning, greedily snatching what was not his. He did it by persuasion, as is fitting for a God of wisdom, who does not use violence to get what he desires. So justice was not broken, and the ancient handiwork of God was not left to perish.`,
+`So the Lord has redeemed us through his own blood, giving his soul for our souls and his flesh for our flesh. And he has poured out the Spirit of the Father to unite God and man: bringing God down to us through the Spirit, and raising us up to God by his own becoming flesh. At his coming he gave us true and lasting immortality, through communion with God.`],
+[`The Word of God was never far from us before. No part of creation is left empty of him; he fills all things everywhere. But now he comes down to us in a new way, out of love, to show himself to us.`,
+`He saw the human race, the people he had made, wasting away, and death ruling over them. He saw that what God had made was perishing. He could not bear that death should have the mastery. So he took pity on our race, and had mercy on our weakness, and came down to where we are.`,
+`He took a body for himself, a body no different from ours. He made it his own, as a temple to live in. And because all of us were under the sentence of death, he gave his body over to death in place of all, and offered it to the Father. He did this out of sheer love for us.`,
+`The Word saw that our ruin could be undone only by death. Yet he, the Word, being immortal and the Son of the Father, could not die. So he took to himself a body that could die, so that this body, belonging to the Word who is above all, might be worthy to die in place of all. And because the Word had come to live in it, it would remain incorruptible, and from then on, by the grace of the resurrection, ruin would be held back from everyone.`,
+`Think of a great king who enters a large city and makes his home in one of its houses. That city is held in high honor. No enemy or bandit comes down on it any more to overthrow it. It is counted worthy of every care, because the king has taken up his home in a single house there. So it has been with the King of all.`,
+`For now that he has come to our realm, and made his home in one body among his own, the whole plot of the enemy against humankind is stopped, and the ruin of death that once held us is undone. The human race would have gone to ruin, if the Lord and Savior of all, the Son of God, had not come among us to put an end to death.`],
+[`We do not preach just one coming of Christ, but a second as well, far more glorious than the first. The first showed us his patience. The second brings with it the crown of God's kingdom.`,
+`Nearly everything about our Lord Jesus Christ comes in pairs. He was born twice: once from God before time began, and once from a virgin at the close of the ages. His comings are twofold as well: one unseen, like rain falling on a fleece, and a second, open and visible, which is still to come.`,
+`At his first coming he was wrapped in strips of cloth and laid in a manger. At his second he will clothe himself in light as in a garment. At his first coming he endured the cross, scorning its shame. At his second he will come with an army of angels, receiving glory.`,
+`So we do not rest only on his first coming. We look forward to his second as well. When he first came we said, Blessed is he who comes in the name of the Lord. At his second coming we will say the same again, so that when we meet our Master with the angels we may worship him and say, Blessed is he who comes in the name of the Lord.`,
+`The Savior is coming, not to be judged again, but to judge those who judged him. He who kept silent when he was judged will remind the wrongdoers of what they dared to do at the cross, and will say, You did these things, and I kept silent. The first time he came to teach people by persuasion. But this time, whether they want him or not, they will have him as their King.`,
+`The prophet Malachi speaks of both. Of the first he says, The Lord whom you seek will suddenly come to his temple. And of the second: But who can endure the day of his coming? Who can stand when he appears? For he comes like a refiner's fire.`,
+`Paul also points to these two comings when he writes to Titus. The grace of God has appeared, bringing salvation to all people, teaching us to live upright and godly lives in this present world, while we look for the blessed hope, the appearing of the glory of our great God and Savior, Jesus Christ. Do you see how he speaks of a first coming, for which he gives thanks, and of a second, for which we are waiting?`],
+[`This is the day that made them glad: the prophets, the kings and the priests. For on this day their words came true, and everything they foretold was carried out.`,
+`On this day the Virgin brought forth Immanuel in Bethlehem. The voice that Isaiah spoke long ago became real today.`,
+`The psalm that David once sang was fulfilled today. The word that Micah once spoke has truly come to pass today. For a Shepherd came out of Bethlehem, and his staff rules over souls.`,
+`Look! A star has shone out from Jacob, and a ruler has risen up from Israel. The prophecy that Balaam spoke has found its meaning today.`,
+`The hidden Light came down, and his beauty shone out from a body. The light that Zechariah spoke of shone today in Bethlehem. The Light of the kingdom has risen in the city of the King.`,
+`The blessing that Jacob gave has reached its fulfillment today. That tree of life brings hope to people who must die.`,
+`Today the Child was born, and his name was called Wonder. For it is a wonder that God shows himself as a baby.`,
+`He came up like a root out of dry ground. What was said in secret has been done in the open today.`,
+`Blessed be the True One, who came from the Father of truth, and fulfilled the words of the true prophets. They were all accomplished, in truth.`,
+`From your treasure house, Lord, from the storehouses of your Scriptures, bring out the names of the righteous of old, who longed to see your coming.`],
+[`Christ is born: glorify him! Christ comes from heaven: go out to meet him! Christ is on earth: be lifted up! Sing to the Lord, all the earth. And, to say both in one breath: let the heavens rejoice and the earth be glad, because he who is of heaven is now on earth.`,
+`Christ is in the flesh: rejoice, with trembling and with joy. With trembling because of your sins. With joy because of your hope.`,
+`Who does not worship him who is from the beginning? Who does not glorify him who is the last?`,
+`Again the darkness is past. Again light is made. Let the people who sat in the darkness of ignorance see the great Light of full knowledge. Old things have passed away; look, all things have become new. The letter gives way, and the Spirit comes to the front. The shadows flee, and the Truth comes in upon them.`,
+`The laws of nature are overturned. Christ commands it; let us not set ourselves against him. Clap your hands, all you peoples, because to us a child is born, and to us a son is given, and the government rests on his shoulder. Let John cry out, Prepare the way of the Lord. I too will cry out the power of this day. He who is without flesh takes flesh. The Son of God becomes the Son of Man: Jesus Christ, the same yesterday, today and forever.`,
+`This is the festival we keep. This is what we celebrate today: the coming of God to man, so that we might go out to God, or rather, to say it more truly, go back to him. So that, putting off the old self, we might put on the new. And just as we died in Adam, so we might live in Christ: born with Christ, crucified with him, buried with him, and raised with him.`,
+`So let us keep the feast, not the way the world throws a party, but in a godly way. Not in the way of this world, but in a way above this world. Not as our own, but as belonging to him who is ours, or rather, to our Master. Not as a day of weakness, but of healing. Not as a day of being made, but of being made new.`],
+[`The Word of the Father, through whom time itself was made, became flesh, and made for us his birthday in time. He, without whose divine say-so not a single day rolls by, willed to have one day for his human birth.`,
+`With the Father, he comes before all the ages. Born of a mother on this day, he stepped into the passing of the years.`,
+`The Maker of man was made man.`,
+`So that the Ruler of the stars might nurse at the breast. So that the Bread might hunger. So that the Fountain might thirst. So that the Light might sleep. So that the Way might be wearied by the journey.`,
+`So that the Truth might be accused by false witnesses. So that the Judge of the living and the dead might be judged by a mortal judge. So that Justice might be condemned by the unjust. So that Discipline might be beaten with whips.`,
+`So that the Cluster of grapes might be crowned with thorns. So that the Foundation might be hung on a tree. So that Strength might be made weak. So that Health might be wounded. So that Life might die.`,
+`He bore these things, and things like them, for us, though he did not deserve them, to set free those who did not deserve it. He had done nothing to earn such evils. We had done nothing to earn such good.`],
+[`Our Savior, dearly beloved, was born today: let us rejoice. There is no proper place for sadness on the birthday of Life itself, the Life that ends our dread of death and brings us the joy of the eternity he has promised.`,
+`No one is shut out from a share in this happiness. All of us have one and the same reason for joy. For our Lord, the destroyer of sin and death, finds no one free from guilt, and so he has come to set us all free.`,
+`Let the saint rejoice, for he is drawing near to victory. Let the sinner be glad, for he is invited to pardon. Let the outsider take heart, for he is called to life.`,
+`For the Son of God, at the time appointed by the unsearchable wisdom of God, took on our human nature in order to reconcile it to its Maker, so that the devil, the inventor of death, might be defeated through the very nature he had once defeated.`,
+`So, dearly beloved, let us give thanks to God the Father, through his Son, in the Holy Spirit. In his great mercy, with which he loved us, he has had pity on us. When we were dead in our sins he made us alive together with Christ, so that in him we might be a new creation and a new work of his hands.`,
+`Let us then put off the old self with its deeds. And since we have been given a share in the birth of Christ, let us turn away from the works of the flesh.`,
+`Christian, recognize your dignity. You have become a sharer in the divine nature: do not go back to your former lowness by living beneath what you are. Remember the Head, and the Body of which you are a part. Keep in mind that you were rescued from the power of darkness and brought out into the light and the kingdom of God.`,
+`The price paid for you is the blood of Christ. He who redeemed you in mercy will judge you in truth; and he reigns with the Father and the Holy Spirit for ever and ever. Amen.`]
+];
+NIGHTS.forEach((x,i)=>{if(TEACH[i])x.t=TEACH[i];x.w=WHO[i]||x.c.split(",")[0]});
+NIGHTS[3].m="Every promise came true today: God shows himself as a baby";
+/* More teachings, keyed by the entry's position in the original list above. */
+const MORE={
+9:{w:"Anselm, talking with his student Boso",vt:"Wherefore in all things it behoved him to be made like unto his brethren, that he might be a merciful and faithful high priest in things pertaining to God, to make reconciliation for the sins of the people.",pr:"Lord Jesus, only God could save us, and only one of us should. You are both. We confess our sins to you now, in the quiet. Thank you that the price is paid in full. Amen.",t:[
+`Anselm: Man cannot be saved unless the price paid to God for human sin is greater than everything in the universe besides God.`,`Boso: So it seems.`,
+`Anselm: And whoever can give God something of his own that is worth more than everything God possesses must himself be greater than everything except God.`,`Boso: I cannot deny it.`,
+`Anselm: So no one but God can make this payment.`,`Boso: So it seems.`,
+`Anselm: But no one ought to make it except man. Otherwise it is not man who makes things right.`,`Boso: Nothing seems more just.`,
+`Anselm: If, then, the heavenly kingdom must be filled with men and women, and this cannot happen unless the payment is made, which no one but God can make and no one but man ought to make, then it is necessary that one who is both God and man should make it.`,
+`Boso: Now God be praised! We have made a great discovery. Go on as you have begun, for I hope God will help you.`]},
+17:{w:"Thomas Watson, pastor in London",vt:"And without controversy great is the mystery of godliness: God was manifest in the flesh, justified in the Spirit, seen of angels, preached unto the Gentiles, believed on in the world, received up into glory.",pr:"Father, it was not our deserving but our misery that moved you. You sent your Son, and he stooped to take our flesh. We did nothing to earn this love. Thank you. Amen.",t:[
+`Christ humbled himself in his incarnation: in taking flesh and being born. And it was real flesh that Christ took. Not the image of a body, but a true body. As bread is made of wheat, and wine is made of the grape, so Christ was made of a woman.`,
+`This is a glorious mystery: God revealed in the flesh. In the creation, man was made in God's image. In the incarnation, God was made in man's image.`,
+`But was there no other way to restore fallen man than for God to take flesh? We must not demand a reason for God's will. It is dangerous to pry into God's secrets. We are not to argue, but to adore. The wise God judged this the best way to redeem us. Only a man could satisfy God's justice, and yet only God could do it. So Christ, being both God and man, is the fittest one to take up this work of redemption.`,
+`Why was Jesus Christ made flesh? The first cause, the thing that moved God, was free grace. It was the Father's love that sent Christ, and Christ's love that brought him to take our flesh. Love was at the very heart of it. Christ is God and man because he loves mankind. It was not our deserving but our misery that moved him.`,
+`God himself, though almighty, was overcome by love. As Christ's taking our nature was a masterpiece of wisdom, so it was a monument of free grace.`,
+`Christ took our flesh so that he might take our sins upon him. He took our flesh to make our human nature lovely to God, and God's nature lovely to us. As shepherds once wore sheepskins to be more welcome to the sheep, so Christ clothed himself with our flesh, that God might be more welcome to us.`,
+`See here, as in a mirror, the infinite love of God the Father. When we had lost ourselves by sin, God, in the riches of his grace, sent his Son, born of a woman, to redeem us. And behold the infinite love of Christ, that he was willing to stoop so low as to take our flesh.`]},
+12:{w:"Martin Luther, pastor in Wittenberg",t:[
+`The right and gracious faith that God demands is this: that you firmly believe Christ is born for you, and that his birth took place for your good.`,
+`Listen to the angel's message: I bring you good news of great joy, which shall be for all people; for to you is born this day a Savior, who is Christ the Lord. In these words you see clearly that he is born for us.`,
+`The angel does not simply say, Christ is born. He says, to you he is born. Nor does he say, I bring good news. He says, to you I bring good news of great joy. And this joy was not to stay with Christ. It shall be for all people.`,
+`Christ has a pure, innocent and holy birth. We have an unclean and sinful birth, as David says: in sin did my mother conceive me. Nothing can help this birth of ours except the pure birth of Christ.`,
+`But Christ's birth cannot be handed out like a thing you hold in your hand, and that would not help us anyway. So it is given to us through the Word, as the angel says, to everyone who firmly believes. Christ willed to be born for this very purpose: that through him we might be born again.`,
+`See how Christ takes our birth from us and absorbs it in his own, and gives us his, so that in it we become pure and holy, as if it were our own. So every Christian may rejoice and glory in Christ's birth as much as if he himself had been born as Christ was.`,
+`Oh, this is the great joy of which the angel speaks! This is the comfort and the overflowing goodness of God: that whoever believes this can boast that Christ is his brother and God is his Father.`,
+`This is what Isaiah means: to us a child is born, to us a son is given. To us, to us, to us he is born, and to us he is given.`,
+`So see to it that you do not treat the Gospel only as a story, for that soon passes. Nor only as an example, for it is worth nothing without faith. Make this birth your own, and let Christ be born in you.`]},
+16:{w:"Lancelot Andrewes, preacher in London",t:[
+`The angel's sermon has two parts. The first is his birth. The second is his being found. So this is a double feast: not only the feast of his birth, but also the feast of his finding.`,
+`For the angel does not stop at "to you is born." He goes further. It is not enough that Christ is born. To have any good from his birth, we must find him. "He is born" is his part. "You will find him" is ours.`,
+`For what is "he is born" without "you will find"? A man may say, He is born. What are we the better, if we do not find him? As good not born, as not known to us. He is born to the world; but he is born to us only when he is known to us, when we find him, and not before. Christ found is more than Christ born.`,
+`And how shall they find him without a sign? They know the day: it is today. They know the place: it is Bethlehem. But when they come there, what then? The town is so full of strangers that there is no room in the inns. Where should they turn? Oh, that we had a sign by which to find him!`,
+`And this is the sign, and it is a sign to wonder at. Indeed, every word here is a wonder. An infant: the Word without a word, the eternal Word not able to speak a word. Surely a wonder.`,
+`Wrapped in swaddling clothes: that is a wonder too. He who takes the vast body of the sea and wraps it in bands of darkness has come to be wrapped in cloths himself.`,
+`But in the manger: there is the wonder. Children do not lie there. He does. There lies the Lord of glory, without glory. Instead of a palace, a poor stable. Instead of a cradle of state, a manger for beasts. No pillow but a lock of hay. No hangings but dust and cobwebs. No attendants but the animals. This is a sign able to amaze anyone.`]},
+19:{w:"George Whitefield, traveling preacher",t:[
+`Now I will show you who they are who rightly observe, and truly keep, the birth of our Redeemer. And then, my brothers, you must make your choice, for there is no middle ground.`,
+`First, those who spend their hours in reading, in praying, and in talking about the things of God, are spending their time well and truly keeping this festival.`,
+`What could we do with our time that is more worthy than reading of what our dear Redeemer has done and suffered? And when we read of our Savior's sufferings, it should move us to pray: that we may have a share in the Lord Jesus Christ, and that his blood and death may atone for our sins and make us holy. Pray hard, I urge you, that you may be clothed in his righteousness.`,
+`If you are in company, let your talk be useful and good for one another. Not about your clothes, or your amusements, or your profits, or your worldly business. Tell one another what great things the Lord has done for your souls: how he rescued you from the enemy, and set your feet upon the rock of ages, the Lord Jesus Christ.`,
+`Other talk grows stale by being repeated. But with Christ there is always something new to lift your thoughts. Spend your time on him. If you belong to Jesus, this is work that will last you into eternity.`,
+`Which will stand best at the last day? Which will bring you the most comfort and peace in your dying hour? Live now, and spend your time now, as you will wish you had when you come to die.`,
+`Secondly, use the good things of life with moderation. I am not against eating and drinking the good things of life. I am only against excess.`,
+`And instead of running into excess, let the money you might have spent pampering yourselves be given to feed the poor. This is the season when they most often want help. If any of you have poor friends or neighbors in distress, help them. And do not stop at the people you know. Help the poor in general.`]},
+24:{w:"B. B. Warfield, teacher at Princeton",t:[
+`He did not think of himself. He did not even hold on to his own divine glory. He did not look to his own interests.`,
+`He did not stand off from the world, and withdraw into his own soul, and brood over his own needs. Out of love for others he came into the world. He forgot himself in the needs of others, and once and for all he offered himself on the altar of compassion.`,
+`Self-sacrifice is what brought Christ into the world. And self-sacrifice will lead us, his followers, not away from people but right into the middle of them.`,
+`Wherever people suffer, there we will be to comfort them. Wherever people struggle, there we will be to help. Wherever people fail, there we will be to lift them up. Wherever people succeed, there we will be to rejoice with them.`,
+`Self-sacrifice does not mean being indifferent to our own times and to the people around us. It means being absorbed in them. It means forgetting ourselves in others. It means entering into every person's hopes and fears, longings and despairs.`,
+`It means not that we should live one life, but a thousand lives: binding ourselves to a thousand souls by the threads of so loving a sympathy that their lives become ours.`,
+`So, after all, this is the road to the highest growth, the only way we can truly become what we were made to be. But we will not take it up with that goal in mind, for that would dry up its spring. We cannot be self-forgetful on purpose, or unselfish for selfish reasons.`,
+`Only when we humbly walk this path, truly seeking not our own good but the good of others, will we find the promise come true: whoever loses his life will find it. The path of self-sacrifice is the path to glory.`]},
+20:{w:"John Henry Newman, preacher in Oxford",t:[
+`Now, what is watching? I think it may be explained like this.`,
+`Do you know the feeling of expecting a friend, expecting him to come, and he is late? Do you know what it is to be in unpleasant company, and to wish for the time to pass, and the hour to strike when you may be free? Do you know what it is to be anxious whether something will happen or not, so that your heart beats when you are reminded of it, and it is the first thing you think of in the morning?`,
+`Do you know what it is to have a friend in a distant country, to wait for news of him, and to wonder from day to day what he is doing now, and whether he is well? Do you know what it is to live so close to someone that your eyes follow his, that you read his soul, that you see every change in his face, that you know his wishes before he speaks, that you smile when he smiles and are sad when he is sad?`,
+`To watch for Christ is a feeling like all of these, as far as the feelings of this world can picture those of another.`,
+`He watches for Christ who has a tender, eager, alert mind. Who is awake, alive, quick-sighted, zealous in seeking and honoring him. Who looks out for him in all that happens. And who would not be surprised, who would not be overwhelmed or thrown into confusion, if he found that Christ was coming at once.`,
+`Year passes after year silently, and Christ's coming is always nearer than it was. Oh, that as he comes nearer to earth, we may come nearer to heaven!`,
+`Pray him to give you the heart to seek him in sincerity. You have one work only: to carry your cross after him. Every act of obedience is a step toward him. He is not far off, though he seems so. He stands just behind this visible world that hides him from us. Earth and sky are only a veil between him and us, and the day will come when he will tear that veil away and show himself.`,
+`Blessed are the servants whom the Lord, when he comes, finds watching. May this be the portion of every one of us. It is hard to attain, but it is dreadful to miss. Life is short. Death is certain. And the world to come is forever.`]},
+23:{w:"Charles Spurgeon, preacher in London",t:[
+`Now let me speak for a moment about the people to whom this joy comes.`,
+`Notice how the angel begins: Behold, I bring you good news of great joy, for to you is born this day. So then, the joy began with the first who heard it: the shepherds. To you, he says. For to you is born.`,
+`Dear hearer, shall the joy begin with you today? For it does you little good that Christ was born, or that Christ died, unless to you a child is born, and for you Jesus bled. A personal share in him is the main thing.`,
+`But I am poor, says one. So were the shepherds. O you who are poor, to you this wonderful child is born.`,
+`But I am unknown, says another. So were the shepherds who kept their flocks by night. Yet God knew them, and he knows you.`,
+`But I have no learning, says a third. I cannot understand much. Very well. The plainness of the shepherds did not keep them from receiving Christ. It even helped them.`,
+`I do not preach to you a Christ for the great and the grand. I preach the Savior of ordinary people, the friend of tax collectors and sinners.`,
+`If I truly believe in Jesus, then Christ is born for me, and I may be as sure of it as if an angel told me so. For the Scripture says that whoever believes in him belongs to him.`,
+`And after the angel had said to you, he went on to say: it shall be for all people. The coming of Christ is a joy to all people. Peace on earth, goodwill toward men.`]},
+21:{w:"Charles Spurgeon, preacher in London",t:[
+`Why does the text call Bethlehem little among the thousands of Judah? Because Jesus Christ always goes among the little ones.`,
+`He was born in the little one among the thousands of Judah. Not on the high hill of Bashan. Not on Hebron's royal mount. Not in the palaces of Jerusalem. But in the humble, yet honorable, village of Bethlehem.`,
+`The prophet Zechariah teaches us the same lesson. He saw a man riding on a red horse, standing among the myrtle trees. Now the myrtle trees grow at the bottom of the hill, and the man on the red horse always rides there. He does not ride on the mountaintop. He rides among the humble in heart. For the Lord says: to this one I will look, to the one who is humble and contrite in spirit, and who trembles at my word.`,
+`There are some little ones here this morning, little among the thousands. Perhaps no one has ever heard your name. If it were written on your gravestone, the stranger passing by would glance at it and think nothing of it. You do not think much of yourself. You may scarcely be able to read. If you have some gift, others look down on you. And if they do not, you look down on yourself.`,
+`You are one of the little ones. Well, Christ is always born in Bethlehem, among the little ones.`,
+`Big hearts never get Christ inside them. Christ does not lie in great hearts, but in little ones. Proud and mighty spirits never have Jesus Christ, for he comes in at low doors, and he will not come in at high ones.`,
+`Whoever has a broken heart and a lowly spirit shall have the Savior, and no one else. He does not heal the prince and the king, but he binds up the brokenhearted. What a sweet thought this is! He is the Christ of the little ones.`]},
+25:{w:"Andrew Murray, pastor in South Africa",t:[
+`If salvation truly comes from God, and is entirely his work, just as our creation was, then it follows as a matter of course that our first and highest duty is to wait on him to do that work as it pleases him.`,
+`Waiting, then, becomes the only way to experience a full salvation, the only way truly to know God as the God of our salvation. All the difficulties that people say keep them back from full salvation have their cause in this one thing: they do not know, and do not practice, waiting on God.`,
+`What the church and all its members need, if the mighty power of God is to be seen in the world, is to return to our true place. It is the place that belongs to us in creation and in redemption alike: the place of absolute and unceasing dependence on God.`,
+`The deep need for this waiting on God lies both in the nature of man and in the nature of God.`,
+`God, as Creator, formed man to be a vessel in which he could show his power and goodness. Man was not to have in himself a fountain of life, or strength, or happiness. The ever-living God was, each moment, to be the giver of all that he needed.`,
+`Man's glory and blessedness was not to be independent, or dependent on himself, but dependent on a God of such infinite riches and love. He was to have the joy of receiving, every moment, out of the fullness of God. This was his blessedness before the fall.`,
+`And when he fell away from God, he was still more absolutely dependent on him. There was not the slightest hope of his recovery out of his state of death, except in God, in his power and mercy. It is God alone who began the work of redemption. It is God alone who continues it and carries it on, each moment, in every single believer.`,
+`So waiting on God is just as necessary, and must be just as constant and unbroken, as the breathing that keeps us alive.`]},
+13:{w:"Thomas Cranmer, in a prayer for Advent",t:[
+`Almighty God, give us grace to cast away the works of darkness, and to put on the armor of light, now, in the time of this mortal life, in which your Son Jesus Christ came to visit us in great humility.`,
+`So that on the last day, when he shall come again in his glorious majesty to judge both the living and the dead, we may rise to the life immortal.`,
+`Through him who lives and reigns with you and the Holy Spirit, now and for ever. Amen.`]},
+15:{w:"the Heidelberg Catechism",t:[
+`Question: What good does the holy conception and birth of Christ do you?`,
+`Answer: He is our Mediator. With his innocence and perfect holiness he covers, in the sight of God, my sin, the sin in which I was conceived.`,
+`Question: What comfort is it to you that Christ will come again to judge the living and the dead?`,
+`Answer: That in all my sorrows and persecutions, with my head held high, I look for the very same one who once offered himself for me to the judgment of God, and took away all curse from me, to come again as Judge from heaven.`,
+`He will cast all his enemies and mine into everlasting condemnation. But he will take me, with all his chosen ones, to himself, into heavenly joy and glory.`]},
+8:{w:"the O Antiphons, an ancient Advent prayer",t:[
+`O Wisdom, who came from the mouth of the Most High, reaching from one end of the world to the other, and ordering all things with strength and gentleness: come, and teach us the way of understanding.`,
+`O Lord and Ruler of the house of Israel, who appeared to Moses in the flame of the burning bush, and gave him the law on Sinai: come, and redeem us with an outstretched arm.`,
+`O Root of Jesse, who stands as a sign for the peoples, before whom kings will shut their mouths, and to whom the nations will pray: come and deliver us, and do not delay.`,
+`O Key of David, and scepter of the house of Israel, you open and no one can shut, you shut and no one can open: come, and lead the prisoner out of the prison house, the one who sits in darkness and in the shadow of death.`,
+`O Dayspring, brightness of the eternal light, and sun of justice: come, and shine on those who sit in darkness and in the shadow of death.`,
+`O King of the nations, and their desire, the cornerstone who makes both one: come, and save the human race, whom you formed out of clay.`,
+`O Emmanuel, our King and lawgiver, the hope of the nations and their Savior: come and save us, O Lord our God.`]}
+};
+for(const k in MORE)Object.assign(NIGHTS[k-1],MORE[k]);
+NIGHTS.forEach((x,i)=>x.k=i);
+/* Behind each door: the card, plus a small mission for tomorrow. No jokes. */
+NIGHTS[1].s="Tell the person you prayed for tonight that you prayed for them.";
+NIGHTS[5].s="When you eat, drink or lie down to sleep tomorrow, remember that he did too.";
+NIGHTS[3].s="Use one of the names you said tonight when you pray in the morning.";
+NIGHTS.forEach(x=>{if(x.s)x.s=x.s.replace(/^Tomorrow's mission: /,"").replace(/^./,c=>c.toUpperCase())});
+POOL.length=0;POOL.push("Tell one person something good God has done for you.","Do one kind thing in secret.","Read tonight's verse again at breakfast.","Pray tonight's prayer once more before lunch.","Sing tonight's hymn on the way somewhere.");
+/* Order by weekly theme, not by date in history. Numbers are positions in the list above. */
+const ORDER=[1,2,6,4,5,9,17, 11,12,10,16,7,13,19, 3,20,25,22,15,8,18, 23,14,21,24,26, 27];
+{const r=ORDER.map(i=>NIGHTS[i-1]);NIGHTS.length=0;NIGHTS.push(...r)}
+const UNITS=[{f:1,t:"God with us",s:"Week 1",c:""},{f:8,t:"He comes for you",s:"Week 2",c:"green"},{f:15,t:"He is coming again",s:"Week 3",c:"gold"},{f:22,t:"Joy to the world",s:"Week 4",c:""},{f:27,t:"Christmas Day",s:"The story itself",c:"green"}];
+const weekOf=n=>{let u=UNITS[0];for(const x of UNITS)if(x.f<=n)u=x;return u};
+const shortDate=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})};
+/* ===================== STATE ===================== */
+const KEY="hark-v2";
+let S={done:{},wk:{},prayers:[],sound:true,preview:false,remind:"19:45",fs:20};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let tab="home",flow=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const dayNum=()=>{const t=new Date();t.setHours(0,0,0,0);return Math.round((t-START)/864e5)+1};
+const unlocked=n=>S.preview||n<=dayNum();
+const nightDate=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})};
+const doneCount=()=>Object.keys(S.done).length;
+function streak(){let last=0;for(let n=27;n>=1;n--)if(S.done[n]){last=n;break}let c=0;for(let n=last;n>=1&&S.done[n];n--)c++;return c}
+function nextOpen(){for(let n=1;n<=27;n++)if(!S.done[n])return n;return 27}
+function tonight(){const d=dayNum();if(S.preview)return nextOpen();return Math.max(1,Math.min(d,27))}
+/* ===================== SOUND + FX ===================== */
+let AC=null;
+function tone(f,d,type,vol,when,slide){if(!S.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+(when||0);o.type=type||"triangle";o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d)}catch(e){}}
+const sfx={tap:()=>tone(520,.07,"square",.05),step:()=>{tone(660,.1);tone(880,.14,"triangle",.1,.08)},toot:()=>{tone(392,.12,"sawtooth",.07);tone(523,.12,"sawtooth",.07,.12);tone(784,.3,"sawtooth",.08,.24)},burst:()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07));tone(90,.25,"sine",.25,0,40)}};
+const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+const fx=$("#fx"),cx=fx.getContext("2d");let bits=[];
+function sizeFx(){fx.width=innerWidth*devicePixelRatio;fx.height=innerHeight*devicePixelRatio}sizeFx();addEventListener("resize",sizeFx);
+function burst(x,y,n){const cols=["#FFFFFF","#0F5C3F","#FFE39A","#141414"];for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=4+Math.random()*11;bits.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-6,r:Math.random()*6,vr:(Math.random()-.5)*.5,s:7+Math.random()*9,c:cols[i%4],k:i%3,life:1})}}
+function star(c,s){c.beginPath();for(let i=0;i<10;i++){const r=i%2?s*.45:s,a=i*Math.PI/5;c.lineTo(Math.cos(a)*r,Math.sin(a)*r)}c.closePath();c.fill()}
+function drawFx(){cx.clearRect(0,0,fx.width,fx.height);if(!bits.length)return;cx.save();cx.scale(devicePixelRatio,devicePixelRatio);bits=bits.filter(b=>b.life>0&&b.y<innerHeight+40);for(const b of bits){b.vy+=.42;b.vx*=.985;b.x+=b.vx;b.y+=b.vy;b.r+=b.vr;b.life-=.008;cx.save();cx.translate(b.x,b.y);cx.rotate(b.r);cx.globalAlpha=Math.min(1,b.life*2);cx.fillStyle=b.c;if(b.k===0)star(cx,b.s);else if(b.k===1)cx.fillRect(-b.s/2,-b.s/3,b.s,b.s*.66);else{cx.beginPath();cx.ellipse(0,0,b.s*.8,b.s*.4,0,0,7);cx.fill()}cx.restore()}cx.restore()}
+
+/* ===================== HARK THE AARDVARK =====================
+CHARACTER BRIEF
+Role:        companion and cheerleader on the path and at the end of each night
+Personality: eager, gentle, a bit proud of his trumpet nose
+Base shape:  circle (friendly), stretched into one long snout
+Silhouette:  very long snout + tall upright ears + Santa hat between them
+Proportions: head about the size of the body, short legs, long tapering tail
+Palette:     main #C9937A, light #EBC9B4, line #4A2F2A, accent berry #D7263D
+Line:        3px dark brown, round joins
+Moves by:    little hops, because the snout leads and the body bounces after
+Reacts to:   poke, your finger (looks), finishing a night (cheer), being left alone (dozes)
+*/
+const HARK_SVG=`<ellipse class="hk-sh" cx="0" cy="2" rx="46" ry="7" fill="#000" opacity=".28"/>
+<g class="hk-root"><g class="hk-tail1"><path d="M-30,-30 q-22,-4 -34,10" fill="none" stroke="#4A2F2A" stroke-width="15" stroke-linecap="round"/><path d="M-30,-30 q-22,-4 -34,10" fill="none" stroke="#C9937A" stroke-width="10" stroke-linecap="round"/>
+<g class="hk-tail2"><path d="M-64,-20 q-12,10 -22,2" fill="none" stroke="#4A2F2A" stroke-width="10" stroke-linecap="round"/><path d="M-64,-20 q-12,10 -22,2" fill="none" stroke="#C9937A" stroke-width="5.5" stroke-linecap="round"/><circle cx="-86" cy="-18" r="4.5" fill="#F4B942" stroke="#4A2F2A" stroke-width="2"/></g>
+<circle cx="-44" cy="-31" r="4" fill="#D7263D" stroke="#4A2F2A" stroke-width="2"/><circle cx="-57" cy="-25" r="4" fill="#1F7A4D" stroke="#4A2F2A" stroke-width="2"/></g>
+<g class="hk-legB"><rect x="-26" y="-18" width="15" height="20" rx="7" fill="#B07E66" stroke="#4A2F2A" stroke-width="3"/></g>
+<g class="hk-legF2"><rect x="12" y="-18" width="15" height="20" rx="7" fill="#B07E66" stroke="#4A2F2A" stroke-width="3"/></g>
+<g class="hk-body"><ellipse cx="0" cy="-34" rx="36" ry="25" fill="#C9937A" stroke="#4A2F2A" stroke-width="3"/><ellipse cx="2" cy="-26" rx="22" ry="13" fill="#EBC9B4"/>
+<g class="hk-legB2"><rect x="-16" y="-16" width="15" height="19" rx="7" fill="#C9937A" stroke="#4A2F2A" stroke-width="3"/></g>
+<g class="hk-legF"><rect x="20" y="-16" width="15" height="19" rx="7" fill="#C9937A" stroke="#4A2F2A" stroke-width="3"/></g>
+<g class="hk-head">
+<g class="hk-earL"><path d="M18,-74 q-12,-34 4,-44 q10,14 8,42 z" fill="#B07E66" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/></g>
+<path d="M22,-88 q8,-30 30,-24 q-4,12 2,22 z" fill="#D7263D" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/><circle cx="54" cy="-112" r="6" fill="#FFF8EC" stroke="#4A2F2A" stroke-width="3"/>
+<g class="hk-earR"><path d="M38,-76 q-4,-36 14,-42 q8,16 2,42 z" fill="#C9937A" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/><path d="M42,-80 q-1,-22 9,-29 q3,12 0,28 z" fill="#EBC9B4"/></g>
+<path d="M12,-60 a22,22 0 0 1 40,-12 q26,6 46,26 q8,9 -1,16 q-9,6 -18,-2 q-18,-12 -36,-8 a22,22 0 0 1 -31,-20 z" fill="#C9937A" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/>
+<path d="M19,-86 q14,-8 30,-2 l2,8 q-16,-6 -30,2 z" fill="#FFF8EC" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/>
+<ellipse cx="95" cy="-37" rx="5" ry="6" fill="#4A2F2A"/>
+<g class="hk-eye"><circle cx="42" cy="-62" r="8" fill="#fff" stroke="#4A2F2A" stroke-width="2.5"/><g class="hk-pup"><circle cx="43" cy="-62" r="4.2" fill="#4A2F2A"/><circle cx="44.5" cy="-63.5" r="1.4" fill="#fff"/></g></g>
+<path class="hk-lid" d="M34,-62 q8,7 16,0" fill="none" stroke="#4A2F2A" stroke-width="3" stroke-linecap="round" style="display:none"/>
+<circle class="hk-cheek" cx="54" cy="-50" r="5" fill="#E98A7B" opacity=".7"/>
+<path class="hk-mouth" d="M62,-40 q8,6 16,2" fill="none" stroke="#4A2F2A" stroke-width="2.5" stroke-linecap="round"/>
+</g>
+<path d="M4,-56 q14,10 30,6 l-2,10 q-16,4 -30,-6 z" fill="#D7263D" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/>
+<g class="hk-scarf"><path d="M8,-48 l-4,22 l10,-2 l4,-18 z" fill="#D7263D" stroke="#4A2F2A" stroke-width="3" stroke-linejoin="round"/><path d="M5,-32 l10,-2" stroke="#FFF8EC" stroke-width="3"/></g>
+</g></g>`;
+const harks=[];
+function makeHark(g,scale){g.innerHTML=HARK_SVG;const q=c=>g.querySelector(c);const h={g,scale:scale||1,t:Math.random()*9,blink:2,lid:0,mood:"idle",moodT:0,idle:0,y:0,vy:0,crouch:0,air:false,sq:{x:0,v:0},ear:{x:0,v:0},tail:{x:0,v:0},tail2:{x:0,v:0},scarf:{x:0,v:0},look:{x:0,y:0},tx:0,ty:0,p:{root:q(".hk-root"),body:q(".hk-body"),head:q(".hk-head"),earL:q(".hk-earL"),earR:q(".hk-earR"),t1:q(".hk-tail1"),t2:q(".hk-tail2"),pup:q(".hk-pup"),eye:q(".hk-eye"),lid:q(".hk-lid"),mouth:q(".hk-mouth"),scarf:q(".hk-scarf"),sh:q(".hk-sh"),legF:q(".hk-legF")}};harks.push(h);return h}
+const spring=(o,target,k,d,dt)=>{o.v+=(target-o.x)*k*dt;o.v*=Math.exp(-d*dt);o.x+=o.v*dt};
+function harkPoke(h){h.idle=0;h.sq.v=-5;h.mood="wow";h.moodT=.5;h.ear.v=260;sfx.toot();buzz(20)}
+function harkCheer(h){h.idle=0;h.mood="happy";h.moodT=2.4;h.crouch=.14;h.hops=2}
+const MOUTH={idle:"M62,-40 q8,6 16,2",happy:"M60,-42 q10,12 20,3",wow:"M66,-40 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0",sleep:"M64,-39 q6,2 12,0"};
+function stepHark(h,dt){h.t+=dt;h.idle+=dt;if(h.moodT>0){h.moodT-=dt;if(h.moodT<=0)h.mood=h.mood==="wow"?"happy":"idle",h.moodT=h.mood==="happy"?1.2:0}
+ if(h.mood==="idle"&&h.idle>14&&!h.calm)h.mood="sleep";
+ // jump with anticipation, stretch, squash
+ let crouchS=0;if(h.crouch>0){h.crouch-=dt;crouchS=.2;if(h.crouch<=0){h.vy=-330;h.air=true}}
+ if(h.air){h.vy+=1100*dt;h.y+=h.vy*dt;if(h.y>=0){h.y=0;h.air=false;h.sq.v=-4.2;h.ear.v=200;if(h.hops>1){h.hops--;h.crouch=.1}}}
+ spring(h.sq,0,160,9,dt);const stretch=h.air?Math.min(.13,Math.abs(h.vy)/2600):0;const sy=1+h.sq.x*.12-crouchS+stretch+Math.sin(h.t*2.1)*.018,sx=1+(1-sy)*.7;
+ const sleepy=h.mood==="sleep"||h.calm;
+ spring(h.ear,sleepy?-22:(h.mood==="happy"?10:0)+Math.sin(h.t*1.3)*3,130,6,dt);
+ spring(h.tail,Math.sin(h.t*(h.mood==="happy"?9:2.3))*(h.mood==="happy"?14:6)-h.vy*.02,120,6,dt);spring(h.tail2,h.tail.x*1.4,110,5,dt);spring(h.scarf,-h.vy*.05+Math.sin(h.t*1.7)*3,90,5,dt);
+ h.look.x+=(h.tx-h.look.x)*Math.min(1,dt*8);h.look.y+=(h.ty-h.look.y)*Math.min(1,dt*8);
+ h.blink-=dt;if(h.blink<=0){h.lid=.13;h.blink=1.5+Math.random()*3}if(h.lid>0)h.lid-=dt;
+ const closed=sleepy||h.lid>0||h.mood==="happy"&&h.moodT>1.6;
+ const p=h.p;p.root.setAttribute("transform",`translate(0,${h.y.toFixed(1)})`);
+ p.body.setAttribute("transform",`translate(0,0) scale(${sx.toFixed(3)},${sy.toFixed(3)})`);
+ p.head.setAttribute("transform",`rotate(${(h.look.y*5+(sleepy?10:0)+h.sq.x*3).toFixed(1)},22,-52)`);
+ p.earL.setAttribute("transform",`rotate(${(h.ear.x-4).toFixed(1)},22,-76)`);p.earR.setAttribute("transform",`rotate(${(h.ear.x*.8+3).toFixed(1)},42,-78)`);
+ p.t1.setAttribute("transform",`rotate(${h.tail.x.toFixed(1)},-30,-30)`);p.t2.setAttribute("transform",`rotate(${h.tail2.x.toFixed(1)},-64,-20)`);
+ p.scarf.setAttribute("transform",`rotate(${h.scarf.x.toFixed(1)},10,-48)`);
+ p.pup.setAttribute("transform",`translate(${(h.look.x*3).toFixed(1)},${(h.look.y*2.5).toFixed(1)})`);
+ p.eye.style.display=closed?"none":"";p.lid.style.display=closed?"":"none";
+ const m=h.sing?(Math.sin(h.t*7)>0?MOUTH.wow:MOUTH.happy):(MOUTH[h.mood]||MOUTH.idle);if(p.mouth.getAttribute("d")!==m)p.mouth.setAttribute("d",m);
+ p.legF.setAttribute("transform",h.mood==="happy"&&!h.air?`rotate(${(Math.sin(h.t*14)*18-20).toFixed(1)},27,-14)`:"");
+ const lift=Math.min(1,-h.y/90);p.sh.setAttribute("rx",(46-lift*16).toFixed(1));p.sh.setAttribute("opacity",(.28-lift*.14).toFixed(2));if(h.run){const q=h.q||(h.q={a:h.g.querySelector(".hk-legF"),b:h.g.querySelector(".hk-legB2"),c:h.g.querySelector(".hk-legF2"),d:h.g.querySelector(".hk-legB")}),s=Math.sin(h.t*h.run)*32;q.a.setAttribute("transform",`rotate(${s.toFixed(1)},27,-14)`);q.b.setAttribute("transform",`rotate(${(-s).toFixed(1)},-8,-14)`);q.c.setAttribute("transform",`rotate(${(-s).toFixed(1)},19,-16)`);q.d.setAttribute("transform",`rotate(${s.toFixed(1)},-18,-16)`);h.y=-Math.abs(Math.sin(h.t*h.run))*8;h.idle=0}}
+addEventListener("pointermove",e=>{for(const h of harks){const r=h.g.getBoundingClientRect();const dx=e.clientX-(r.left+r.width*.6),dy=e.clientY-(r.top+r.height*.4),d=Math.hypot(dx,dy)||1;h.tx=dx/d*(h.scale<0?-1:1);h.ty=dy/d;if(h.mood==="sleep"){h.mood="wow";h.moodT=.4;h.idle=0}}},{passive:true});
+let lastT=0;function loop(ts){const dt=Math.min(.033,(ts-lastT)/1000||0);lastT=ts;if(!document.hidden){for(let i=harks.length-1;i>=0;i--){if(!harks[i].g.isConnected)harks.splice(i,1);else stepHark(harks[i],dt)}drawFx();if(flow&&flow.tick)flow.tick(dt)}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+
+/* ===================== VIEWS (v3: calendar board) ===================== */
+const XI=`<svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="3" stroke-linecap="square"/></svg>`;
+const words=(t,step)=>{let i=0;return esc(t).split(" ").map(w=>`<span class="wd" style="--d:${(i++)*(step||26)}">${w}</span>`).join(" ")};
+const CHECK=`<svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="square"/></svg>`;
+const WK=[["#D62828","#fff"],["#0F5C3F","#fff"],["#FFC83D","#141414"],["#1B2A4E","#fff"]];
+const wkStyle=n=>{const c=WK[Math.min(3,weekNo(n)-1)];return `--wk:${c[0]};--wkfg:${c[1]}`};
+function countUp(root){root.querySelectorAll("[data-to]").forEach(el=>{const to=+el.dataset.to,suf=el.dataset.suf||"",t0=performance.now();if(!to){el.textContent="0"+suf;return}const f=t=>{const k=Math.min(1,(t-t0)/600),e=1-Math.pow(1-k,3);el.textContent=Math.round(to*e)+suf;if(k<1)requestAnimationFrame(f);else el.classList.add("punch")};requestAnimationFrame(f)})}
+const nd=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d};
+const dom=n=>nd(n).getDate();
+const mon=n=>nd(n).toLocaleDateString(undefined,{month:"short"});
+const wd=n=>nd(n).toLocaleDateString(undefined,{weekday:"short"});
+const longDate=n=>nd(n).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+let busy=false;
+function zoom(a,b,c1,c2,done){if(matchMedia("(prefers-reduced-motion:reduce)").matches||!document.body.animate){done&&done();return}busy=true;const z=document.createElement("div");z.style.cssText="position:fixed;z-index:55;left:0;top:0;width:100vw;height:100vh;transform-origin:0 0;pointer-events:none;will-change:transform";document.body.appendChild(z);
+ const tf=r=>`translate(${r.left}px,${r.top}px) scale(${r.width/innerWidth},${r.height/innerHeight})`;
+ z.animate([{transform:tf(a),background:c1,borderRadius:"48px"},{transform:tf(b),background:c2,borderRadius:"0px"}],{duration:460,easing:"cubic-bezier(.55,0,.1,1)",fill:"forwards"}).onfinish=()=>{done&&done();z.animate([{opacity:1},{opacity:0}],{duration:240,fill:"forwards"}).onfinish=()=>{z.remove();busy=false}}}
+const FULL=()=>({left:0,top:0,width:innerWidth,height:innerHeight});
+function enterNight(n,el){if(flow&&flow.auto)clearTimeout(flow.auto);if(busy)return;if(harks[0]){harks[0].crouch=.1;harks[0].mood="happy";harks[0].moodT=1}const tile=document.querySelector(`.door[data-n="${n}"]`)||el;tile.scrollIntoView({block:"nearest"});const r=tile.getBoundingClientRect();sfx.step();buzz(12);zoom(r,FULL(),getComputedStyle(tile).backgroundColor,"#0F5C3F",()=>startNight(n))}
+function leaveNight(flip){if(busy)return;const n=flow.n,ne=document.querySelector(".night"),c=ne?getComputedStyle(ne).backgroundColor:"#0F5C3F";if(flip)render.flip=n;tab="home";closeFlow();const tile=document.querySelector(`.door[data-n="${n}"]`);if(!tile)return;tile.scrollIntoView({block:"center"});const r=tile.getBoundingClientRect();zoom(FULL(),r,c,tile.classList.contains("done")?getComputedStyle(tile).getPropertyValue("--wk").trim():getComputedStyle(tile).backgroundColor,()=>{const h=harks[0];if(h&&flip)harkCheer(h)})}
+const dow=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{weekday:"short"})+" "+d.getDate()};
+const weekNo=n=>Math.max(1,UNITS.filter(u=>u.f<=n).length);
+function statStrip(n){return `<div class="stats"><div><b data-to="${streak()}">0</b><span class="cap">In a row</span></div><div><b data-to="${doneCount()}" data-suf="/27">0/27</b><span class="cap">Cards</span></div><div><b>${n===27?"25":Math.min(4,weekNo(n))+"/4"}</b><span class="cap">${n===27?"December":"Week"}</span></div></div>`}
+function homeView(){const d=dayNum(),cur=tonight(),pre=d<1&&!S.preview;let meta,btn;
+ if(pre){meta=`Starts Sunday, November 29 · ${1-d} day${1-d===1?"":"s"} to go`;btn=`<button class="btn white" data-act="preview">Peek at night 1</button>`}
+ else if(S.done[cur]){meta=cur===27?"Merry Christmas":"Tonight is done · see you tomorrow";btn=`<button class="btn white" data-act="play" data-n="${cur}">Replay tonight</button>`}
+ else{meta=`${longDate(cur)}`;btn=`<button class="btn white" data-act="play" data-n="${cur}">Start tonight</button>`}
+ let h=`<div class="hero"><b class="ghost">${dom(cur)}</b><h1>Hark!</h1><span class="cap">${meta}</span>${btn}<svg viewBox="-104 -124 208 140" data-act="poke" aria-label="Hark the aardvark"><g id="hark-home" transform="scale(-1,1)"></g></svg></div>${statStrip(cur)}`;
+ for(let ui=0;ui<4;ui++){const u=UNITS[ui],end=ui===3?27:UNITS[ui+1].f-1;
+  if(ui>0&&!S.wk[ui]){const ready=S.preview||dayNum()>=u.f;
+   h+=`<section class="wk" style="${wkStyle(u.f)}"><button class="box${ready?" ready":""}" data-act="openweek" data-w="${ui}" data-ready="${ready?1:""}" aria-label="Week ${ui+1}, ${ready?"ready to unwrap":"not open yet"}"><i class="rv"></i><i class="rh"></i><i class="bow"></i><span class="cap">Week ${ui+1} · ${mon(u.f)} ${dom(u.f)} – ${mon(end)} ${dom(end)}</span><b>${ready?"Tap to unwrap":"Opens "+wd(u.f)+", "+mon(u.f)+" "+dom(u.f)}</b></button></section>`;break}
+  h+=`<section class="wk${render.unwrap===ui?" unwrapped":""}" style="${wkStyle(u.f)}"><header><h2>${esc(u.t)}</h2><span class="cap">${mon(u.f)} ${dom(u.f)} – ${mon(end)} ${dom(end)}</span></header><div class="grid">`;
+  for(let n=u.f;n<=end;n++){const dn=S.done[n],op=unlocked(n),cls=dn?"done":n===cur&&op?"now":op?"open":"";h+=`<button class="door ${cls}${n===u.f||n===27?" w":""}${dn&&render.flip===n?" flip":""}${!dn&&op&&n<dayNum()&&!S.preview?" missed":""}" style="--i:${n-u.f}" data-act="stop" data-n="${n}" aria-label="${longDate(n)}${dn?", done":""}"><b>${dom(n)}</b>${dn?CHECK:""}<span class="cap">${n===cur&&op&&!dn?"Tonight":!dn&&op&&n<dayNum()&&!S.preview?"Missed":n===27?"Christmas Day":n===u.f?wd(n)+" · "+mon(n):wd(n)}</span></button>`}
+  h+="</div></section>"}
+ return h}
+const cardHtml=(n,x)=>`<div class="card" style="${wkStyle(n)};--i:${n}"><span class="cap">${mon(n)} ${dom(n)} · ${esc(weekOf(n).t)}</span><div class="m">${esc(x.m)}</div><div class="c">${esc(x.v)}</div></div>`;
+function collectionView(){let h=`<div class="page"><h1>Cards</h1><span class="cap">${doneCount()} of 27 collected</span><div class="cards">`;NIGHTS.forEach((x,i)=>{const n=i+1;h+=S.done[n]?cardHtml(n,x):`<div class="card locked" style="${wkStyle(n)};--i:${n}" aria-label="${longDate(n)}, not opened yet"><b>${dom(n)}</b><span class="cap">${wd(n)} · ${mon(n)}</span></div>`});return h+"</div></div>"}
+function extrasView(){const hasU=!!(window.umade&&umade.notifications);
+ const pl=S.prayers.length?S.prayers.map((p,i)=>`<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1;font-weight:600"><span class="cap" style="color:var(--mute)">${mon(p.n)} ${dom(p.n)}${p.ans?" · answered":""}</span><br>${esc(p.text)}</div>${p.ans?"":`<button class="btn small line" data-act="answered" data-i="${i}">Answered</button>`}</div>`).join(""):`<p class="note" style="margin:0">Anything you write in the prayer step shows up here, so you can mark it answered later.</p>`;
+ return `<div class="page"><h1>Extras</h1>
+ <div class="sec" style="--sc:var(--red)"><h2>Nightly reminder</h2><div class="row"><input type="time" id="rtime" value="${esc(S.remind)}" aria-label="Reminder time"><button class="btn small" data-act="remind">Set</button><button class="btn small line" data-act="unremind">Off</button></div><p class="note" id="rnote">${hasU?"Hark will nudge you at this time each night.":"Reminders switch on when Hark! runs inside Umade."}</p></div>
+ <div class="sec" style="--sc:var(--blue)"><h2>Prayer log</h2>${pl}</div>
+ <div class="sec" style="--sc:var(--gold)"><h2>Timeline</h2><p class="note" style="margin:0 0 6px">For the curious: where and when each voice lived.</p><div class="tl">${[...NIGHTS].sort((a,b)=>a.k-b.k).slice(0,26).map(x=>`<div><b>${esc(x.y)}</b><span>${esc(x.c.split(",")[0])}<i>${esc(x.p)}</i></span></div>`).join("")}</div></div>
+ <div class="sec" style="--sc:var(--green)"><h2>Settings</h2><div class="row"><button class="btn small ${S.sound?"":"line"}" data-act="sound">Sound ${S.sound?"on":"off"}</button><button class="btn small ${S.preview?"":"line"}" data-act="togglepreview">Preview all ${S.preview?"on":"off"}</button><button class="btn small line" data-act="reset">Start over</button></div><p class="note">${NIGHTS.filter(x=>x.t).length} of 27 nights have their full teaching. The rest have the verse, hymn and prayer for now.</p></div></div>`}
+const TABS=[["home","Calendar"],["coll","Cards"],["more","Extras"]];
+function render(){const app=$("#app");if(flow)return;
+ if(!app.firstChild)app.innerHTML=`<div class="view"></div><div class="tabs"><i class="ind"></i>${TABS.map(([k,l])=>`<button class="tab cap" data-act="tab" data-k="${k}">${l}</button>`).join("")}</div>`;
+ const view=app.querySelector(".view"),sc=view.scrollTop,keep=render.keep;render.keep=false;
+ view.innerHTML=tab==="home"?homeView():tab==="coll"?collectionView():extrasView();
+ view.className="view"+(tab==="home"?" board":"")+(keep?"":" fresh swap");if(keep)view.scrollTop=sc;else view.scrollTop=0;
+ const idx=TABS.findIndex(t=>t[0]===tab);app.querySelector(".ind").style.transform=`translateX(${idx*100}%)`;app.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("on",i===idx));
+ countUp(view);render.flip=0;render.unwrap=-1;
+ const g=$("#hark-home");if(g)makeHark(g,-1);
+ try{if(window.umade&&umade.widget){const n=tonight();umade.widget.update({title:"Hark!",value:"Night "+n,subtitle:NIGHTS[n-1].m})}}catch(e){}}
+
+/* ===================== NIGHT FLOW ===================== */
+const STEPS=["verse","idea","teach","hymn","prayer","gift"];
+const LABEL={verse:"God's word first",idea:"Tonight's big idea",teach:"The teaching",hymn:"Sing together",prayer:"Pray",gift:"Tonight's door",done:"Done"};
+function startNight(n){if(!unlocked(n))return;{const w=weekNo(Math.min(n,26))-1;if(w>0&&!S.wk[w]){for(let k=1;k<=w;k++)S.wk[k]=true;save()}}flow={n,step:0,x:NIGHTS[n-1]};renderFlow()}
+function closeFlow(){if(flow&&flow.cleanup)flow.cleanup();flow=null;const el=$(".night");if(el)el.remove();render()}
+function sentences(par){return par.match(/[^.!?]+[.!?]+["')]*\s*/g)||[par]}
+function renderFlow(){if(flow.cleanup){flow.cleanup();flow.cleanup=null}flow.tick=null;const x=flow.x,st=flow.step,name=st>=STEPS.length?"done":STEPS[st];let el=$(".night");if(!el){el=document.createElement("div");el.className="night";document.body.appendChild(el)}
+ let stage="",foot=`<button class="btn" data-act="next">Continue</button>`,label=`${Math.min(st+1,6)} / 6 · ${LABEL[name]}`;
+ if(name==="verse")stage=`<div class="verse">${words(x.vt||"Open your Bible and read this passage aloud together.",22)}</div><span class="cap under">${esc(x.v)}${x.vt?" · KJV":""}</span>`;
+ else if(name==="idea")stage=`<div class="idea">${words(x.m,60)}</div><span class="cap under">${esc(weekOf(flow.n).s)} · ${esc(weekOf(flow.n).t)}</span>`;
+ else if(name==="teach"){if(x.t){const thing=/^the /.test(x.w);label=`3 / 6 · ${thing?"The original words":"In his own words"}`;let i=0;const html=x.t.map(p=>"<p>"+sentences(p).map(s=>`<span data-i="${i++}">${esc(s)}</span>`).join("")+"</p>").join("");stage=`<div class="who"><b>${esc(x.w.charAt(0).toUpperCase()+x.w.slice(1))}</b><button class="mini" data-act="back" aria-label="Back two sentences">Back</button><button class="mini" data-act="size" aria-label="Text size">Aa</button></div><div class="rp"><i id="rpi"></i></div><div class="read" id="read" style="--fs:${S.fs}px">${html}</div><span class="cap under">${esc(x.c)}</span>`;foot=`<button class="btn line" data-act="playpause" id="pp">Play</button><button class="btn" data-act="next">Continue</button>`}else stage=`<div class="idea" style="font-size:32px">This teaching is still being prepared.</div><p class="ptext">Tonight, read ${esc(x.v)} again and talk about the big idea together.</p>`}
+ else if(name==="hymn"){const hy=HYMNS[x.h];const pick=hy.v.length>2&&flow.n%2===0?[0,2]:[0,1];stage=`<div class="hymn"><h3>${words(hy.t,50)}</h3>${pick.map((k,i)=>`<span class="cap">Verse ${k+1}</span><p style="--i:${i}">${esc(hy.v[k])}</p>`).join("")}</div>`;foot=`<button class="btn" data-act="next">We sang it</button>`}
+ else if(name==="prayer"){label=`5 / 6 · ${x.pt==="Ask"?"Pray · ask":"Pray · praise"}`;stage=`<svg class="flame" viewBox="0 0 44 64" aria-hidden="true"><path d="M22 4c3 12 14 16 14 28a14 14 0 0 1-28 0c0-8 6-12 8-18 2 4 4 5 4 5 0-6 0-10 2-15z" fill="#FFC83D"/><path d="M22 24c2 6 7 8 7 14a7 7 0 0 1-14 0c0-5 5-8 7-14z" fill="#fff"/><rect x="18" y="50" width="8" height="14" fill="#fff"/></svg><div class="pprompt">${words(x.pp,40)}</div>${x.pr?`<p class="ptext">${esc(x.pr)}</p>`:""}<textarea id="pnote" placeholder="Who or what did you pray for? (optional)"></textarea>`;foot=`<button class="btn" data-act="next">Amen</button>`}
+ else if(name==="gift"){const mode=x.open||(flow.n%4===0?"shake":"tap");flow.mode=mode;flow.taps=0;flow.hold=0;flow.opened=false;const hint=mode==="hold"?"Press and hold the door":mode==="shake"?"Shake it open, or tap fast":"Tap the door three times";stage=`<div class="giftbox" id="gift" data-act="gift"><div class="gstage"><div class="frame" id="frame"><div class="leaf" id="leaf"><span class="cap">${wd(flow.n)} · ${mon(flow.n)}</span><b>${dom(flow.n)}</b></div></div><svg class="ghark" viewBox="-104 -124 208 140" aria-hidden="true"><g id="harkgift"></g></svg></div><span class="cap hint">${hint}</span>${mode==="hold"?`<div class="ring"><i id="ringi"></i></div>`:""}</div>`;foot=""}
+ else{label=longDate(flow.n);stage=`<div class="done"><svg class="harkbig" viewBox="-112 -150 224 170" id="harkdone" data-act="pokedone"></svg><h2>${words(flow.n<27?"Goodnight.":"Merry Christmas.",90)}</h2>${statStrip(flow.n)}</div>`;foot=`<button class="btn" data-act="finish">Back to the calendar</button>`}
+ el.className="night t-"+name;
+ el.innerHTML=`<div class="in"><div class="bar"><button class="x" data-act="close" aria-label="Close">${XI}</button><div class="seg">${STEPS.map((_,i)=>`<i class="${i<=st?"on":""}${i===st?" cur":""}"></i>`).join("")}</div></div><div class="step cap"><span>${label}</span>${name==="gift"||name==="done"?"":`<svg class="hk" viewBox="-104 -124 208 140" aria-hidden="true"><g id="harkstep" transform="scale(-1,1)"></g></svg>`}</div><div class="stage">${stage}</div>${foot?`<div class="foot">${foot}</div>`:""}</div>`;
+ {const g=$("#harkstep");if(g){const h=makeHark(g,-1);h.calm=name==="prayer";if(name==="hymn"){h.mood="happy";h.moodT=600;h.sing=true}else if(name==="idea"){h.mood="happy";h.moodT=1.6}h.y=-70;h.air=true;h.vy=0;flow.shark=h}}
+ if(name==="teach"&&x.t)setupReader();if(name==="gift")setupGift();if(name==="done"){countUp(el);const h=makeHark($("#harkdone"),1);setTimeout(()=>harkCheer(h),200);flow.hark=h}}
+function setupReader(){const spans=[...document.querySelectorAll("#read span")];const dur=spans.map(s=>Math.max(1.1,s.textContent.trim().split(/\s+/).length/2.5));let i=-1,left=0,playing=false,lock=null;const audio=flow.x.audio?new Audio(flow.x.audio):null;
+ const show=()=>{spans.forEach((s,k)=>{s.classList.toggle("cur",k===i);s.classList.toggle("past",k<i)});if(spans[i])spans[i].scrollIntoView({block:"center",behavior:"smooth"});if(flow.shark){flow.shark.sq.v=-1.6;flow.shark.ear.v=90}const rp=$("#rpi");if(rp)rp.style.width=Math.round((i+1)/spans.length*100)+"%"};
+ const set=p=>{playing=p;const b=$("#pp");if(b)b.innerHTML=p?`<span class="eq"><i></i><i></i><i></i></span>Pause`:(i>=spans.length-1&&i>=0?"Again":"Play");if(audio){p?audio.play().catch(()=>{}):audio.pause()}if(p&&navigator.wakeLock&&!lock)navigator.wakeLock.request("screen").then(l=>lock=l).catch(()=>{});if(!p&&lock){lock.release().catch(()=>{});lock=null}};
+ flow.reader={toggle(){if(!playing&&i>=spans.length-1){i=-1;left=0;if(audio)audio.currentTime=0}set(!playing)},back(){i=Math.max(-1,i-2);left=0;show()}};
+ flow.tick=dt=>{if(!playing)return;left-=dt;if(left<=0){i++;if(i>=spans.length){i=spans.length-1;set(false);sfx.step();if(flow.shark)harkCheer(flow.shark);return}left=dur[i];show()}};
+ flow.cleanup=()=>{set(false);if(audio)audio.pause()}}
+function rumble(k,cls){const el=$(".night .in");if(!el)return;el.style.setProperty("--amp",(3+11*k).toFixed(1)+"px");el.classList.remove("shake","quake");void el.offsetWidth;el.classList.add(cls||"shake")}
+function setupGift(){const leaf=$("#leaf"),frame=$("#frame"),hk=makeHark($("#harkgift"),1);hk.tx=1;hk.ty=-.2;flow.ghark=hk;const need=()=>flow.mode==="shake"?5:3;
+ const progress=()=>{flow.taps++;const k=flow.taps/need();sfx.tap();tone(180+k*220,.18,"sawtooth",.08);buzz([25+35*k,25,25+45*k]);rumble(k);leaf.style.transform=`rotateY(${-k*46}deg)`;frame.classList.remove("bump");void frame.offsetWidth;frame.classList.add("bump");const r=frame.getBoundingClientRect();burst(r.right-6,r.top+r.height/2,Math.round(8+16*k));hk.idle=0;hk.sq.v=-5;hk.ear.v=320;hk.mood="wow";hk.moodT=.7;if(flow.taps===need()-1)hk.crouch=.2;if(flow.taps>=need())openGift()};
+ flow.giftTap=()=>{if(flow.opened)return;if(flow.mode!=="hold")progress()};
+ let down=false,tick=0;const el=$("#gift");const dn=()=>{down=true},up=()=>{down=false};el.addEventListener("pointerdown",dn);addEventListener("pointerup",up);addEventListener("pointercancel",up);
+ let lastShake=0;const mo=e=>{const a=e.accelerationIncludingGravity;if(!a||flow.opened||flow.mode!=="shake")return;const m=Math.abs(a.x||0)+Math.abs(a.y||0)+Math.abs(a.z||0);const now=Date.now();if(m>32&&now-lastShake>280){lastShake=now;progress()}};addEventListener("devicemotion",mo);
+ flow.tick=dt=>{if(flow.opened||flow.mode!=="hold")return;flow.hold=Math.max(0,flow.hold+(down?dt:-dt*1.5));const k=flow.hold/1.4,r=$("#ringi");if(r)r.style.width=Math.min(100,k*100)+"%";leaf.style.transform=`rotateY(${-k*46}deg)`;frame.style.transform=down?`translate(${(Math.random()-.5)*k*12}px,${(Math.random()-.5)*k*12}px)`:"";if(down){tick+=dt;if(tick>.14){tick=0;buzz(12+k*25);tone(140+k*260,.08,"sawtooth",.05);hk.sq.v=-2-k*3;hk.mood="wow";hk.moodT=.3}}if(flow.hold>=1.4)openGift()};
+ flow.cleanup=()=>{removeEventListener("devicemotion",mo);removeEventListener("pointerup",up);removeEventListener("pointercancel",up)}}
+function openGift(){if(flow.opened)return;flow.opened=true;flow.tick=null;const x=flow.x,n=flow.n,leaf=$("#leaf"),frame=$("#frame"),hk=flow.ghark;frame.style.animation="none";
+ const r=frame.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+ // 1. Hark blows his trumpet, everything rumbles
+ sfx.toot();if(hk){hk.mood="happy";hk.moodT=3;harkCheer(hk)}rumble(1,"quake");buzz([30,30,30,30,40,30,60,40,180]);tone(70,.9,"sine",.3,0,35);
+ // 2. the door is blown off its hinge
+ setTimeout(()=>{leaf.classList.add("blast");const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),600);sfx.burst();burst(cx,cy,140);setTimeout(()=>{burst(0,innerHeight*.7,50);burst(innerWidth,innerHeight*.7,50)},180)},420);
+ S.done[n]=true;save();
+ // 3. the card lands, Hark celebrates beside it
+ setTimeout(()=>{if(!flow||flow.n!==n)return;rumble(.5);buzz(60);$(".night .step").innerHTML="<span>Behind tonight's door</span>";$(".night .stage").innerHTML=`<div class="prize"><svg class="phark" viewBox="-112 -150 224 170" aria-hidden="true" id="harkprize" data-act="pokedone"></svg>${cardHtml(n,x)}</div>`;const h=makeHark($("#harkprize"),1);flow.hark=h;setTimeout(()=>harkCheer(h),150);flow.auto=setTimeout(()=>{if(flow&&flow.n===n&&STEPS[flow.step]==="gift")nextStep()},2600)},1050)}
+/* Hark carries you from one step to the next. Each step change has its own move. */
+const NEXT={idea:["run",-1,"#D62828",620],teach:["page",-1,"#FFF4DC",700],hymn:["drop",0,"#FFC83D",640],prayer:["run",1,"#1B2A4E",900],gift:["run",-1,"#D62828",480]};
+function transit(name,swap){const t=NEXT[name];if(!t||matchMedia("(prefers-reduced-motion:reduce)").matches||!document.body.animate){swap();return}
+ busy=true;const [kind,dir,col,ms]=t,W=innerWidth,H=innerHeight;
+ const c=document.createElement("div");c.className="curtain";c.style.background=col;document.body.appendChild(c);
+ const r=document.createElementNS("http://www.w3.org/2000/svg","svg");r.setAttribute("class","runner");r.setAttribute("viewBox","-104 -124 208 140");r.innerHTML=`<g ${dir<0?'transform="scale(-1,1)"':""}></g>`;document.body.appendChild(r);
+ const h=makeHark(r.firstChild,dir<0?-1:1);h.run=name==="prayer"?13:24;h.mood="happy";h.moodT=1.5;
+ const ease="cubic-bezier(.6,0,.25,1)";let ca,ra;
+ if(kind==="run"){ca=c.animate([{transform:`translateX(${-dir*100}%)`},{transform:"none"}],{duration:ms,easing:ease,fill:"forwards"});
+  const from=dir<0?W-40:-170,to=dir<0?-230:W+40;r.style.top=(H*.56)+"px";ra=r.animate([{transform:`translateX(${from}px)`},{transform:`translateX(${to}px)`}],{duration:ms+260,easing:"cubic-bezier(.45,0,.4,1)",fill:"forwards"})}
+ else if(kind==="page"){c.style.transformOrigin="right center";ca=c.animate([{transform:"perspective(1400px) rotateY(-96deg)",filter:"brightness(.7)"},{transform:"perspective(1400px) rotateY(0deg)",filter:"brightness(1)"}],{duration:ms,easing:"cubic-bezier(.5,0,.2,1)",fill:"forwards"});
+  r.style.top=(H*.7)+"px";ra=r.animate([{transform:`translateX(${W-30}px)`},{transform:"translateX(-230px)"}],{duration:ms+200,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"})}
+ else{ca=c.animate([{transform:"translateY(-100%)"},{transform:"translateY(3%)",offset:.8},{transform:"none"}],{duration:ms,easing:"cubic-bezier(.5,0,.3,1)",fill:"forwards"});
+  r.style.top="0px";h.run=0;h.mood="wow";ra=r.animate([{transform:`translate(${W/2-90}px,-140px)`},{transform:`translate(${W/2-90}px,${H*.78}px)`,offset:.8},{transform:`translate(${W/2-90}px,${H+60}px)`}],{duration:ms+240,easing:"cubic-bezier(.5,0,.3,1)",fill:"forwards"})}
+ let k=0;const pat=setInterval(()=>{tone(260+(k++%2)*90,.035,"square",.035)},name==="prayer"?170:85);buzz(name==="prayer"?[8,160,8,160,8,160,8]:[8,70,8,70,8,70,8,70,8]);tone(520,.35,"sine",.05,0,180);
+ ca.onfinish=()=>{swap();c.remove()};
+ ra.onfinish=()=>{clearInterval(pat);r.remove();busy=false}}
+function nextStep(){if(busy)return;const name=STEPS[flow.step]||"done";if(name==="prayer"){const t=($("#pnote")||{}).value;if(t&&t.trim()){S.prayers.push({n:flow.n,text:t.trim(),ans:false});save()}}sfx.step();const nx=STEPS[flow.step+1]||"done";if(flow.shark){flow.shark.crouch=.12}transit(nx,()=>{flow.step++;renderFlow()})}
+
+/* ===================== EVENTS ===================== */
+document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;
+ if(a==="tab"){tab=t.dataset.k;sfx.tap();render()}
+ else if(a==="play"||a==="stop"){const n=+t.dataset.n;if(unlocked(n)){enterNight(n,t)}else{sfx.tap();t.classList.remove("nope");void t.offsetWidth;t.classList.add("nope");const h=harks[0];if(h){h.mood="wow";h.moodT=.5}}}
+ else if(a==="openweek"){const w=+t.dataset.w;if(!t.dataset.ready){sfx.tap();buzz(20);t.classList.remove("nope");void t.offsetWidth;t.classList.add("nope");return}
+   if(busy)return;busy=true;t.classList.add("burst");sfx.toot();buzz([30,30,30,30,60,40,140]);const vw=$(".view");vw.classList.remove("shake");void vw.offsetWidth;vw.style.setProperty("--amp","9px");vw.classList.add("quake");const r=t.getBoundingClientRect();
+   setTimeout(()=>{sfx.burst();burst(r.left+r.width/2,r.top+r.height/2,120);S.wk[w]=true;save();render.keep=true;render.unwrap=w;render();busy=false;const h=harks[0];if(h)harkCheer(h)},520)}
+ else if(a==="preview"){S.preview=true;save();render.keep=true;render();enterNight(1,t)}
+ else if(a==="poke"){if(harks[0])harkPoke(harks[0])}
+ else if(a==="pokedone"){if(flow&&flow.hark)harkPoke(flow.hark)}
+ else if(a==="close"){leaveNight(false)}
+ else if(a==="next"){if(flow&&STEPS[flow.step]==="hymn"){const r=t.getBoundingClientRect();burst(r.left+r.width/2,r.top,26)}nextStep()}
+ else if(a==="playpause"){flow.reader&&flow.reader.toggle()}
+ else if(a==="back"){flow.reader&&flow.reader.back()}
+ else if(a==="size"){S.fs=S.fs>=26?18:S.fs+2;save();const r=$("#read");if(r)r.style.setProperty("--fs",S.fs+"px")}
+ else if(a==="gift"){flow.giftTap&&flow.giftTap()}
+ else if(a==="finish"){leaveNight(true)}
+ else if(a==="sound"){S.sound=!S.sound;save();render.keep=true;render();sfx.step()}
+ else if(a==="togglepreview"){S.preview=!S.preview;save();render.keep=true;render()}
+ else if(a==="answered"){const p=S.prayers[+t.dataset.i];if(p){p.ans=true;save();const r=t.getBoundingClientRect();burst(r.left+r.width/2,r.top,40);sfx.burst();render.keep=true;render()}}
+ else if(a==="reset"){if(t.dataset.sure){S.done={};S.prayers=[];S.preview=false;save();tab="home";render()}else{t.dataset.sure=1;t.textContent="Tap again to erase"}}
+ else if(a==="remind"||a==="unremind"){const note=$("#rnote");try{if(!(window.umade&&umade.notifications)){note.textContent="Reminders switch on when Hark! runs inside Umade.";return}
+   if(a==="unremind"){umade.notifications.cancel("hark-nightly");note.textContent="Reminder is off.";return}
+   S.remind=$("#rtime").value||"19:45";save();Promise.resolve(umade.notifications.schedule({id:"hark-nightly",title:"Hark!",body:"Tonight's gift is waiting.",time:S.remind,days:["mon","tue","wed","thu","fri","sat","sun"]})).then(()=>{note.textContent="Set for "+S.remind+" every night."}).catch(()=>{note.textContent="Could not set the reminder. Check notification permission."})}catch(err){note.textContent="Could not set the reminder."}}
+});
+document.addEventListener("pointerdown",e=>{const t=e.target.closest(".btn,.door,.tab,.mini");if(!t)return;const r=t.getBoundingClientRect(),d=Math.max(r.width,r.height)*2.2,s=document.createElement("span");s.className="rip";s.style.cssText=`width:${d}px;height:${d}px;left:${e.clientX-r.left-d/2}px;top:${e.clientY-r.top-d/2}px`;t.appendChild(s);setTimeout(()=>s.remove(),520)},{passive:true});
+render();
+</script>
+</body>
+</html>
