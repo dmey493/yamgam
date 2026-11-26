@@ -39,13 +39,13 @@ function extrasView(){const hasU=!!(window.umade&&umade.notifications);
  return `<div class="page"><h1>Extras</h1>
  <div class="sec" style="--sc:var(--red)"><h2>Nightly reminder</h2><div class="row"><input type="time" id="rtime" value="${esc(S.remind)}" aria-label="Reminder time"><button class="btn small" data-act="remind">Set</button><button class="btn small line" data-act="unremind">Off</button></div><p class="note" id="rnote">${hasU?"Hark will nudge you at this time each night.":"Reminders switch on when Hark! runs inside Umade."}</p></div>
  <div class="sec" style="--sc:var(--blue)"><h2>Prayer log</h2>${pl}</div>
- <div class="sec" style="--sc:var(--gold)"><h2>Timeline</h2><p class="note" style="margin:0 0 6px">For the curious: where and when each voice lived.</p><div class="tl">${[...NIGHTS].sort((a,b)=>a.k-b.k).slice(0,26).map(x=>`<div><b>${esc(x.y)}</b><span>${esc(x.c.split(",")[0])}<i>${esc(x.p)}</i></span></div>`).join("")}</div></div>
+ <div class="sec" style="--sc:var(--gold)"><h2>Timeline</h2><p class="note" style="margin:0 0 4px">Swipe or drag through 2,000 years. Tap someone to meet them.</p>${timelineStrip()}</div>
  <div class="sec" style="--sc:var(--green)"><h2>Settings</h2><div class="row"><button class="btn small ${S.sound?"":"line"}" data-act="sound">Sound ${S.sound?"on":"off"}</button><button class="btn small ${S.preview?"":"line"}" data-act="togglepreview">Preview all ${S.preview?"on":"off"}</button><button class="btn small line" data-act="reset">Start over</button></div><p class="note">${NIGHTS.filter(x=>x.t).length} of 27 nights have their full teaching. The rest have the verse, hymn and prayer for now.</p></div></div>`}
 const TABS=[["home","Calendar"],["coll","Cards"],["more","Extras"]];
 function render(){const app=$("#app");if(flow)return;
  if(!app.firstChild)app.innerHTML=`<div class="view"></div><div class="tabs"><i class="ind"></i>${TABS.map(([k,l])=>`<button class="tab cap" data-act="tab" data-k="${k}">${l}</button>`).join("")}</div>`;
  const view=app.querySelector(".view"),sc=view.scrollTop,keep=render.keep;render.keep=false;
- view.innerHTML=tab==="home"?homeView():tab==="coll"?collectionView():extrasView();
+ view.innerHTML=tab==="home"?homeView():tab==="coll"?collectionView():extrasView();if(tab==="more")setupTimeline();
  view.className="view"+(tab==="home"?" board":"")+(keep?"":" fresh swap");if(keep)view.scrollTop=sc;else view.scrollTop=0;
  const idx=TABS.findIndex(t=>t[0]===tab);app.querySelector(".ind").style.transform=`translateX(${idx*100}%)`;app.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("on",i===idx));
  countUp(view);render.flip=0;render.unwrap=-1;
@@ -114,7 +114,7 @@ function transit(name,swap){const t=NEXT[name];if(!t||matchMedia("(prefers-reduc
 function nextStep(){if(busy)return;const name=STEPS[flow.step]||"done";if(name==="prayer"){const t=($("#pnote")||{}).value;if(t&&t.trim()){S.prayers.push({n:flow.n,text:t.trim(),ans:false});save()}}sfx.step();const nx=STEPS[flow.step+1]||"done";if(flow.shark){flow.shark.crouch=.12}transit(nx,()=>{flow.step++;renderFlow()})}
 
 /* ===================== EVENTS ===================== */
-document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;
+document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;if(a==="who"){const tl=t.closest(".tlx");if(tl&&performance.now()-(tl._dragT||0)<300)return;openWho(+t.dataset.i,t);return}if(a==="whoclose"){closeWho();return}
  if(a==="tab"){tab=t.dataset.k;sfx.tap();render()}
  else if(a==="play"||a==="stop"){const n=+t.dataset.n;if(unlocked(n)){enterNight(n,t)}else{sfx.tap();t.classList.remove("nope");void t.offsetWidth;t.classList.add("nope");const h=harks[0];if(h){h.mood="wow";h.moodT=.5}}}
  else if(a==="openweek"){const w=+t.dataset.w;if(!t.dataset.ready){sfx.tap();buzz(20);t.classList.remove("nope");void t.offsetWidth;t.classList.add("nope");return}

@@ -18,9 +18,11 @@ This writes `Hark.html` from the files in `src/`, in this order:
 | `src/hymns.js` | Lyrics for the seven hymns (public domain) |
 | `src/nights.js` | The 27 nights in their original historical order: message, verse, credit, hymn, prayer |
 | `src/teach.js` | The teachings (each author's own words in modern English), the weekly-theme order, the four week themes |
+| `src/timeline.js` | Timeline people (history order): years, role, place, a short bio, and a pin on the built-in map (Natural Earth land from the open-source `world-atlas` package) |
 | `src/state.js` | Saved progress (localStorage key `hark-v2`), dates, streaks |
 | `src/engine.js` | Sound, confetti, and Hark the aardvark's rig and animation |
 | `src/views4.js` | Every screen: calendar, cards, extras, the night flow, transitions, the gift |
+| `src/timeline_view.js` | The horizontal timeline in Extras (swipe, drag, wheel) and the person card that zooms open with a map |
 | `tools/engine_patches.py` | Small patches applied to `engine.js` at build time (running legs, singing, colours) |
 
 ## How the season is organised
@@ -28,7 +30,7 @@ This writes `Hark.html` from the files in `src/`, in this order:
 - Nights are grouped by theme, one theme a week, not by history: Week 1 God with us, Week 2 He comes for you, Week 3 He is coming again, Week 4 Joy to the world, then Christmas Day (Luke 2).
 - `ORDER` in `src/teach.js` maps each calendar night to an entry in `src/nights.js`.
 - Doors show calendar dates. Later weeks stay wrapped until their first date arrives. Missed nights stay open.
-- Dates and places from church history appear only in the timeline under Extras.
+- Dates and places from church history appear only in the timeline under Extras: a horizontal strip you swipe or drag; tapping a person opens their card, and the map zooms in on where they lived.
 - "Preview all" in Extras opens every night for testing before its date.
 
 ## Design rules
