@@ -44,6 +44,7 @@ This writes `Hark.html` from the files in `src/`, in this order:
 - Put each mp3 in `audio/` as `night-01.mp3`, `night-02.mp3` and so on, using calendar night numbers.
 - Add the night to `NARRATION` in `src/teach.js` with `cues`: the start second of each sentence shown on screen (one per sentence, in order). The app loads `audio/night-NN.mp3` from jsDelivr (the `hark` branch) and highlights each sentence as it is spoken. Without matching cues it falls back to timing by word count.
 - Night 1 (Irenaeus) is recorded and wired in.
+- Sound effects are also from ElevenLabs (Sound Effects v3), trimmed and levelled: `sfx-bell` (taps), `sfx-scurry` (Hark runs between steps), `sfx-sparkle` (gift opens), `sfx-finale` (night complete). If one cannot load, the old synth beep plays instead.
 
 ## Still to do
 
