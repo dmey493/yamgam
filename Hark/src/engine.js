@@ -8,14 +8,26 @@ const SFX_BASES=["audio/","https://raw.githubusercontent.com/dmey493/yamgam/hark
 function sfxLoad(){if(sfxOn)return;sfxOn=true;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
  ["bell","scurry","sparkle","finale"].forEach(n=>{/* built into the page by tools/build.py, so sounds work offline and from a single file */if(typeof SFX_DATA!=="undefined"&&SFX_DATA[n]){try{const bin=atob(SFX_DATA[n]),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);AC.decodeAudioData(u.buffer,buf=>{SFXB[n]=buf},()=>go(0));return}catch(e){}}function go(i){if(i>=SFX_BASES.length)return;fetch(SFX_BASES[i]+"sfx-"+n+".mp3").then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).then(buf=>{SFXB[n]=buf}).catch(()=>go(i+1))};go(0)})}
 function sample(n,vol,rate){if(!S.sound)return null;sfxLoad();const b=SFXB[n];if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;if(rate)src.playbackRate.value=rate;g.gain.value=vol||1;src.connect(g);g.connect(AC.destination);src.start();return src}catch(e){return null}}
-/* Every tap rings the next note of Silent Night on one music-box bell (sfx-bell.mp3, a single strike at D#7, MIDI 98.97).
-   Notes are MIDI in C; +31 plays it in G, high. After 8 quiet seconds it starts again from the top. */
-const LULLABY=[67,69,67,64,67,69,67,64,74,74,71,72,72,67,69,69,72,71,69,67,69,67,64,69,69,72,71,69,67,69,67,64,74,74,77,74,71,72,76,72,67,64,67,65,62,60],BELL_MIDI=98.97;
-let lulI=0,lulT=0;
-function bellNote(vol){const now=performance.now();if(now-lulT>8000)lulI=0;lulT=now;const m=LULLABY[lulI%LULLABY.length]+31;const s=sample("bell",vol||.75,Math.pow(2,(m-BELL_MIDI)/12));if(s)lulI++;return s}
-const sfx={tap:()=>{bellNote(.75)||tone(520,.07,"square",.05)},
+/* Every tap rings the next phrase of We Wish You a Merry Christmas on one music-box bell
+   (sfx-bell.mp3, a single strike at D#7, MIDI 98.97), re-pitched per note. Notes are [MIDI in G, beats];
+   +33 plays it high in E (B6 to A7). A new tap cuts the phrase still ringing; after 8 quiet seconds it starts from the top. */
+const CAROL=[
+ [[62,1],[67,1],[67,.5],[69,.5],[67,.5],[66,.5],[64,1],[64,1]],                // We wish you a merry Christmas
+ [[64,1],[69,1],[69,.5],[71,.5],[69,.5],[67,.5],[66,1],[62,1]],                // we wish you a merry Christmas
+ [[62,1],[71,1],[71,.5],[72,.5],[71,.5],[69,.5],[67,1],[64,1],[62,.5],[62,.5]],// we wish you a merry Christmas and a
+ [[64,1],[69,1],[66,1],[67,2]]],                                               // happy New Year
+ CAROL_UP=33,BEAT=.26,BELL_MIDI=98.97;
+let carI=0,carT=0,carSrcs=[];
+function bellAt(m,vol,when){if(!S.sound)return null;sfxLoad();const b=SFXB.bell;if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;src.playbackRate.value=Math.pow(2,(m-BELL_MIDI)/12);g.gain.value=vol;src.connect(g);g.connect(AC.destination);src.start(AC.currentTime+(when||0));return src}catch(e){return null}}
+function carolPhrase(vol){const now=performance.now();if(now-carT>8000)carI=0;carT=now;
+ carSrcs.forEach(x=>{try{x.stop()}catch(e){}});carSrcs=[];let t=0;
+ for(const [m,b] of CAROL[carI%CAROL.length]){const x=bellAt(m+CAROL_UP,vol||.7,t);if(!x)return null;carSrcs.push(x);t+=b*BEAT}
+ carI++;return carSrcs[0]}
+/* single bell notes rising with k (0..1), for holding the gift */
+const bellRise=(k,vol)=>bellAt(Math.round(93+k*12),vol);
+const sfx={tap:()=>{carolPhrase(.7)||tone(520,.07,"square",.05)},
  step:()=>{sample("scurry",.9)||(tone(660,.1),tone(880,.14,"triangle",.1,.08))},
- toot:()=>{bellNote(.85)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
+ toot:()=>{carolPhrase(.8)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
  burst:()=>{sample("sparkle")||([523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07)),tone(90,.25,"sine",.25,0,40))},
  /* Finale: hits found in sfx-finale.mp3 with librosa (onset detection, ~143 BPM): [second, strength].
     onBeat(k,strength,last) fires on each hit, timed by the audio clock so moves stay on the beat. */
