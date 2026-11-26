@@ -7,10 +7,15 @@ const FINALE_HITS=[[.39,.93],[.81,.67],[1.23,.45],[1.67,.58],[2.09,.66],[2.51,.6
 const SFX_BASES=["audio/","https://raw.githubusercontent.com/dmey493/yamgam/hark/Hark/audio/"],SFXB={};let sfxOn=false,finaleSrc=null;
 function sfxLoad(){if(sfxOn)return;sfxOn=true;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
  ["bell","scurry","sparkle","finale"].forEach(n=>{/* built into the page by tools/build.py, so sounds work offline and from a single file */if(typeof SFX_DATA!=="undefined"&&SFX_DATA[n]){try{const bin=atob(SFX_DATA[n]),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);AC.decodeAudioData(u.buffer,buf=>{SFXB[n]=buf},()=>go(0));return}catch(e){}}function go(i){if(i>=SFX_BASES.length)return;fetch(SFX_BASES[i]+"sfx-"+n+".mp3").then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).then(buf=>{SFXB[n]=buf}).catch(()=>go(i+1))};go(0)})}
-function sample(n,vol){if(!S.sound)return null;sfxLoad();const b=SFXB[n];if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;g.gain.value=vol||1;src.connect(g);g.connect(AC.destination);src.start();return src}catch(e){return null}}
-const sfx={tap:()=>{sample("bell",.7)||tone(520,.07,"square",.05)},
+function sample(n,vol,rate){if(!S.sound)return null;sfxLoad();const b=SFXB[n];if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;if(rate)src.playbackRate.value=rate;g.gain.value=vol||1;src.connect(g);g.connect(AC.destination);src.start();return src}catch(e){return null}}
+/* Every tap rings the next note of Silent Night on one music-box bell (sfx-bell.mp3, a single strike at D#7, MIDI 98.97).
+   Notes are MIDI in C; +31 plays it in G, high. After 8 quiet seconds it starts again from the top. */
+const LULLABY=[67,69,67,64,67,69,67,64,74,74,71,72,72,67,69,69,72,71,69,67,69,67,64,69,69,72,71,69,67,69,67,64,74,74,77,74,71,72,76,72,67,64,67,65,62,60],BELL_MIDI=98.97;
+let lulI=0,lulT=0;
+function bellNote(vol){const now=performance.now();if(now-lulT>8000)lulI=0;lulT=now;const m=LULLABY[lulI%LULLABY.length]+31;const s=sample("bell",vol||.75,Math.pow(2,(m-BELL_MIDI)/12));if(s)lulI++;return s}
+const sfx={tap:()=>{bellNote(.75)||tone(520,.07,"square",.05)},
  step:()=>{sample("scurry",.9)||(tone(660,.1),tone(880,.14,"triangle",.1,.08))},
- toot:()=>{sample("bell",.8)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
+ toot:()=>{bellNote(.85)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
  burst:()=>{sample("sparkle")||([523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07)),tone(90,.25,"sine",.25,0,40))},
  /* Finale: hits found in sfx-finale.mp3 with librosa (onset detection, ~143 BPM): [second, strength].
     onBeat(k,strength,last) fires on each hit, timed by the audio clock so moves stay on the beat. */
