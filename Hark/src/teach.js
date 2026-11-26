@@ -175,6 +175,10 @@ POOL.length=0;POOL.push("Tell one person something good God has done for you.","
 /* Order by weekly theme, not by date in history. Numbers are positions in the list above. */
 const ORDER=[1,2,6,4,5,9,17, 11,12,10,16,7,13,19, 3,20,25,22,15,8,18, 23,14,21,24,26, 27];
 {const r=ORDER.map(i=>NIGHTS[i-1]);NIGHTS.length=0;NIGHTS.push(...r)}
+/* Narration (ElevenLabs, voice "Julian"), by calendar night. cues = start second of each sentence on screen. */
+const AUDIO_BASE="https://cdn.jsdelivr.net/gh/dmey493/yamgam@hark/Hark/audio/";
+const NARRATION={1:{cues:[0,7,14.1,21.5,27.2,29.8,32.2,39,49.2,56.4,63.6,74.1,80.4,83,89.1,98.6,105.3,112.4,117.9,124.9,135.2]}};
+for(const n in NARRATION){const x=NIGHTS[n-1];x.audio=AUDIO_BASE+"night-"+String(n).padStart(2,"0")+".mp3";x.cues=NARRATION[n].cues}
 const UNITS=[{f:1,t:"God with us",s:"Week 1",c:""},{f:8,t:"He comes for you",s:"Week 2",c:"green"},{f:15,t:"He is coming again",s:"Week 3",c:"gold"},{f:22,t:"Joy to the world",s:"Week 4",c:""},{f:27,t:"Christmas Day",s:"The story itself",c:"green"}];
 const weekOf=n=>{let u=UNITS[0];for(const x of UNITS)if(x.f<=n)u=x;return u};
 const shortDate=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})};

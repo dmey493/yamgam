@@ -42,12 +42,13 @@ This writes `Hark.html` from the files in `src/`, in this order:
 
 - Narration is recorded in ElevenLabs with the voice "Julian" (deep, mature British).
 - Put each mp3 in `audio/` as `night-01.mp3`, `night-02.mp3` and so on, using calendar night numbers.
-- Set `audio` on the matching night in `src/teach.js` to its https URL; the reader plays it and highlights each sentence.
+- Add the night to `NARRATION` in `src/teach.js` with `cues`: the start second of each sentence shown on screen (one per sentence, in order). The app loads `audio/night-NN.mp3` from jsDelivr (the `hark` branch) and highlights each sentence as it is spoken. Without matching cues it falls back to timing by word count.
+- Night 1 (Irenaeus) is recorded and wired in.
 
 ## Still to do
 
 1. Write the last six teachings: Luther's Advent sermon (Dec 6), Bernard (Dec 8), Ryle (Dec 16), Edwards (Dec 19), Calvin (Dec 21), Chesterton (Dec 24).
 2. Add verse text and a written prayer for nights 8–27, and the Luke 2 reading for Christmas Day.
-3. Record the narration and wire it in.
+3. Record the narration for nights 2–27 and wire it in.
 4. Check the teachings written from memory against their sources: the O Antiphons, the Heidelberg answers and Cranmer's prayer.
 5. Later: nativity scene, kid mode, timeline map, more gift-opening moves.

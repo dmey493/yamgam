@@ -720,6 +720,10 @@ POOL.length=0;POOL.push("Tell one person something good God has done for you.","
 /* Order by weekly theme, not by date in history. Numbers are positions in the list above. */
 const ORDER=[1,2,6,4,5,9,17, 11,12,10,16,7,13,19, 3,20,25,22,15,8,18, 23,14,21,24,26, 27];
 {const r=ORDER.map(i=>NIGHTS[i-1]);NIGHTS.length=0;NIGHTS.push(...r)}
+/* Narration (ElevenLabs, voice "Julian"), by calendar night. cues = start second of each sentence on screen. */
+const AUDIO_BASE="https://cdn.jsdelivr.net/gh/dmey493/yamgam@hark/Hark/audio/";
+const NARRATION={1:{cues:[0,7,14.1,21.5,27.2,29.8,32.2,39,49.2,56.4,63.6,74.1,80.4,83,89.1,98.6,105.3,112.4,117.9,124.9,135.2]}};
+for(const n in NARRATION){const x=NIGHTS[n-1];x.audio=AUDIO_BASE+"night-"+String(n).padStart(2,"0")+".mp3";x.cues=NARRATION[n].cues}
 const UNITS=[{f:1,t:"God with us",s:"Week 1",c:""},{f:8,t:"He comes for you",s:"Week 2",c:"green"},{f:15,t:"He is coming again",s:"Week 3",c:"gold"},{f:22,t:"Joy to the world",s:"Week 4",c:""},{f:27,t:"Christmas Day",s:"The story itself",c:"green"}];
 const weekOf=n=>{let u=UNITS[0];for(const x of UNITS)if(x.f<=n)u=x;return u};
 const shortDate=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})};
@@ -890,11 +894,11 @@ function renderFlow(){if(flow.cleanup){flow.cleanup();flow.cleanup=null}flow.tic
  el.innerHTML=`<div class="in"><div class="bar"><button class="x" data-act="close" aria-label="Close">${XI}</button><div class="seg">${STEPS.map((_,i)=>`<i class="${i<=st?"on":""}${i===st?" cur":""}"></i>`).join("")}</div></div><div class="step cap"><span>${label}</span>${name==="gift"||name==="done"?"":`<svg class="hk" viewBox="-104 -124 208 140" aria-hidden="true"><g id="harkstep" transform="scale(-1,1)"></g></svg>`}</div><div class="stage">${stage}</div>${foot?`<div class="foot">${foot}</div>`:""}</div>`;
  {const g=$("#harkstep");if(g){const h=makeHark(g,-1);h.calm=name==="prayer";if(name==="hymn"){h.mood="happy";h.moodT=600;h.sing=true}else if(name==="idea"){h.mood="happy";h.moodT=1.6}h.y=-70;h.air=true;h.vy=0;flow.shark=h}}
  if(name==="teach"&&x.t)setupReader();if(name==="gift")setupGift();if(name==="done"){countUp(el);const h=makeHark($("#harkdone"),1);setTimeout(()=>harkCheer(h),200);flow.hark=h}}
-function setupReader(){const spans=[...document.querySelectorAll("#read span")];const dur=spans.map(s=>Math.max(1.1,s.textContent.trim().split(/\s+/).length/2.5));let i=-1,left=0,playing=false,lock=null;const audio=flow.x.audio?new Audio(flow.x.audio):null;
+function setupReader(){const spans=[...document.querySelectorAll("#read span")];const dur=spans.map(s=>Math.max(1.1,s.textContent.trim().split(/\s+/).length/2.5));let i=-1,left=0,playing=false,lock=null;const audio=flow.x.audio?new Audio(flow.x.audio):null;const cues=flow.x.cues;const sync=!!(audio&&cues&&cues.length===spans.length);if(audio)audio.preload="auto";
  const show=()=>{spans.forEach((s,k)=>{s.classList.toggle("cur",k===i);s.classList.toggle("past",k<i)});if(spans[i])spans[i].scrollIntoView({block:"center",behavior:"smooth"});if(flow.shark){flow.shark.sq.v=-1.6;flow.shark.ear.v=90}const rp=$("#rpi");if(rp)rp.style.width=Math.round((i+1)/spans.length*100)+"%"};
  const set=p=>{playing=p;const b=$("#pp");if(b)b.innerHTML=p?`<span class="eq"><i></i><i></i><i></i></span>Pause`:(i>=spans.length-1&&i>=0?"Again":"Play");if(audio){p?audio.play().catch(()=>{}):audio.pause()}if(p&&navigator.wakeLock&&!lock)navigator.wakeLock.request("screen").then(l=>lock=l).catch(()=>{});if(!p&&lock){lock.release().catch(()=>{});lock=null}};
- flow.reader={toggle(){if(!playing&&i>=spans.length-1){i=-1;left=0;if(audio)audio.currentTime=0}set(!playing)},back(){i=Math.max(-1,i-2);left=0;show()}};
- flow.tick=dt=>{if(!playing)return;left-=dt;if(left<=0){i++;if(i>=spans.length){i=spans.length-1;set(false);sfx.step();if(flow.shark)harkCheer(flow.shark);return}left=dur[i];show()}};
+ flow.reader={toggle(){if(!playing&&i>=spans.length-1){i=-1;left=0;if(audio)audio.currentTime=0}set(!playing)},back(){i=Math.max(-1,i-2);left=0;if(sync)audio.currentTime=i<0?0:cues[i];show()}};
+ flow.tick=dt=>{if(!playing)return;if(sync&&!audio.error){if(audio.ended){i=spans.length-1;show();set(false);sfx.step();if(flow.shark)harkCheer(flow.shark);return}let k=-1;const t=audio.currentTime;while(k+1<cues.length&&cues[k+1]<=t)k++;if(k!==i){i=k;show()}return}left-=dt;if(left<=0){i++;if(i>=spans.length){i=spans.length-1;set(false);sfx.step();if(flow.shark)harkCheer(flow.shark);return}left=dur[i];show()}};
  flow.cleanup=()=>{set(false);if(audio)audio.pause()}}
 function rumble(k,cls){const el=$(".night .in");if(!el)return;el.style.setProperty("--amp",(3+11*k).toFixed(1)+"px");el.classList.remove("shake","quake");void el.offsetWidth;el.classList.add(cls||"shake")}
 function setupGift(){const leaf=$("#leaf"),frame=$("#frame"),hk=makeHark($("#harkgift"),1);hk.tx=1;hk.ty=-.2;flow.ghark=hk;const need=()=>flow.mode==="shake"?5:3;
