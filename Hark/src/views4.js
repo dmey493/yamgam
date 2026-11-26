@@ -88,7 +88,7 @@ function setupGift(){const leaf=$("#leaf"),frame=$("#frame"),hk=makeHark($("#har
 function openGift(){if(flow.opened)return;flow.opened=true;flow.tick=null;const x=flow.x,n=flow.n,leaf=$("#leaf"),frame=$("#frame"),hk=flow.ghark;frame.style.animation="none";
  const r=frame.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
  // 1. Hark blows his trumpet, everything rumbles
- sfx.toot();if(hk){hk.mood="happy";hk.moodT=3;harkCheer(hk)}rumble(1,"quake");buzz([30,30,30,30,40,30,60,40,180]);tone(70,.9,"sine",.3,0,35);
+ sfx.toot();if(hk){hk.mood="happy";hk.moodT=3;harkCheer(hk)}rumble(1,"quake");buzz([30,30,30,30,40,30,60,40,180]);if(!SFXB.sparkle)tone(70,.9,"sine",.3,0,35);
  // 2. the door is blown off its hinge
  setTimeout(()=>{leaf.classList.add("blast");const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),600);sfx.burst();burst(cx,cy,140);setTimeout(()=>{burst(0,innerHeight*.7,50);burst(innerWidth,innerHeight*.7,50)},180)},420);
  S.done[n]=true;save();
@@ -108,7 +108,7 @@ function transit(name,swap){const t=NEXT[name];if(!t||matchMedia("(prefers-reduc
   r.style.top=(H*.7)+"px";ra=r.animate([{transform:`translateX(${W-30}px)`},{transform:"translateX(-230px)"}],{duration:ms+200,easing:"cubic-bezier(.5,0,.4,1)",fill:"forwards"})}
  else{ca=c.animate([{transform:"translateY(-100%)"},{transform:"translateY(3%)",offset:.8},{transform:"none"}],{duration:ms,easing:"cubic-bezier(.5,0,.3,1)",fill:"forwards"});
   r.style.top="0px";h.run=0;h.mood="wow";ra=r.animate([{transform:`translate(${W/2-90}px,-140px)`},{transform:`translate(${W/2-90}px,${H*.78}px)`,offset:.8},{transform:`translate(${W/2-90}px,${H+60}px)`}],{duration:ms+240,easing:"cubic-bezier(.5,0,.3,1)",fill:"forwards"})}
- let k=0;const pat=setInterval(()=>{if(!SFXB.scurry)tone(260+(k++%2)*90,.035,"square",.035)},name==="prayer"?170:85);buzz(name==="prayer"?[8,160,8,160,8,160,8]:[8,70,8,70,8,70,8,70,8]);tone(520,.35,"sine",.05,0,180);
+ let k=0;const pat=setInterval(()=>{if(!SFXB.scurry)tone(260+(k++%2)*90,.035,"square",.035)},name==="prayer"?170:85);buzz(name==="prayer"?[8,160,8,160,8,160,8]:[8,70,8,70,8,70,8,70,8]);if(!SFXB.scurry)tone(520,.35,"sine",.05,0,180);
  ca.onfinish=()=>{swap();c.remove()};
  ra.onfinish=()=>{clearInterval(pat);r.remove();busy=false}}
 function nextStep(){if(busy)return;const name=STEPS[flow.step]||"done";if(name==="prayer"){const t=($("#pnote")||{}).value;if(t&&t.trim()){S.prayers.push({n:flow.n,text:t.trim(),ans:false});save()}}sfx.step();const nx=STEPS[flow.step+1]||"done";if(flow.shark){flow.shark.crouch=.12}transit(nx,()=>{flow.step++;renderFlow()})}
