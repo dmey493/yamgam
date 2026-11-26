@@ -1086,7 +1086,7 @@ function viewForecast(){
   const tom=days[0],anyThaw=days.some(d=>d.thaw>1),anyForm=days.some(d=>d.form>1),k=dayKey(tom.date),done=S.thawed[k]||null;
   const max=Math.max(...days.map(d=>d.thaw+d.form),1);
   const total=days.reduce((s,d)=>s+d.thaw,0),totalF=days.reduce((s,d)=>s+d.form,0);
-  const rows=days.map((d,i)=>`<tr><td>${i===0?'Tomorrow':d.date.toLocaleDateString([], {weekday:'short'})} <span class="muted" style="font-weight:600">${d.date.toLocaleDateString([], {month:'numeric',day:'numeric'})}</span></td>${d.per.map(q=>`<td>${amt(anyThaw?q.th:q.fo,false)}</td>`).join('')}${S.babies.length>1?`<td class="fd">${amt(anyThaw?d.thaw:d.form,false)}</td>`:''}${anyThaw&&anyForm?`<td>${amt(d.form,false)}</td>`:''}</tr>`).join('');
+  const rows=days.map((d,i)=>`<tr><td>${i===0?'Tmrw':d.date.toLocaleDateString([], {weekday:'short'})} <span class="muted" style="font-weight:600">${d.date.toLocaleDateString([], {month:'numeric',day:'numeric'})}</span></td>${d.per.map(q=>`<td>${amt(anyThaw?q.th:q.fo,false)}</td>`).join('')}${S.babies.length>1?`<td class="fd">${amt(anyThaw?d.thaw:d.form,false)}</td>`:''}${anyThaw&&anyForm?`<td>${amt(d.form,false)}</td>`:''}</tr>`).join('');
   return `<div class="card presenter-card"><div class="presenter">${zebraSVG('fc',S.babies[0].color,done?'happy':'')}
       <div class="bubble">${!anyThaw?`No frozen milk in the plan, so nothing to thaw.${anyForm?`<b class="big">${goalAmt(tom.form)}</b>of formula covers tomorrow.`:' Set bottles of breast milk under Grow → Feeding plan.'}`
         :`Tonight, thaw<b class="big">${goalAmt(tom.thaw)}</b>Move it from the freezer to the fridge for tomorrow.`}</div></div>
