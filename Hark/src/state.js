@@ -7,7 +7,7 @@ let tab="home",flow=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const dayNum=()=>{const t=new Date();t.setHours(0,0,0,0);return Math.round((t-START)/864e5)+1};
-const unlocked=n=>S.preview||n<=dayNum();
+const unlocked=n=>S.preview||n===1||n<=dayNum(); /* night 1 is always open so it can be tried early */
 const nightDate=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})};
 const doneCount=()=>Object.keys(S.done).length;
 function streak(){let last=0;for(let n=27;n>=1;n--)if(S.done[n]){last=n;break}let c=0;for(let n=last;n>=1&&S.done[n];n--)c++;return c}
