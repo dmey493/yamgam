@@ -8,7 +8,7 @@ const SFX_BASES=["audio/","https://raw.githubusercontent.com/dmey493/yamgam/hark
 function sfxLoad(){if(sfxOn)return;sfxOn=true;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
  ["bell","scurry","sparkle","finale"].forEach(n=>{const go=i=>{if(i>=SFX_BASES.length)return;fetch(SFX_BASES[i]+"sfx-"+n+".mp3").then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).then(buf=>{SFXB[n]=buf}).catch(()=>go(i+1))};go(0)})}
 function sample(n,vol){if(!S.sound)return null;sfxLoad();const b=SFXB[n];if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;g.gain.value=vol||1;src.connect(g);g.connect(AC.destination);src.start();return src}catch(e){return null}}
-const sfx={tap:()=>{sample("bell",.55)||tone(520,.07,"square",.05)},
+const sfx={tap:()=>{sample("bell",.7)||tone(520,.07,"square",.05)},
  step:()=>{sample("scurry",.9)||(tone(660,.1),tone(880,.14,"triangle",.1,.08))},
  toot:()=>{sample("bell",.8)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
  burst:()=>{sample("sparkle")||([523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07)),tone(90,.25,"sine",.25,0,40))},
