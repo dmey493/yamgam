@@ -351,6 +351,14 @@ nav button.tab.on{color:var(--sun)}
 .fab:active{transform:scale(.9) rotate(90deg)}
 .iconbtn{border:2.5px solid var(--edge)}
 .onb .card{border-top-width:2.5px}
+/* ── weight wheels ── */
+.wheels{position:relative;display:flex;justify-content:center;align-items:center;gap:8px;margin:6px 0 4px}
+.wheels::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:52px;margin-top:-26px;border-radius:16px;background:color-mix(in srgb,var(--sun) 38%,#fff);pointer-events:none}
+.wheel{position:relative;height:156px;width:96px;overflow-y:auto;scroll-snap-type:y mandatory;scrollbar-width:none;padding-block:52px;overscroll-behavior:contain;-webkit-mask-image:linear-gradient(transparent,#000 32%,#000 68%,transparent);mask-image:linear-gradient(transparent,#000 32%,#000 68%,transparent);touch-action:pan-y}
+.wheel::-webkit-scrollbar{display:none}
+.wi{height:52px;line-height:52px;text-align:center;scroll-snap-align:center;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:800;font-size:32px;color:var(--ink)}
+.wu{position:relative;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:800;font-size:20px;color:var(--soft)}
+.wread{text-align:center;font-size:15px;margin:4px 0 2px}.wread b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px}
 /* ── quick cards on Today ── */
 body[data-view=today] .scene{padding-top:6px}
 body[data-view=today] .foal svg{max-width:108px}
@@ -581,7 +589,7 @@ const fullMin=b=>b&&b.fullMin>0?b.fullMin:15;   // minutes that count as a full 
 const feedPct=f=>f.kind==='nu'&&f.full?f.min/f.full:(f.off?f.ml/f.off:0);
 const localISO=t=>{const d=new Date(t);return dayKey(d)+'T'+pad(d.getHours())+':'+pad(d.getMinutes())};
 function fmtW(kg){
-  if(S.wUnit==='lb'){const t=Math.round(kg/LB*16);return Math.floor(t/16)+' lb '+(t%16)+' oz'}
+  if(S.wUnit==='lb'){const t=Math.round(kg/LB*32);return Math.floor(t/32)+' lb '+(t%32)/2+' oz'}
   return kg.toFixed(2)+' kg';
 }
 function weightFields(p,kg){
@@ -827,15 +835,31 @@ function quickCard(b,now){
     <div class="qs muted">${ago==null?'No feeds yet':ago>2880?'Last fed '+Math.floor(ago/1440)+' days ago':'Fed '+dur(ago)+' ago'}${du?` · <span class="due muted ${du.cls}" data-due="${b.id}">${du.text}</span>`:''}</div>
     <div class="qa">${q('log','bottle','Feed','class="pri"')}${q('diaper','drop','Wet','data-k="wet"')}${q('diaper','dirty','Dirty','data-k="dirty"')}${q('qweight','scale','Weight')}</div></div>`;
 }
-ACT.qweight=el=>{const b=baby(el.dataset.b),ws=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1),now=new Date();
-  openSheet(`<h2>${esc(b.name)}'s weight</h2><p class="muted" style="margin:0 0 4px">${ws.length?'Last: '+fmtW(ws[0].kg)+' on '+shortDay(ws[0].d)+'.':'No weigh-ins yet.'}</p>
-    <label class="f">Weight</label>${weightFields('qw',null)}<label class="f">Date</label><input type="date" id="qwd" value="${dayKey(now)}" max="${dayKey(now)}">
+/* weight is set by scrolling two wheels that start at the last weigh-in: no keyboard */
+const WH=52;let WV=null;
+const wheelKg=()=>S.wUnit==='lb'?(WV.a+WV.b/32)*LB:WV.a+WV.b/100;
+function wheel(id,n,label,start){return `<div class="wheel" id="${id}" data-n="${n}" tabindex="0" role="spinbutton" aria-valuenow="${start}">${Array.from({length:n},(_,i)=>`<div class="wi">${label(i)}</div>`).join('')}</div>`}
+function wheelRead(){
+  const p=WV.prev,kg=wheelKg(),d=p?kg-p.kg:0,lb=S.wUnit==='lb';
+  $('#wread').innerHTML=`<b>${fmtW(kg)}</b>${p?` <span class="muted">· ${Math.abs(d)<.004?'same as on':gainTxt(d).toLowerCase()+' since'} ${shortDay(p.d)}</span>`:''}`.replace('  ',' ');
+}
+const gainTxt=d=>(d>=0?'Up ':'Down ')+(S.wUnit==='lb'?(Math.round(Math.abs(d)/LB*32)/2)+' oz':Math.round(Math.abs(d)*1000)+' g');
+ACT.qweight=el=>{const b=baby(el.dataset.b),ws=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1),now=new Date(),lb=S.wUnit==='lb';
+  const k0=ws.length?ws[0].kg:typicalWeight(adjDays(b,now)),t=lb?Math.round(k0/LB*32):Math.round(k0*100);
+  WV={a:Math.floor(t/(lb?32:100)),b:t%(lb?32:100),prev:ws[0]||null};
+  openSheet(`<h2>${esc(b.name)}'s weight</h2><p class="muted" style="margin:0 0 6px">${ws.length?'Starts at the last weigh-in. Scroll to today\'s weight.':'Scroll to the weight.'}</p>
+    <div class="wheels">${wheel('wh0',lb?46:26,i=>i,WV.a)}<span class="wu">${lb?'lb':'.'}</span>${wheel('wh1',lb?32:100,i=>lb?i/2:pad(i),WV.b)}<span class="wu">${lb?'oz':'kg'}</span></div>
+    <div class="wread" id="wread"></div>
+    <label class="f">Date</label><input type="date" id="qwd" value="${dayKey(now)}" max="${dayKey(now)}">
     <div class="foot"><button class="btn c" style="--c:${b.color}" data-act="qwsave" data-b="${b.id}">Save weight</button></div>`);
-  setTimeout(()=>{const f=$('#sheet input');f&&f.focus()},350)};
-ACT.qwsave=el=>{const b=baby(el.dataset.b),kg=readWeight('qw'),d=$('#qwd').value;if(!kg||!d){toast('Enter a weight.');return}
+  [['wh0','a'],['wh1','b']].forEach(([id,k])=>{const w=document.getElementById(id);w.scrollTop=WV[k]*WH;let raf=0;
+    w.addEventListener('scroll',()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{const v=clamp(Math.round(w.scrollTop/WH),0,+w.dataset.n-1);if(v!==WV[k]){WV[k]=v;w.setAttribute('aria-valuenow',v);sfx.tick(.4);buzz(3);wheelRead()}})},{passive:true});
+    w.addEventListener('keydown',e=>{const d={ArrowUp:-1,ArrowDown:1}[e.key];if(d){e.preventDefault();w.scrollTop=clamp(WV[k]+d,0,+w.dataset.n-1)*WH}})});
+  wheelRead()};
+ACT.qwsave=el=>{const b=baby(el.dataset.b),kg=wheelKg(),d=$('#qwd').value||dayKey(new Date());if(!(kg>0.4)){toast('Scroll to a weight first.');return}
   const prev=[...(b.weights||[])].filter(w=>w.d<d).sort((x,y)=>x.d<y.d?1:-1)[0];
   b.weights=(b.weights||[]).filter(w=>w.d!==d);b.weights.push({d,kg});save();closeSheet();keepScroll();sfx.fanfare();buzz([20,40,30]);Z.mood(b.id,'jump',1900);
-  toast(`${b.name}: ${fmtW(kg)} saved.${prev?' '+(kg>=prev.kg?'Up ':'Down ')+Math.abs(Math.round((kg-prev.kg)*1000))+' g since '+shortDay(prev.d)+'.':''}`)};
+  toast(`${b.name}: ${fmtW(kg)} saved.${prev?' '+gainTxt(kg-prev.kg)+' since '+shortDay(prev.d)+'.':''}`)};
 ACT.diaper=el=>{const b=baby(el.dataset.b),k=el.dataset.k,e={id:uid(),type:'diaper',t:Date.now(),b:b.id,kind:k};S.log.push(e);save();
   const wet=logOn('diaper',new Date()).filter(x=>x.b===b.id&&x.kind!=='dirty').length;keepScroll();buzz(12);
   const undo={label:'Undo',fn:()=>{S.log=S.log.filter(x=>x.id!==e.id);save();keepScroll()}};
@@ -1157,8 +1181,7 @@ function weightCard(b){
   const now=new Date(),logs=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1);
   return `<div class="card" style="--c:${b.color}"><h2>Weight <small>${logs.length?fmtW(logs[0].kg)+' now':'add weigh-ins below'}</small></h2>
       ${weightChart(b)}
-      <div class="two wrap"><div><label class="f" style="margin-top:0">Weight</label>${weightFields('w',null)}</div><div><label class="f" style="margin-top:0">Date</label><input type="date" id="wd" value="${dayKey(now)}" max="${dayKey(now)}"></div></div>
-      <button class="btn c" style="--c:${b.color};margin-top:12px;padding:12px" data-act="addw">Add weight</button>
+      <button class="btn c" style="--c:${b.color};padding:12px" data-act="qweight" data-b="${b.id}">Add a weigh-in</button>
       ${logs.map(w=>`<div class="feed"><span class="grow"><b>${fmtW(w.kg)}</b> <span class="muted">· ${parseDay(w.d).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})}</span></span><button class="link" data-act="delw" data-d="${w.d}" style="padding:0">remove</button></div>`).join('')}</div>`;
 }
 function weightChart(b){
