@@ -208,6 +208,8 @@ textarea::placeholder{color:inherit;opacity:.6}
 .also .cap{display:block;margin-bottom:6px;color:var(--gold)}
 /* done */
 .done h2{font-size:56px;letter-spacing:-.05em;margin:0 0 18px}
+.done h2{transform-origin:0 80%}.done h2.beat{animation:beatp .34s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes beatp{0%{transform:scale(var(--bs,1.1)) rotate(-1.5deg)}100%{transform:none}}
 .harkbig{width:230px;height:170px;display:block;margin:10px 0 0 -14px;touch-action:manipulation}
 .done .stats{border-top:2px solid var(--rule);border-bottom-color:var(--rule);margin:0 -20px}
 .done .stats div+div{border-left-color:var(--rule)}

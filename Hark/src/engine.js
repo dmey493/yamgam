@@ -3,6 +3,7 @@ let AC=null;
 function tone(f,d,type,vol,when,slide){if(!S.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+(when||0);o.type=type||"triangle";o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d)}catch(e){}}
 /* Festive sounds made in ElevenLabs (audio/sfx-*.mp3). Tried next to the page first, then the repo on GitHub.
    If a file has not loaded, the old synth beep plays instead. */
+const FINALE_HITS=[[.39,.93],[.81,.67],[1.23,.45],[1.67,.58],[2.09,.66],[2.51,.6],[2.97,1]];
 const SFX_BASES=["audio/","https://raw.githubusercontent.com/dmey493/yamgam/hark/Hark/audio/"],SFXB={};let sfxOn=false,finaleSrc=null;
 function sfxLoad(){if(sfxOn)return;sfxOn=true;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
  ["bell","scurry","sparkle","finale"].forEach(n=>{const go=i=>{if(i>=SFX_BASES.length)return;fetch(SFX_BASES[i]+"sfx-"+n+".mp3").then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(b=>new Promise((ok,no)=>AC.decodeAudioData(b,ok,no))).then(buf=>{SFXB[n]=buf}).catch(()=>go(i+1))};go(0)})}
@@ -11,7 +12,12 @@ const sfx={tap:()=>{sample("bell",.55)||tone(520,.07,"square",.05)},
  step:()=>{sample("scurry",.9)||(tone(660,.1),tone(880,.14,"triangle",.1,.08))},
  toot:()=>{sample("bell",.8)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
  burst:()=>{sample("sparkle")||([523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07)),tone(90,.25,"sine",.25,0,40))},
- finale:()=>{sfx.hush();finaleSrc=sample("finale",.85);if(!finaleSrc)sfx.burst()},
+ /* Finale: hits found in sfx-finale.mp3 with librosa (onset detection, ~143 BPM): [second, strength].
+    onBeat(k,strength,last) fires on each hit, timed by the audio clock so moves stay on the beat. */
+ finale:onBeat=>{sfx.hush();finaleSrc=sample("finale",.85);let clock;
+  if(finaleSrc&&AC.state==="running"){const t0=AC.currentTime+(AC.outputLatency||AC.baseLatency||0);clock=()=>AC.currentTime-t0}
+  else{if(!finaleSrc)sfx.burst();const t0=performance.now();clock=()=>(performance.now()-t0)/1000}
+  if(!onBeat)return;let k=0;const go=()=>{const t=clock();while(k<FINALE_HITS.length&&t>=FINALE_HITS[k][0]){onBeat(k,FINALE_HITS[k][1],k===FINALE_HITS.length-1);k++}if(k<FINALE_HITS.length)requestAnimationFrame(go)};requestAnimationFrame(go)},
  hush:()=>{if(finaleSrc){try{finaleSrc.stop()}catch(e){}finaleSrc=null}}};
 sfxLoad();
 const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
