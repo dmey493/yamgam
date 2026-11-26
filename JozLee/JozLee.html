@@ -351,7 +351,37 @@ nav button.tab.on{color:var(--sun)}
 .fab:active{transform:scale(.9) rotate(90deg)}
 .iconbtn{border:2.5px solid var(--edge)}
 .onb .card{border-top-width:2.5px}
-/* ── quick cards on Today ── */
+/* ── Today on one screen ── */
+body[data-view=today] #app{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+body[data-view=today] .top{padding-block:10px 8px}
+body[data-view=today] #snd{top:6px}
+body[data-view=today] .scene{padding:0 max(16px,env(safe-area-inset-left,0px)) 0 max(16px,env(safe-area-inset-right,0px))}
+.foals{display:grid;gap:10px;justify-items:center;align-items:end}
+body[data-view=today] .foal{max-width:none;width:100%;padding-bottom:12px}
+body[data-view=today] .foal svg{width:auto;max-width:100%;height:clamp(56px,calc(100dvh - 535px),215px)}
+body[data-view=today] .tag{width:100%;max-width:none;padding:6px 8px 8px}
+.cols{display:grid;gap:10px;margin-top:12px}
+.col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.st{display:flex;flex-direction:column;gap:1px;text-align:left;padding:2px 4px;font-size:13px;min-width:0}
+.st b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st .due{font-size:13px}
+.dz{font-weight:700;color:var(--soft);white-space:nowrap}
+.dz i{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 3px 0 0}.dz i+i,.dz i:nth-of-type(2){margin-left:6px}
+.qb{display:flex;align-items:center;justify-content:center;gap:7px;height:46px;border-radius:15px;background:#fff;border:2px solid var(--edge);box-shadow:0 4px 0 var(--edge);font-weight:800;font-size:14.5px;min-width:0;width:100%;transition:transform .08s,box-shadow .08s}
+.qb svg{width:22px;height:22px;flex:none}
+.qb:active{transform:translateY(4px);box-shadow:0 0 0 var(--edge)}
+.qb.pri{height:52px;background:var(--c);border-color:var(--c);color:#fff;font-size:16px;box-shadow:0 4px 0 color-mix(in srgb,var(--c) 72%,#000)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wrow{display:flex;gap:6px;height:46px;align-items:stretch}
+.wrow .two{flex:1;gap:6px;min-width:0}.wrow input{height:46px;padding:4px 6px;text-align:center;font-weight:700;border-color:var(--c)}
+.wrow .ok{flex:none;width:44px;border-radius:14px;background:var(--good);color:#fff;display:grid;place-items:center;box-shadow:0 4px 0 color-mix(in srgb,var(--good) 70%,#000)}
+.wrow .ok svg{width:22px;height:22px;stroke-width:3}
+.cols.n3 .qb{font-size:12.5px;gap:4px}.cols.n3 .pair .qb{flex-direction:column;gap:0;height:50px;font-size:11.5px}.cols.n3 .qb svg{width:19px;height:19px}.cols.n3 .st{font-size:11.5px}.cols.n3 .st b{font-size:13px}
+.cols.n1{max-width:340px;margin-inline:auto}
+@media (max-width:350px){.pair{gap:6px}.pair .qb{font-size:13px;gap:3px}.pair .qb svg{width:18px;height:18px}.cols{gap:8px}}
+.demoline{text-align:center;font-size:13px;font-weight:700;color:var(--soft);margin:12px 0 0}
+.toast{bottom:auto;top:calc(58px + env(safe-area-inset-top,0px))}
+/* ── quick cards (legacy sheet bits) ── */
 body[data-view=today] .scene{padding-top:6px}
 body[data-view=today] .foal svg{max-width:108px}
 body[data-view=today] .foal{padding-bottom:14px}
@@ -796,32 +826,38 @@ function viewToday(){
     return `<button class="foal" data-act="log" data-b="${b.id}" style="--c:${b.color}" aria-label="Log a feed for ${esc(b.name)}">
       ${zebraSVG(b.id,b.color,night?'sleepy':p>=1?'happy':'')}
       <div class="tag"><b>${esc(b.name)}</b><span><i>${amt(d,false)}</i> / ${goalAmt(t.ml)} ${S.babies.length<3?' · '+Math.round(p*100)+'%':''}</span><em class="pbar"><i style="width:${clamp(p,0,1)*100}%"></i></em></div></button>`}).join('');
-  const t0=+startOf(now),items=[...S.feeds.filter(f=>f.t>=t0).map(f=>({t:f.t,f})),...S.log.filter(e=>e.type==='diaper'&&e.t>=t0&&S.babies.some(b=>b.id===e.b)).map(e=>({t:e.t,e}))].sort((x,y)=>y.t-x.t);
-  const latest=items.slice(0,4).map(it=>{const b=baby(it.f?it.f.b:it.e.b);
-    return it.f?feedRow(it.f,b,true):`<button class="feed" data-act="dlist" data-b="${b.id}" style="--c:${b.color}"><span class="t">${timeStr(it.e.t)}</span><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b> <span class="muted">· diaper</span><br><span class="fd">${DK[it.e.kind]}</span></span></button>`}).join('');
+  const n=S.babies.length,grid=`style="grid-template-columns:repeat(${n},minmax(0,1fr))"`;
   return `<div class="scene ${night?'night':''}"><i class="sun"></i><i class="cloud"></i><i class="cloud b"></i>${stars}
       <svg class="hills" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 60Q90 10 200 50T400 40V120H0z" fill="var(--hill1)"/><path d="M0 90Q120 50 240 84T400 74V120H0z" fill="var(--hill2)"/></svg>
-      <div class="foals">${foals}</div></div>
-    ${S.demo?`<div class="note">These are sample twins so you can look around. <button class="link" style="padding:0" data-act="undemo">Start with my own babies</button></div>`:''}
-${timerCard()}
-    ${S.babies.map(b=>quickCard(b,now)).join('')}
-    <div class="card"><h2>Latest <small>${items.length} logged today</small></h2>${latest||`<p class="muted" style="margin:0">Nothing logged yet today. Use the buttons above after a feed or a diaper.</p>`}
-      <button class="btn alt" style="padding:11px;margin-top:12px" data-act="gostats">See the whole day and history</button></div>`;
+      <div class="foals" ${grid}>${foals}</div></div>
+    <div class="cols n${n}" ${grid}>${S.babies.map(b=>babyCol(b,now)).join('')}</div>
+    ${S.demo?`<p class="demoline">Sample twins. <button class="link" style="padding:0" data-act="undemo">Start with my own babies</button></p>`:''}`;
 }
 after.today=()=>S.babies.forEach(b=>Z.set(b.id,drankOn(b.id,new Date())/target(b).ml));
 /* ── diapers ── */
-/* one compact card per baby: status on top, the three things you log most underneath */
-function quickCard(b,now){
-  const t=target(b,now),last=lastFeed(b.id),ago=last?Math.round((now-last.t)/6e4):null,du=dueInfo(b);
+/* Today is one screen, no scrolling: a column per baby, right under its zebra.
+   Diapers log with one tap, weight is typed in place, a feed opens the bottle. */
+let wOpen=null;
+function babyCol(b,now){
+  const last=lastFeed(b.id),ago=last?Math.round((now-last.t)/6e4):null,du=dueInfo(b),tm=S.timer&&S.timer.b===b.id;
   const es=logOn('diaper',now).filter(e=>e.b===b.id),wet=es.filter(e=>e.kind!=='dirty').length,dirty=es.filter(e=>e.kind!=='wet').length;
-  const per=t.src==='set'&&b.ov&&b.ov.mode==='feed'?amt(b.ov.ml):'≈ '+goalAmt(t.per);
-  const q=(act,icon,lab,extra='')=>`<button data-act="${act}" data-b="${b.id}" ${extra}>${ic(icon)}<span>${lab}</span></button>`;
-  return `<div class="card qc" style="--c:${b.color}">
-    <button class="row" data-act="dlist" data-b="${b.id}" style="width:100%;text-align:left" aria-label="See today for ${esc(b.name)}"><span class="dot"></span><b class="grow qn">${esc(b.name)}</b>
-      <span class="dots" aria-hidden="true">${Array.from({length:6},(_,i)=>`<i class="${i<wet?'on':''}"></i>`).join('')}</span><span class="muted">${wet} wet · ${dirty} dirty</span></button>
-    <div class="qs muted">${ago==null?'No feeds yet':ago>2880?'Last fed '+Math.floor(ago/1440)+' days ago':'Fed '+dur(ago)+' ago'}${du?` · <span class="due muted ${du.cls}" data-due="${b.id}">${du.text}</span>`:''}</div>
-    <div class="qa">${q('log','bottle','Feed','class="pri"')}${q('diaper','drop','Wet','data-k="wet"')}${q('diaper','dirty','Dirty','data-k="dirty"')}${q('qweight','scale','Weight')}</div></div>`;
+  const qb=(act,icon,lab,extra='',cls='')=>`<button class="qb ${cls}" data-act="${act}" data-b="${b.id}" ${extra}>${ic(icon)}<span>${lab}</span></button>`;
+  return `<div class="col" style="--c:${b.color}">
+    <button class="st" data-act="dlist" data-b="${b.id}" aria-label="See today for ${esc(b.name)}">
+      <b>${ago==null?'No feeds yet':ago>2880?'Fed '+Math.floor(ago/1440)+' days ago':'Fed '+dur(ago)+' ago'}</b>
+      <span class="due muted ${du?du.cls:''}" data-due="${b.id}">${du?du.text:'&nbsp;'}</span>
+      <span class="dz"><i style="background:${DCOL.wet}"></i>${wet} wet <i style="background:${DCOL.dirty}"></i>${dirty} dirty</span></button>
+    ${tm?`<button class="qb pri" data-act="tstop">${ic('check')}<span>Stop · <span id="tclock">${clock(Date.now()-S.timer.start)}</span></span></button>`:qb('log','bottle','Feed','','pri')}
+    <div class="pair">${qb('diaper','drop','Wet','data-k="wet"')}${qb('diaper','dirty','Dirty','data-k="dirty"')}</div>
+    ${wOpen===b.id?`<div class="wrow">${weightFields('iw',null)}<button class="ok" data-act="iwsave" data-b="${b.id}" aria-label="Save weight">${ic('check')}</button></div>`:qb('iweight','scale','Weight')}</div>`;
 }
+ACT.iweight=el=>{if(S.babies.length>2){ACT.qweight(el);return}wOpen=el.dataset.b;keepScroll();const f=$('.wrow input');f&&f.focus()};
+ACT.iwsave=el=>{const b=baby(el.dataset.b),kg=readWeight('iw'),d=dayKey(new Date());wOpen=null;
+  if(!kg){keepScroll();return}
+  const prev=[...(b.weights||[])].filter(w=>w.d<d).sort((x,y)=>x.d<y.d?1:-1)[0];
+  b.weights=(b.weights||[]).filter(w=>w.d!==d);b.weights.push({d,kg});save();keepScroll();sfx.fanfare();buzz([20,40,30]);Z.mood(b.id,'jump',1900);
+  toast(`${b.name}: ${fmtW(kg)} saved.${prev?' '+(kg>=prev.kg?'Up ':'Down ')+Math.abs(Math.round((kg-prev.kg)*1000))+' g since '+shortDay(prev.d)+'.':''}`)};
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.closest&&e.target.closest('.wrow')){const k=$('.wrow .ok');k&&k.click()}});
 ACT.qweight=el=>{const b=baby(el.dataset.b),ws=[...(b.weights||[])].sort((x,y)=>x.d<y.d?1:-1),now=new Date();
   openSheet(`<h2>${esc(b.name)}'s weight</h2><p class="muted" style="margin:0 0 4px">${ws.length?'Last: '+fmtW(ws[0].kg)+' on '+shortDay(ws[0].d)+'.':'No weigh-ins yet.'}</p>
     <label class="f">Weight</label>${weightFields('qw',null)}<label class="f">Date</label><input type="date" id="qwd" value="${dayKey(now)}" max="${dayKey(now)}">
@@ -852,7 +888,7 @@ function timerCard(){const tm=S.timer;if(!tm||!S.babies.some(b=>b.id===tm.b))ret
   return `<div class="card" style="--c:${b.color}"><div class="row"><span class="live"></span><b class="grow">Nursing ${esc(b.name)}</b><span class="fd" id="tclock" style="font-size:28px">${clock(Date.now()-tm.start)}</span></div>
     <div class="two" style="margin-top:12px"><button class="btn c" style="--c:${b.color};padding:12px" data-act="tstop">Stop &amp; log</button><button class="btn alt" style="padding:12px" data-act="tcancel">Cancel</button></div></div>`}
 setInterval(()=>{const el=document.getElementById('tclock');if(el&&S&&S.timer)el.textContent=clock(Date.now()-S.timer.start)},1000);
-ACT.tstart=()=>{keepTime();S.timer={b:L.b,start:Date.now(),side:L.side};lsSave();closeSheet();tab='today';render();window.scrollTo(0,0);sfx.bloop();toast(`Timer started for ${baby(S.timer.b).name}.`)};
+ACT.tstart=()=>{keepTime();wOpen=null;S.timer={b:L.b,start:Date.now(),side:L.side};lsSave();closeSheet();tab='today';render();window.scrollTo(0,0);sfx.bloop();toast(`Timer started for ${baby(S.timer.b).name}.`)};
 ACT.tstop=()=>{const tm=S.timer;S.timer=null;lsSave();render();openLog(tm.b,null,{kind:'nu',min:clamp(Math.round((Date.now()-tm.start)/6e4),1,120),t:tm.start,side:tm.side})};
 ACT.tcancel=()=>{S.timer=null;lsSave();keepScroll()};
 
