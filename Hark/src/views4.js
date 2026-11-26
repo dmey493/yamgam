@@ -15,7 +15,7 @@ function zoom(a,b,c1,c2,done){if(matchMedia("(prefers-reduced-motion:reduce)").m
  const tf=r=>`translate(${r.left}px,${r.top}px) scale(${r.width/innerWidth},${r.height/innerHeight})`;
  z.animate([{transform:tf(a),background:c1,borderRadius:"48px"},{transform:tf(b),background:c2,borderRadius:"0px"}],{duration:460,easing:"cubic-bezier(.55,0,.1,1)",fill:"forwards"}).onfinish=()=>{done&&done();z.animate([{opacity:1},{opacity:0}],{duration:240,fill:"forwards"}).onfinish=()=>{z.remove();busy=false}}}
 const FULL=()=>({left:0,top:0,width:innerWidth,height:innerHeight});
-function enterNight(n,el){if(flow&&flow.auto)clearTimeout(flow.auto);if(busy)return;if(harks[0]){harks[0].crouch=.1;harks[0].mood="happy";harks[0].moodT=1}const tile=document.querySelector(`.door[data-n="${n}"]`)||el;tile.scrollIntoView({block:"nearest"});const r=tile.getBoundingClientRect();sfx.tap();buzz(12);zoom(r,FULL(),getComputedStyle(tile).backgroundColor,"#0F5C3F",()=>startNight(n))}
+function enterNight(n,el){if(flow&&flow.auto)clearTimeout(flow.auto);if(busy)return;if(harks[0]){harks[0].crouch=.1;harks[0].mood="happy";harks[0].moodT=1}const tile=document.querySelector(`.door[data-n="${n}"]`)||el;tile.scrollIntoView({block:"nearest"});const r=tile.getBoundingClientRect();sfx.carol(0);buzz(12);zoom(r,FULL(),getComputedStyle(tile).backgroundColor,"#0F5C3F",()=>startNight(n))}
 function leaveNight(flip){if(busy)return;const n=flow.n,ne=document.querySelector(".night"),c=ne?getComputedStyle(ne).backgroundColor:"#0F5C3F";if(flip)render.flip=n;tab="home";closeFlow();const tile=document.querySelector(`.door[data-n="${n}"]`);if(!tile)return;tile.scrollIntoView({block:"center"});const r=tile.getBoundingClientRect();zoom(FULL(),r,c,tile.classList.contains("done")?getComputedStyle(tile).getPropertyValue("--wk").trim():getComputedStyle(tile).backgroundColor,()=>{const h=harks[0];if(h&&flip)harkCheer(h)})}
 const dow=n=>{const d=new Date(START);d.setDate(d.getDate()+n-1);return d.toLocaleDateString(undefined,{weekday:"short"})+" "+d.getDate()};
 const weekNo=n=>Math.max(1,UNITS.filter(u=>u.f<=n).length);
@@ -79,7 +79,7 @@ function setupReader(){const spans=[...document.querySelectorAll("#read span")];
  flow.cleanup=()=>{set(false);if(audio)audio.pause()}}
 function rumble(k,cls){const el=$(".night .in");if(!el)return;el.style.setProperty("--amp",(3+11*k).toFixed(1)+"px");el.classList.remove("shake","quake");void el.offsetWidth;el.classList.add(cls||"shake")}
 function setupGift(){const leaf=$("#leaf"),frame=$("#frame"),hk=makeHark($("#harkgift"),1);hk.tx=1;hk.ty=-.2;flow.ghark=hk;const need=()=>flow.mode==="shake"?5:3;
- const progress=()=>{flow.taps++;const k=flow.taps/need();carolPhrase(.55+k*.3)||tone(180+k*220,.18,"sawtooth",.08);buzz([25+35*k,25,25+45*k]);rumble(k);leaf.style.transform=`rotateY(${-k*46}deg)`;frame.classList.remove("bump");void frame.offsetWidth;frame.classList.add("bump");const r=frame.getBoundingClientRect();burst(r.right-6,r.top+r.height/2,Math.round(8+16*k));hk.idle=0;hk.sq.v=-5;hk.ear.v=320;hk.mood="wow";hk.moodT=.7;if(flow.taps===need()-1)hk.crouch=.2;if(flow.taps>=need())openGift()};
+ const progress=()=>{flow.taps++;const k=flow.taps/need();bellRise(k,.5+k*.3)||tone(180+k*220,.18,"sawtooth",.08);buzz([25+35*k,25,25+45*k]);rumble(k);leaf.style.transform=`rotateY(${-k*46}deg)`;frame.classList.remove("bump");void frame.offsetWidth;frame.classList.add("bump");const r=frame.getBoundingClientRect();burst(r.right-6,r.top+r.height/2,Math.round(8+16*k));hk.idle=0;hk.sq.v=-5;hk.ear.v=320;hk.mood="wow";hk.moodT=.7;if(flow.taps===need()-1)hk.crouch=.2;if(flow.taps>=need())openGift()};
  flow.giftTap=()=>{if(flow.opened)return;if(flow.mode!=="hold")progress()};
  let down=false,tick=0;const el=$("#gift");const dn=()=>{down=true},up=()=>{down=false};el.addEventListener("pointerdown",dn);addEventListener("pointerup",up);addEventListener("pointercancel",up);
  let lastShake=0;const mo=e=>{const a=e.accelerationIncludingGravity;if(!a||flow.opened||flow.mode!=="shake")return;const m=Math.abs(a.x||0)+Math.abs(a.y||0)+Math.abs(a.z||0);const now=Date.now();if(m>32&&now-lastShake>280){lastShake=now;progress()}};addEventListener("devicemotion",mo);
@@ -88,9 +88,9 @@ function setupGift(){const leaf=$("#leaf"),frame=$("#frame"),hk=makeHark($("#har
 function openGift(){if(flow.opened)return;flow.opened=true;flow.tick=null;const x=flow.x,n=flow.n,leaf=$("#leaf"),frame=$("#frame"),hk=flow.ghark;frame.style.animation="none";
  const r=frame.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
  // 1. Hark blows his trumpet, everything rumbles
- sfx.toot();if(hk){hk.mood="happy";hk.moodT=3;harkCheer(hk)}rumble(1,"quake");buzz([30,30,30,30,40,30,60,40,180]);if(!SFXB.sparkle)tone(70,.9,"sine",.3,0,35);
+ sfx.carol(6,.85);if(hk){hk.mood="happy";hk.moodT=3;harkCheer(hk)}rumble(1,"quake");buzz([30,30,30,30,40,30,60,40,180]);if(!SFXB.sparkle)tone(70,.9,"sine",.3,0,35);
  // 2. the door is blown off its hinge
- setTimeout(()=>{leaf.classList.add("blast");const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),600);sfx.burst();burst(cx,cy,140);setTimeout(()=>{burst(0,innerHeight*.7,50);burst(innerWidth,innerHeight*.7,50)},180)},420);
+ setTimeout(()=>{leaf.classList.add("blast");const fl=document.createElement("div");fl.className="flash";document.body.appendChild(fl);setTimeout(()=>fl.remove(),600);if(!SFXB.bell)sfx.burst();burst(cx,cy,140);setTimeout(()=>{burst(0,innerHeight*.7,50);burst(innerWidth,innerHeight*.7,50)},180)},420);
  S.done[n]=true;save();
  // 3. the card lands, Hark celebrates beside it
  setTimeout(()=>{if(!flow||flow.n!==n)return;rumble(.5);buzz(60);$(".night .step").innerHTML="<span>Behind tonight's door</span>";$(".night .stage").innerHTML=`<div class="prize"><svg class="phark" viewBox="-112 -150 224 170" aria-hidden="true" id="harkprize" data-act="pokedone"></svg>${cardHtml(n,x)}</div>`;const h=makeHark($("#harkprize"),1);flow.hark=h;setTimeout(()=>harkCheer(h),150);flow.auto=setTimeout(()=>{if(flow&&flow.n===n&&STEPS[flow.step]==="gift")nextStep()},2600)},1050)}
@@ -111,7 +111,7 @@ function transit(name,swap){const t=NEXT[name];if(!t||matchMedia("(prefers-reduc
  let k=0;const pat=setInterval(()=>{if(!SFXB.scurry)tone(260+(k++%2)*90,.035,"square",.035)},name==="prayer"?170:85);buzz(name==="prayer"?[8,160,8,160,8,160,8]:[8,70,8,70,8,70,8,70,8]);if(!SFXB.scurry)tone(520,.35,"sine",.05,0,180);
  ca.onfinish=()=>{swap();c.remove()};
  ra.onfinish=()=>{clearInterval(pat);r.remove();busy=false}}
-function nextStep(){if(busy)return;const name=STEPS[flow.step]||"done";if(name==="prayer"){const t=($("#pnote")||{}).value;if(t&&t.trim()){S.prayers.push({n:flow.n,text:t.trim(),ans:false});save()}}sfx.step();const nx=STEPS[flow.step+1]||"done";if(flow.shark){flow.shark.crouch=.12}transit(nx,()=>{flow.step++;renderFlow()})}
+function nextStep(){if(busy)return;const name=STEPS[flow.step]||"done";if(name==="prayer"){const t=($("#pnote")||{}).value;if(t&&t.trim()){S.prayers.push({n:flow.n,text:t.trim(),ans:false});save()}}if(flow.step<STEPS.length-1)sfx.carol(flow.step+1);const nx=STEPS[flow.step+1]||"done";if(flow.shark){flow.shark.crouch=.12}transit(nx,()=>{flow.step++;renderFlow()})}
 
 /* ===================== EVENTS ===================== */
 document.addEventListener("click",e=>{const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;if(a==="who"){const tl=t.closest(".tlx");if(tl&&performance.now()-(tl._dragT||0)<300)return;openWho(+t.dataset.i,t);return}if(a==="whoclose"){closeWho();return}

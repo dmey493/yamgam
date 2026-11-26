@@ -15,19 +15,27 @@ const CAROL=[
  [[62,1],[67,1],[67,.5],[69,.5],[67,.5],[66,.5],[64,1],[64,1]],                // We wish you a merry Christmas
  [[64,1],[69,1],[69,.5],[71,.5],[69,.5],[67,.5],[66,1],[62,1]],                // we wish you a merry Christmas
  [[62,1],[71,1],[71,.5],[72,.5],[71,.5],[69,.5],[67,1],[64,1],[62,.5],[62,.5]],// we wish you a merry Christmas and a
- [[64,1],[69,1],[66,1],[67,2]]],                                               // happy New Year
+ [[64,1],[69,1],[66,1],[67,2]],                                                // happy New Year
+ [[62,1],[67,1],[67,1],[67,1],[66,2],[66,1],[67,1],[66,1],[64,1],[62,2]],      // Good tidings we bring to you and your kin
+ [[69,1],[71,1],[69,1],[67,1],[74,1],[62,1],[62,.5],[62,.5],[64,1],[69,1],[66,1],[67,2]], // good tidings for Christmas and a happy New Year
+ [[62,1],[71,1],[71,.5],[72,.5],[71,.5],[69,.5],[67,1],[64,1],[62,.5],[62,.5],[64,1],[69,1],[66,1],[67,2]]], // we wish you a merry Christmas and a happy New Year
+ CAROL_TAPS=4,
  CAROL_UP=33,BEAT=.26,BELL_MIDI=98.97;
 let carI=0,carT=0,carSrcs=[];
 function bellAt(m,vol,when){if(!S.sound)return null;sfxLoad();const b=SFXB.bell;if(!b||!AC)return null;try{if(AC.state==="suspended")AC.resume();const src=AC.createBufferSource(),g=AC.createGain();src.buffer=b;src.playbackRate.value=Math.pow(2,(m-BELL_MIDI)/12);g.gain.value=vol;src.connect(g);g.connect(AC.destination);src.start(AC.currentTime+(when||0));return src}catch(e){return null}}
-function carolPhrase(vol){const now=performance.now();if(now-carT>8000)carI=0;carT=now;
- carSrcs.forEach(x=>{try{x.stop()}catch(e){}});carSrcs=[];let t=0;
- for(const [m,b] of CAROL[carI%CAROL.length]){const x=bellAt(m+CAROL_UP,vol||.7,t);if(!x)return null;carSrcs.push(x);t+=b*BEAT}
- carI++;return carSrcs[0]}
+/* play phrase i (stopping any phrase still ringing) */
+function carolAt(i,vol){carSrcs.forEach(x=>{try{x.stop()}catch(e){}});carSrcs=[];let t=0;
+ for(const [m,b] of CAROL[i]){const x=bellAt(m+CAROL_UP,vol||.7,t);if(!x)return null;carSrcs.push(x);t+=b*BEAT}return carSrcs[0]}
+/* outside a night: each tap plays the next of the first four phrases (the chorus) */
+function carolPhrase(vol){const now=performance.now();if(now-carT>8000)carI=0;carT=now;const s=carolAt(carI%CAROL_TAPS,vol);if(s)carI++;return s}
+/* inside a night: a single bell note, so small taps don't jump ahead in the song */
+const DING=[71,76,80,83,88];let dingI=0;const ding=vol=>bellAt(DING[dingI++%DING.length]+12,vol||.45);
 /* single bell notes rising with k (0..1), for holding the gift */
-const bellRise=(k,vol)=>bellAt(Math.round(93+k*12),vol);
-const sfx={tap:()=>{carolPhrase(.7)||tone(520,.07,"square",.05)},
+const RISE=[88,90,92,95,97,100,102,104];const bellRise=(k,vol)=>bellAt(RISE[Math.min(RISE.length-1,Math.round(k*(RISE.length-1)))],vol); /* E major pentatonic, in key with the carol */
+const sfx={tap:()=>{(flow?ding():carolPhrase(.7))||tone(520,.07,"square",.05)},
  step:()=>{sample("scurry",.9)||(tone(660,.1),tone(880,.14,"triangle",.1,.08))},
- toot:()=>{carolPhrase(.8)||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
+ carol:(i,vol)=>carolAt(Math.min(i,CAROL.length-1),vol||.75),
+ toot:()=>{(flow?ding(.6):carolPhrase(.8))||(tone(392,.12,"sawtooth",.07),tone(523,.12,"sawtooth",.07,.12),tone(784,.3,"sawtooth",.08,.24))},
  burst:()=>{sample("sparkle")||([523,659,784,1047,1319].forEach((f,i)=>tone(f,.35,"triangle",.11,i*.07)),tone(90,.25,"sine",.25,0,40))},
  /* Finale: hits found in sfx-finale.mp3 with librosa (onset detection, ~143 BPM): [second, strength].
     onBeat(k,strength,last) fires on each hit, timed by the audio clock so moves stay on the beat. */
