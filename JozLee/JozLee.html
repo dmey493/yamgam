@@ -477,6 +477,26 @@ label.f.lrow{display:flex;justify-content:space-between;align-items:baseline}
 .readout svg.zebra{width:auto;height:max(0px,calc(var(--ph) - 88px));margin:4px auto 0}
 @media (max-height:720px){.readout svg.zebra{display:none}}
 .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px))}
+/* ── speed: quick transitions, and idle motion that stays off the main thread ── */
+html{touch-action:manipulation}
+.foal .tag{overflow:hidden}.foal .tag span{display:block;overflow:hidden;text-overflow:ellipsis}
+.sheet{transition:transform .22s cubic-bezier(.2,.9,.3,1),visibility 0s .22s;will-change:transform}
+.sheet.on{transition:transform .22s cubic-bezier(.2,.9,.3,1),visibility 0s}
+.scrim{transition:opacity .14s}
+.card{animation-duration:.2s;animation-delay:0s!important}
+.cele{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(255,255,255,.97)}
+.cele.on{animation-duration:.14s}
+.pbar i{transition:width .45s cubic-bezier(.2,.9,.3,1)}
+.z-wave{animation:none}
+.z-all{animation:none}
+svg.zebra{animation:bob 3.2s ease-in-out infinite;transform-origin:50% 96%;will-change:transform}
+.z-tail{animation:wag2 5.5s ease-in-out infinite}
+@keyframes wag2{0%,72%,100%{transform:rotate(-8deg)}79%{transform:rotate(14deg)}86%{transform:rotate(-6deg)}93%{transform:rotate(11deg)}}
+.cloud{animation-name:drift2;will-change:transform}.cloud.b{animation-name:drift2b}
+@keyframes drift2{to{transform:translateX(640px)}}
+@keyframes drift2b{from{transform:scale(.7)}to{transform:translateX(640px) scale(.7)}}
+.night .sun,.sun{animation:none}
+.slot,.qa button,.pill,.btn,.nudge,.stepper button{will-change:transform}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -530,7 +550,10 @@ const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</
 const KEY='milkzebra.v1';
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-const lsSave=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let lsT=0;
+const lsFlush=()=>{clearTimeout(lsT);lsT=0;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const lsSave=()=>{if(!lsT)lsT=setTimeout(lsFlush,200)};   // keeps taps instant; flushed on hide/close below
+addEventListener('pagehide',lsFlush);document.addEventListener('visibilitychange',()=>{if(document.hidden)lsFlush()});
 function blank(){return{v:1,unit:'ml',wUnit:'kg',sound:true,quietNights:true,bagMl:150,bufferPct:5,stashMl:null,thawed:{},babies:[],feeds:[],log:[],bags:[],remindH:3,sel:null}}
 let tab='today';
 const baby=id=>S.babies.find(b=>b.id===id)||S.babies[0];
@@ -557,7 +580,7 @@ function save(){
       S[c].forEach(f=>{ids.add(f.id);if(last[c].get(f.id)!==stable(f)){q.up[f.id]=1;delete q.del[f.id]}});
       last[c].forEach((v,id)=>{if(!ids.has(id)){q.del[id]=1;delete q.up[id]}})});
     if(stable(sharedObj())!==lastState)S.pendState=1}
-  snapLocal();lsSave();push();
+  if(window.claude)snapLocal();lsSave();push();
 }
 function unpend(c,id){const q=pendOf()[c];delete q.up[id];delete q.del[id];lsSave()}
 function wfail(e){if(e&&(e.code==='invalid_argument'||e.code==='not_granted'||e.code==='revoked')&&sync!=='readonly'){sync='readonly';S.pendState=0;S.pend=null;lsSave();toast("You have view-only access, so changes made here aren't shared.")}}
@@ -726,7 +749,7 @@ function slotsBetween(b,from,to){const sc=sched(b),out=[];if(!sc)return out;cons
 const slotList=b=>{const ev=Math.max(30,sched(b).every||180)*6e4,n=Date.now();return slotsBetween(b,n-30*36e5,n+ev)};
 const nearestSlot=list=>{const n=Date.now()+20*6e4;let bi=0;list.forEach((t,i)=>{if(t<=n)bi=i});return bi};
 const slotDay=t=>{const k=dayKey(t),n=new Date();return k===dayKey(n)?'Today':k===dayKey(addDays(n,-1))?'Yesterday':k===dayKey(addDays(n,1))?'Tomorrow':new Date(t).toLocaleDateString([], {weekday:'short'})};
-const lastFeed=bid=>S.feeds.filter(f=>f.b===bid).sort((x,y)=>y.t-x.t)[0];
+const lastFeed=bid=>{let m;for(const f of S.feeds)if(f.b===bid&&(!m||f.t>m.t))m=f;return m};
 const dur=m=>m<60?m+' min':Math.floor(m/60)+'h '+pad(m%60)+'m';
 const toMl=v=>v*(S.unit==='oz'?OZ:1);
 const logOn=(type,date)=>{const a=+startOf(date),z=a+DAY;return S.log.filter(e=>e.type===type&&e.t>=a&&e.t<z)};
@@ -802,7 +825,7 @@ const Z={cur:{},raf:{},
   apply(id,p){const y=p>=1?-10:214-clamp(p,0,1)*178;const m=$('#zm-'+id),r=$('#zr-'+id);if(m)m.setAttribute('transform',`translate(0 ${y})`);if(r)r.setAttribute('y',y)},
   set(id,p,from){
     const a=from??this.cur[id]??0;this.cur[id]=p;cancelAnimationFrame(this.raf[id]);this.apply(id,a);
-    if(Math.abs(a-p)<.001)return;const t0=performance.now(),D=1100;
+    if(Math.abs(a-p)<.001)return;const t0=performance.now(),D=600;
     const step=t=>{const k=clamp((t-t0)/D,0,1),e=1-Math.pow(1-k,3),o=1+2.2*Math.pow(k-1,3)+1.2*Math.pow(k-1,2);
       this.apply(id,a+(p-a)*(k<1?Math.min(o,1.04):e));if(k<1)this.raf[id]=requestAnimationFrame(step)};
     this.raf[id]=requestAnimationFrame(step);
@@ -828,6 +851,7 @@ const sfx={
   fanfare:()=>[523,659,784,1047,1319].forEach((f,i)=>tone(f,.22,i*.09,'triangle',.13)),
   soft:()=>{tone(440,.2);tone(554,.26,.12)}
 };
+document.addEventListener('pointerdown',()=>{try{if(S&&S.sound){AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}}catch(e){}},{once:true,passive:true});   // wake audio early so the first sound isn't late
 const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
 
 /* ════════════ shell ════════════ */
