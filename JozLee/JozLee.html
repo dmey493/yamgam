@@ -1255,7 +1255,12 @@ function viewMore(){
     readonly:`<b>View only.</b> You can see everything, but feeds logged here aren't saved for the others. Ask the owner to make you a Contributor.`,
     connecting:`Connecting to the shared milk log…`,
     local:`<b>Saved on this phone only.</b> To log together, open the shared JozLee page instead and everyone's feeds stay in step.`}[sync];
-  return `<div class="card"><h2>Sharing</h2><p style="margin:0;font-size:14.5px">${share}</p></div>
+  return `<div class="card"><h2>NICU mode <small>tracks PO%, by mouth</small></h2>
+      ${S.babies.map(b=>`<div class="drow" style="--c:${b.color}"><button class="check ${isNicu(b)?'on':''}" data-act="nicuq" data-b="${b.id}" style="margin-top:0"><span class="box">${ic('check')}</span><span>NICU mode for ${esc(b.name)}</span></button>
+        ${isNicu(b)?`<div class="planrow" style="margin-top:6px"><b>PO goal<br><span class="muted" style="font-weight:600">percent by mouth</span></b><div class="stepper" style="width:150px"><button data-act="nicuqg" data-b="${b.id}" data-d="-5" aria-label="Lower goal">−</button><input class="sin" type="number" inputmode="numeric" min="10" max="100" value="${poGoal(b)}" data-chg="nicuqgin" data-b="${b.id}" aria-label="PO goal percent for ${esc(b.name)}"><span class="unit">%</span><button data-act="nicuqg" data-b="${b.id}" data-d="5" aria-label="Raise goal">+</button></div></div>
+        <p class="muted" style="margin:4px 0 0">Breastfeeding counts as ⅓ from ${nicuTh(b)[0]} min, ⅔ from ${nicuTh(b)[1]} min, full from ${nicuTh(b)[2]} min. <button class="link" style="padding:0" data-act="ebaby" data-b="${b.id}">Change</button></p>`:''}</div>`).join('')}
+      <p class="muted" style="margin:10px 0 0">When it's on, each feed asks how much went in by mouth, and that baby's front page and Stats lead with PO%. Turn it off when they come home.</p></div>
+    <div class="card"><h2>Sharing</h2><p style="margin:0;font-size:14.5px">${share}</p></div>
     <div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b>${isNicu(b)?' <b class="nb">NICU</b>':''}<br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
       ${S.babies.length<3?`<button class="btn alt" style="margin-top:10px;padding:11px" data-act="ebaby">Add a baby</button>`:''}</div>
     <div class="card"><h2>Units</h2><label class="f" style="margin-top:0">Milk</label>${sg('unit',[['ml','Millilitres'],['oz','Ounces']],S.unit)}
@@ -1331,6 +1336,10 @@ ACT.ebaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,i=b?S.babies.indexOf
     <button class="btn" style="margin-top:16px" data-act="sbaby" data-b="${b?b.id:''}" data-i="${i}">Save</button>
     ${b&&S.babies.length>1?`<button class="link" style="display:block;margin:4px auto 0" data-act="dbaby" data-b="${b.id}">Remove ${esc(b.name)}</button>`:''}`)};
 ACT.col=el=>{$$('#cols button').forEach(x=>x.style.outline=x===el?'4px solid var(--ink)':'none');$('#cols').dataset.c=el.dataset.c};
+const setNicu=(b,o)=>{b.nicu=Object.assign({on:false,goal:80,th:[6,11,15]},b.nicu||{},o);save();keepScroll()};
+ACT.nicuq=el=>{const b=baby(el.dataset.b),on=!isNicu(b);setNicu(b,{on});sfx.bloop();toast(`NICU mode ${on?'on':'off'} for ${b.name}.`)};
+ACT.nicuqg=el=>{const b=baby(el.dataset.b);setNicu(b,{goal:clamp(poGoal(b)+ +el.dataset.d,10,100)});sfx.tap()};
+ACT.nicuqgin=el=>{const v=parseInt(el.value);if(v>0)setNicu(baby(el.dataset.b),{goal:clamp(v,10,100)})};
 ACT.nicut=el=>{const on=el.classList.toggle('on');$('#nicug').hidden=!on;sfx.tap()};
 ACT.nicustep=el=>{const i=$('#nicugoal');i.value=clamp((parseInt(i.value)||80)+ +el.dataset.d,10,100);sfx.tap()};
 ACT.sbaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,o=readBaby('e',b,+el.dataset.i);if(!o){toast('Please add a birthday.');return}
