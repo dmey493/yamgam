@@ -43,6 +43,10 @@
   guidance (150–200 ml/kg); CDC "Breast Milk Storage and Preparation".
   This is a tracker, not medical advice.
 
+  NICU mode (per baby, in Settings): each feed has a full volume; the
+  part taken by mouth is PO, the rest is assumed given by tube, and the
+  headline number everywhere for that baby is PO%.
+
   Storage: localStorage on the phone only. Backup = one JSON file.
   Single file, no build step. Bricolage Grotesque + Plus Jakarta Sans. Web Audio sounds.
   ═══════════════════════════════════════════════════════════════════
@@ -351,6 +355,8 @@ nav button.tab.on{color:var(--sun)}
 .fab:active{transform:scale(.9) rotate(90deg)}
 .iconbtn{border:2.5px solid var(--edge)}
 .onb .card{border-top-width:2.5px}
+.nb{font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:2px 6px;border-radius:6px;background:var(--ink);color:#fff;vertical-align:1px}
+[hidden]{display:none!important}
 /* ── weight wheels ── */
 .wheels{position:relative;display:flex;justify-content:center;align-items:center;gap:8px;margin:6px 0 4px}
 .wheels::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:52px;margin-top:-26px;border-radius:16px;background:color-mix(in srgb,var(--sun) 38%,#fff);pointer-events:none}
@@ -664,6 +670,15 @@ function target(b,date=new Date(),guideOnly=false){
 /* ════════════ feeds ════════════ */
 const feedsOn=(bid,date)=>{const a=+startOf(date),z=a+DAY;return S.feeds.filter(f=>f.b===bid&&f.t>=a&&f.t<z)};
 const drankOn=(bid,date)=>feedsOn(bid,date).reduce((s,f)=>s+f.ml,0);
+/* NICU mode (per baby): each feed has a full volume; what is taken by mouth counts as PO,
+   the rest is assumed to go by tube. PO% = by mouth ÷ full volume. */
+const isNicu=b=>!!(b&&b.nicu&&b.nicu.on);
+const poGoal=b=>(b.nicu&&b.nicu.goal)||80;
+function poOf(fs){let po=0,rx=0;fs.forEach(f=>{const off=f.off||0;rx+=off;po+=Math.min(f.ml||0,off)});return rx?po/rx:null}
+const poOn=(b,d)=>poOf(feedsOn(b.id,d));
+const poSince=(b,h)=>poOf(S.feeds.filter(f=>f.b===b.id&&f.t>=Date.now()-h*36e5));
+const pc=v=>v==null?'–':Math.round(v*100)+'%';
+const dayFill=(b,d=new Date())=>isNicu(b)?(poOn(b,d)||0):drankOn(b.id,d)/target(b,d).ml;
 const lastFeed=bid=>S.feeds.filter(f=>f.b===bid).sort((x,y)=>y.t-x.t)[0];
 const dur=m=>m<60?m+' min':Math.floor(m/60)+'h '+pad(m%60)+'m';
 const toMl=v=>v*(S.unit==='oz'?OZ:1);
@@ -805,10 +820,10 @@ function viewToday(){
   const now=new Date(),night=isNight(now);
   const stars=night?Array.from({length:14},(_,i)=>`<i class="star" style="left:${(i*37+11)%96}%;top:${(i*23+7)%46}%;animation-delay:${(i%5)*.4}s"></i>`).join(''):'';
   const foals=S.babies.map(b=>{
-    const t=target(b,now),d=drankOn(b.id,now),p=d/t.ml;
+    const t=target(b,now),d=drankOn(b.id,now),nic=isNicu(b),p=dayFill(b,now),n=feedsOn(b.id,now).length;
     return `<button class="foal" data-act="log" data-b="${b.id}" style="--c:${b.color}" aria-label="Log a feed for ${esc(b.name)}">
-      ${zebraSVG(b.id,b.color,night?'sleepy':p>=1?'happy':'')}
-      <div class="tag"><b>${esc(b.name)}</b><span><i>${amt(d,false)}</i> / ${goalAmt(t.ml)} ${S.babies.length<3?' · '+Math.round(p*100)+'%':''}</span><em class="pbar"><i style="width:${clamp(p,0,1)*100}%"></i></em></div></button>`}).join('');
+      ${zebraSVG(b.id,b.color,night?'sleepy':(nic?n>0&&p>=poGoal(b)/100:p>=1)?'happy':'')}
+      <div class="tag"><b>${esc(b.name)}</b><span>${nic?`<i>PO ${n?pc(p):'–'}</i>${S.babies.length<3?' · goal '+poGoal(b)+'%':''}`:`<i>${amt(d,false)}</i> / ${goalAmt(t.ml)} ${S.babies.length<3?' · '+Math.round(p*100)+'%':''}`}</span><em class="pbar"><i style="width:${clamp(p,0,1)*100}%"></i></em></div></button>`}).join('');
   const t0=+startOf(now),items=[...S.feeds.filter(f=>f.t>=t0).map(f=>({t:f.t,f})),...S.log.filter(e=>e.type==='diaper'&&e.t>=t0&&S.babies.some(b=>b.id===e.b)).map(e=>({t:e.t,e}))].sort((x,y)=>y.t-x.t);
   const latest=items.slice(0,4).map(it=>{const b=baby(it.f?it.f.b:it.e.b);
     return it.f?feedRow(it.f,b,true):`<button class="feed" data-act="dlist" data-b="${b.id}" style="--c:${b.color}"><span class="t">${timeStr(it.e.t)}</span><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b> <span class="muted">· diaper</span><br><span class="fd">${DK[it.e.kind]}</span></span></button>`}).join('');
@@ -821,7 +836,7 @@ ${timerCard()}
     <div class="card"><h2>Latest <small>${items.length} logged today</small></h2>${latest||`<p class="muted" style="margin:0">Nothing logged yet today. Use the buttons above after a feed or a diaper.</p>`}
       <button class="btn alt" style="padding:11px;margin-top:12px" data-act="gostats">See the whole day and history</button></div>`;
 }
-after.today=()=>S.babies.forEach(b=>Z.set(b.id,drankOn(b.id,new Date())/target(b).ml));
+after.today=()=>S.babies.forEach(b=>Z.set(b.id,dayFill(b)));
 /* ── diapers ── */
 /* one compact card per baby: status on top, the three things you log most underneath */
 function quickCard(b,now){
@@ -832,7 +847,7 @@ function quickCard(b,now){
   return `<div class="card qc" style="--c:${b.color}">
     <button class="row" data-act="dlist" data-b="${b.id}" style="width:100%;text-align:left" aria-label="See today for ${esc(b.name)}"><span class="dot"></span><b class="grow qn">${esc(b.name)}</b>
       <span class="dots" aria-hidden="true">${Array.from({length:6},(_,i)=>`<i class="${i<wet?'on':''}"></i>`).join('')}</span><span class="muted">${wet} wet · ${dirty} dirty</span></button>
-    <div class="qs muted">${ago==null?'No feeds yet':ago>2880?'Last fed '+Math.floor(ago/1440)+' days ago':'Fed '+dur(ago)+' ago'}${du?` · <span class="due muted ${du.cls}" data-due="${b.id}">${du.text}</span>`:''}</div>
+    <div class="qs muted">${isNicu(b)?`<b class="nb">NICU</b> ${feedsOn(b.id,now).length} of ${feedsPerDay(b)} feeds · `:''}${ago==null?'No feeds yet':ago>2880?'Last fed '+Math.floor(ago/1440)+' days ago':'Fed '+dur(ago)+' ago'}${du?` · <span class="due muted ${du.cls}" data-due="${b.id}">${du.text}</span>`:''}</div>
     <div class="qa">${q('log','bottle','Feed','class="pri"')}${q('diaper','drop','Wet','data-k="wet"')}${q('diaper','dirty','Dirty','data-k="dirty"')}${q('qweight','scale','Weight')}</div></div>`;
 }
 /* weight is set by scrolling two wheels that start at the last weigh-in: no keyboard */
@@ -869,11 +884,11 @@ ACT.logdel=el=>{S.log=S.log.filter(e=>e.id!==el.dataset.id);save();closeSheet();
 
 /* one feed as a row: bottles in ml/oz, breastfeeds in minutes */
 function feedRow(f,b,name){
-  const nu=f.kind==='nu',pc=Math.round(feedPct(f)*100);
+  const nu=f.kind==='nu',nic=isNicu(b),pcn=Math.round(feedPct(f)*100);
   return `<button class="feed" data-act="edit" data-id="${f.id}" style="--c:${b.color}"><span class="t">${timeStr(f.t)}</span><span class="dot"></span>
     <span class="grow">${name?`<b>${esc(b.name)}</b> <span class="muted">· `:'<span class="muted">'}${KSHORT[f.kind]}${nu&&f.side&&f.side!=='both'?' · '+f.side:''}</span><br>
-      <span class="fd">${nu?(f.min||0)+' min':amt(f.ml)}</span> <span class="muted">${nu?(f.full?'of '+f.full+' min':''):'of '+amt(f.off)}</span></span>
-    <span class="pct">${pc}%</span></button>`;
+      <span class="fd">${nu?(f.min||0)+' min':amt(f.ml)}</span> <span class="muted">${nu?(f.full?'of '+f.full+' min':''):nic?'by mouth · '+amt(Math.max(0,f.off-f.ml))+' by tube':'of '+amt(f.off)}</span></span>
+    <span class="pct">${nic?'PO ':''}${pcn}%</span></button>`;
 }
 /* ── nursing timer (kept on this phone, survives closing the app) ── */
 const clock=ms=>{const s=Math.max(0,Math.floor(ms/1000));return pad(Math.floor(s/60))+':'+pad(s%60)};
@@ -907,6 +922,7 @@ function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.r
 $('#scrim').addEventListener('click',closeSheet);
 function defaultOffer(b,kind){
   const last=S.feeds.filter(f=>f.b===b.id&&f.kind===kind&&kind!=='nu').sort((x,y)=>y.t-x.t)[0];
+  if(isNicu(b)){const st=fineStep();return Math.max(st,Math.round(target(b).per/st)*st)}   // the full feed volume, from 'amount right now'
   if(last)return last.off;
   const s=offStep();return Math.max(s,Math.ceil(target(b).per/s-.01)*s);
 }
@@ -935,8 +951,8 @@ function bottleSVG(c){
 const isNu=()=>L.kind==='nu';
 const lval=()=>isNu()?L.min:L.ml, lmax=()=>isNu()?L.full:L.off, lstep=()=>isNu()?1:fineStep();
 function drawLog(){
-  const b=baby(L.b),nu=isNu();
-  openSheet(`<h2>${L.id?'Edit feed':nu?'How long did they nurse?':'How much did they drink?'}</h2>
+  const b=baby(L.b),nu=isNu(),nic=isNicu(b);
+  openSheet(`<h2>${L.id?'Edit feed':nu?'How long did they nurse?':nic?'How much by mouth?':'How much did they drink?'}</h2>
     <div class="row" style="flex-wrap:wrap;gap:6px">${S.babies.map(x=>`<button class="pill ${x.id===L.b?'on':''}" style="--c:${x.color}" data-act="lb" data-b="${x.id}">${esc(x.name)}</button>`).join('')}</div>
     <div class="seg" style="margin-top:10px">${Object.keys(KSHORT).map(k=>`<button class="${L.kind===k?'on':''}" data-act="lk" data-k="${k}">${KSHORT[k]}</button>`).join('')}</div>
     <div class="pour" style="--c:${b.color}">
@@ -946,11 +962,11 @@ function drawLog(){
         <div class="row" style="justify-content:center;gap:10px;margin-top:8px"><button class="nudge" data-act="lnudge" data-d="-1" aria-label="A little less">−</button><button class="nudge" data-act="lnudge" data-d="1" aria-label="A little more">+</button></div>
         ${zebraSVG('log',b.color)}</div>
     </div>
-    <p class="muted" style="text-align:center;margin:0 0 8px">${nu?`Slide to the minutes ${esc(b.name)} nursed, tap − / + for one minute, or type it. A full bottle is a full feed.`:`Slide the milk to what ${esc(b.name)} drank, tap − / + for fine steps, or type the number.`}</p>
-    <div class="chips">${[[nu?'Full feed':'All of it',1],['¾',.75],['½',.5],['¼',.25]].map(c=>`<button class="pill" data-act="lq" data-q="${c[1]}">${c[0]}</button>`).join('')}</div>
+    <p class="muted" style="text-align:center;margin:0 0 8px">${nu?`Slide to the minutes ${esc(b.name)} nursed, tap − / + for one minute, or type it. A full bottle is a full feed.`:nic?`Slide to what ${esc(b.name)} took by mouth. Whatever is left of the full feed counts as given by tube.`:`Slide the milk to what ${esc(b.name)} drank, tap − / + for fine steps, or type the number.`}</p>
+    <div class="chips">${[[nu?'Full feed':nic?'All by mouth':'All of it',1],['¾',.75],['½',.5],['¼',.25]].concat(nic&&!nu?[['All by tube',0]]:[]).map(c=>`<button class="pill" data-act="lq" data-q="${c[1]}">${c[0]}</button>`).join('')}</div>
     ${nu?`<div class="two wrap"><div><label class="f">A full feed for ${esc(b.name)} is</label><div class="stepper"><button data-act="lfull" data-d="-1">−</button><input class="sin" id="lfullin" type="number" inputmode="numeric" min="1" max="90" value="${L.full}" data-chg="lfullin" aria-label="Minutes in a full feed"><span class="unit">min</span><button data-act="lfull" data-d="1">+</button></div></div>
         <div><label class="f">Side</label><div class="seg">${[['left','Left'],['both','Both'],['right','Right']].map(x=>`<button class="${L.side===x[0]?'on':''}" data-act="lside" data-s="${x[0]}">${x[1]}</button>`).join('')}</div></div></div>`
-      :`<label class="f">Bottle held</label><div class="stepper"><button data-act="loff" data-d="-1">−</button><input class="sin" id="loffin" type="number" inputmode="decimal" min="1" step="any" data-chg="loffin" aria-label="Bottle size in ${S.unit}"><span class="unit">${S.unit}</span><button data-act="loff" data-d="1">+</button></div>`}
+      :`<label class="f">${nic?'Full feed volume':'Bottle held'}</label><div class="stepper"><button data-act="loff" data-d="-1">−</button><input class="sin" id="loffin" type="number" inputmode="decimal" min="1" step="any" data-chg="loffin" aria-label="Bottle size in ${S.unit}"><span class="unit">${S.unit}</span><button data-act="loff" data-d="1">+</button></div>`}
     <label class="f">When</label><input type="datetime-local" id="ltime" value="${localISO(L.t)}" max="${localISO(Date.now()+6e4)}">
     ${nu&&!L.id?`<button class="btn alt" style="margin-top:14px;padding:12px" data-act="tstart">Start a timer instead</button>`:''}
     <div class="foot"><button class="btn c" style="--c:${b.color}" data-act="lsave">${L.id?'Save changes':'Save feed'}</button></div>
@@ -962,7 +978,8 @@ function paintBottle(first,typing){
   const raw=lval()/lmax(),p=clamp(raw,0,1),y=BB-p*(BB-BT);
   $('#bm').setAttribute('transform',`translate(0 ${y})`);$('#bh').setAttribute('transform',`translate(0 ${y})`);
   if(!typing)$('#rin').value=isNu()?L.min:amt(L.ml,false);
-  $('#rsub').textContent=Math.round(raw*100)+(isNu()?'% of a full feed':'% of the bottle');
+  const nic=isNicu(baby(L.b));
+  $('#rsub').textContent=nic?'PO '+Math.round(Math.min(raw,1)*100)+'%'+(isNu()?' by minutes':' · '+amt(Math.max(0,L.off-L.ml))+' by tube'):Math.round(raw*100)+(isNu()?'% of a full feed':'% of the bottle');
   const lo=$('#loffin');if(lo&&document.activeElement!==lo)lo.value=amt(L.off,false);
   const bt=$('#bottle');bt.setAttribute('aria-valuemax',Math.round(lmax()));bt.setAttribute('aria-valuenow',Math.round(lval()));bt.setAttribute('aria-valuetext',isNu()?L.min+' minutes':amt(L.ml));
   if(!first){Z.cur.log=p;Z.apply('log',p)}
@@ -1010,11 +1027,14 @@ ACT.lsave=()=>{
 
 /* ════════════ celebration ════════════ */
 function celebrate(f,before){
-  const b=baby(f.b),T=target(b,f.t),after=before+f.ml,nu=f.kind==='nu',full=feedPct(f)>=.9,goal=before<T.ml&&after>=T.ml;
+  const b=baby(f.b),T=target(b,f.t),after=before+f.ml,nu=f.kind==='nu',full=feedPct(f)>=.9;let goal=before<T.ml&&after>=T.ml;
   const other=S.babies.find(x=>x.id!==b.id&&!S.feeds.some(g=>g.b===x.id&&Math.abs(g.t-f.t)<25*6e4));
   const pick=a=>a[Math.floor(Math.random()*a.length)];
-  const head=goal?pick(['Goal reached!','All stripes earned!']):full?pick(['Full feed!','Clean bottle!','Bottoms up!','Zebra-approved!']):(nu?f.min:f.ml)>0?pick(['Nice sipping!','Every sip counts','Logged!']):'Logged';
-  const line=goal?`${b.name} has had ${amt(after)} today — that's the whole daily goal.`
+  const nic=isNicu(b),dpo=poOn(b,f.t),atGoal=nic&&dpo!=null&&dpo*100>=poGoal(b);
+  if(nic)goal=false;
+  const head=nic?(full?pick(['All by mouth!','Full PO feed!','Zebra-approved!']):f.ml>0?pick(['Every sip counts','Good work','Logged!']):'Logged'):goal?pick(['Goal reached!','All stripes earned!']):full?pick(['Full feed!','Clean bottle!','Bottoms up!','Zebra-approved!']):(nu?f.min:f.ml)>0?pick(['Nice sipping!','Every sip counts','Logged!']):'Logged';
+  const line=nic?`${b.name} took ${nu?f.min+' min at the breast':amt(f.ml)+' of '+amt(f.off)+' by mouth'}: PO ${Math.round(Math.min(feedPct(f),1)*100)}%. Today's PO is ${pc(dpo)}${atGoal?', at the '+poGoal(b)+'% goal.':' · goal '+poGoal(b)+'%.'}`
+    :goal?`${b.name} has had ${amt(after)} today — that's the whole daily goal.`
     :nu?(full?`${b.name} nursed ${f.min} min, a full feed. Today is at ${Math.round(after/T.ml*100)}%.`:`${b.name} nursed ${f.min} of ${f.full} min. Short feeds are normal. Today is at ${Math.round(after/T.ml*100)}%.`)
     :full?`${b.name} drank ${amt(f.ml)}. Today: ${amt(after)} of ${goalAmt(T.ml)}.`
     :`${b.name} drank ${amt(f.ml)} of ${amt(f.off)}. Little feeds are normal — today is at ${Math.round(after/T.ml*100)}%.`;
@@ -1022,7 +1042,7 @@ function celebrate(f,before){
   c.innerHTML=`<div class="box">${zebraSVG('cele',b.color,(full||goal?'happy dance':'nod'))}<h2 style="color:${b.color}">${head}</h2><p>${esc(line)}</p>
     ${other?`<button class="btn c" style="--c:${other.color}" data-act="cnext" data-b="${other.id}">Now log ${esc(other.name)}</button>`:''}
     <button class="btn ${other?'alt':''}" data-act="cdone">Done</button></div>`;
-  c.classList.add('on');Z.set('cele',clamp(after/T.ml,0,1),clamp(before/T.ml,0,1));
+  c.classList.add('on');if(nic)Z.set('cele',dpo||0,0);else Z.set('cele',clamp(after/T.ml,0,1),clamp(before/T.ml,0,1));
   if(full||goal){sfx.fanfare();buzz(goal?[30,60,30,60,80]:[20,50,40]);
     const cols=[b.color,'#ffd166','#fff','#8ed1fc','#ffb3b8'];
     for(let i=0;i<(goal?60:34);i++){const s=document.createElement('i'),z=8+Math.random()*10,drop=i%3===0;s.className='bit';
@@ -1039,7 +1059,7 @@ const DCOL={wet:'#4c9bea',dirty:'#c79a55'};
 function dayStats(b,d){
   const fs=feedsOn(b.id,d),ds=logOn('diaper',d).filter(e=>e.b===b.id),nu=fs.filter(f=>f.kind==='nu'),bo=fs.filter(f=>f.kind!=='nu');
   return{d,feeds:fs.length,ml:fs.reduce((x,f)=>x+f.ml,0),bottle:bo.reduce((x,f)=>x+f.ml,0),bottles:bo.length,nuMl:nu.reduce((x,f)=>x+f.ml,0),nuMin:nu.reduce((x,f)=>x+(f.min||0),0),nuN:nu.length,
-    wet:ds.filter(e=>e.kind!=='dirty').length,dirty:ds.filter(e=>e.kind!=='wet').length,any:fs.length+ds.length>0,goal:target(b,d).ml};
+    wet:ds.filter(e=>e.kind!=='dirty').length,dirty:ds.filter(e=>e.kind!=='wet').length,any:fs.length+ds.length>0,goal:target(b,d).ml,po:poOf(fs)};
 }
 function barChart(ds,series,o={}){   // stacked bars, one per day
   const n=ds.length,x0=8,x1=332,y0=124,top=18,tot=ds.map((_,i)=>series.reduce((x,q)=>x+q.v[i],0));
@@ -1057,13 +1077,18 @@ function viewStats(){
   const b=baby(S.sel),now=new Date(),days=Array.from({length:statN},(_,i)=>addDays(now,i-statN+1)),st=days.map(d=>dayStats(b,d));
   const used=st.filter(x=>x.any),n=used.length||1,avg=f=>used.reduce((x,q)=>x+f(q),0)/n,r1=v=>(Math.round(v*10)/10).toString();
   const anyNu=st.some(x=>x.nuN>0),bots=used.reduce((x,q)=>x+q.bottles,0),goal=avg(q=>q.goal);
+  const nic=isNicu(b),g=poGoal(b),pod=st.filter(x=>x.po!=null);let streak=0;for(let i=st.length-1;i>=0;i--){const x=st[i];if(x.po==null){if(i===st.length-1)continue;break}if(x.po*100>=g)streak++;else break}
   const tile=(v,l,sub)=>`<div class="tile"><b>${v}</b><span>${l}</span>${sub?`<em>${sub}</em>`:''}</div>`;
   const rows=[...st].reverse().map(q=>{const k=dayKey(q.d),isT=k===dayKey(now);
     return `<button class="feed" data-act="day" data-k="${k}"><span class="t" style="width:74px"><b style="color:var(--ink)">${isT?'Today':q.d.toLocaleDateString([], {weekday:'short'})}</b><br>${q.d.toLocaleDateString([], {month:'short',day:'numeric'})}</span>
       <span class="grow">${q.any?`<span class="fd">${amt(q.ml)}</span> <span class="muted">· ${q.feeds} feed${q.feeds===1?'':'s'}${q.nuMin?' · '+q.nuMin+' min nursing':''}</span><br><span class="muted"><span class="dot" style="display:inline-block;background:${DCOL.wet}"></span> ${q.wet} wet &nbsp;<span class="dot" style="display:inline-block;background:${DCOL.dirty}"></span> ${q.dirty} dirty</span>`:'<span class="muted">nothing logged</span>'}</span>
-      ${q.any?`<span class="pct" style="--c:${b.color}">${Math.round(q.ml/q.goal*100)}%</span>`:''}</button>`}).join('');
+      ${q.any?`<span class="pct" style="--c:${b.color}">${nic?'PO '+pc(q.po):Math.round(q.ml/q.goal*100)+'%'}</span>`:''}</button>`}).join('');
   return `<div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap">${S.babies.length>1?S.babies.map(x=>`<button class="pill ${x.id===b.id?'on':''}" style="--c:${x.color}" data-act="sel" data-b="${x.id}">${esc(x.name)}</button>`).join(''):''}</div>
     <div class="seg" style="margin-top:12px">${[[7,'7 days'],[14,'14 days'],[30,'30 days']].map(o=>`<button class="${statN===o[0]?'on':''}" data-act="statn" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
+    ${nic?`<div class="card" style="--c:${b.color}"><h2>By mouth (PO) <small>goal ${g}%</small></h2>
+      <div class="tiles">${tile(pc(poOn(b,now)),'PO today',feedsOn(b.id,now).length+' of '+feedsPerDay(b)+' feeds')}${tile(pc(poSince(b,24)),'last 24 hours','')}${tile(pc(poSince(b,48)),'last 48 hours','')}${tile(streak+(streak===1?' day':' days'),'in a row at goal',pod.length?'average '+pc(pod.reduce((x,q)=>x+q.po,0)/pod.length)+' over '+pod.length+' days':'')}</div>
+      <div style="margin-top:12px">${barChart(days,[{v:st.map(q=>q.po==null?0:Math.round(q.po*100)),c:b.color}],{line:g,lineLabel:'goal '+g+'%',min:100,fmt:v=>v+'%',label:'PO percent each day'})}</div>
+      <p class="muted" style="margin:6px 0 0">PO% is what went in by mouth out of the full feed volume. The rest counts as given by tube.</p></div>`:''}
     <div class="card" style="--c:${b.color}"><h2>${esc(b.name)}'s daily averages <small>${used.length} day${used.length===1?'':'s'} with entries</small></h2>
       <div class="tiles">${tile(amt(avg(q=>q.ml)),'milk a day','goal '+goalAmt(goal))}${tile(r1(avg(q=>q.feeds)),'feeds a day',bots?'about '+amt(used.reduce((x,q)=>x+q.bottle,0)/bots)+' a bottle':'')}
         ${tile(r1(avg(q=>q.wet)),'wet diapers a day','6+ is a good sign')}${tile(r1(avg(q=>q.dirty)),'dirty diapers a day','')}
@@ -1084,7 +1109,7 @@ function daySheet(bid,k){
   const b=baby(bid),d=parseDay(k),q=dayStats(b,d),isT=k===dayKey(new Date()),n=new Date();
   const items=[...feedsOn(b.id,d).map(f=>({t:f.t,f})),...logOn('diaper',d).filter(e=>e.b===b.id).map(e=>({t:e.t,e}))].sort((x,y)=>y.t-x.t);
   openSheet(`<h2>${esc(b.name)} · ${isT?'Today':d.toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'})}</h2>
-    <p class="muted" style="margin:0 0 6px">${q.any?`${amt(q.ml)} of ${goalAmt(q.goal)} · ${q.feeds} feed${q.feeds===1?'':'s'}${q.nuMin?' · '+q.nuMin+' min nursing':''} · ${q.wet} wet · ${q.dirty} dirty`:'Nothing logged on this day yet.'}</p>
+    <p class="muted" style="margin:0 0 6px">${q.any?`${isNicu(b)?'PO '+pc(q.po)+' · ':''}${amt(q.ml)} of ${goalAmt(q.goal)} · ${q.feeds} feed${q.feeds===1?'':'s'}${q.nuMin?' · '+q.nuMin+' min nursing':''} · ${q.wet} wet · ${q.dirty} dirty`:'Nothing logged on this day yet.'}</p>
     ${items.map(it=>it.f?feedRow(it.f,b,false):`<div class="feed" style="--c:${DCOL[it.e.kind==='dirty'?'dirty':'wet']}"><input type="time" class="tin" value="${pad(new Date(it.e.t).getHours())}:${pad(new Date(it.e.t).getMinutes())}" data-chg="dtime" data-id="${it.e.id}" aria-label="Time of diaper"><span class="dot"></span><b class="grow">${DK[it.e.kind]} diaper</b><button class="link" style="padding:0" data-act="ddel" data-id="${it.e.id}" data-b="${b.id}" data-k="${k}">remove</button></div>`).join('')}
     <label class="f">Add a diaper at</label>
     <div class="row" style="flex-wrap:wrap;gap:8px"><input type="time" id="dat" style="width:auto;flex:none" value="${isT?pad(n.getHours())+':'+pad(n.getMinutes()):'12:00'}">${Object.keys(DK).map(x=>`<button class="pill" data-act="dadd" data-b="${b.id}" data-k="${k}" data-kind="${x}">+ ${x==='both'?'Both':DK[x]}</button>`).join('')}</div>
@@ -1144,7 +1169,7 @@ function goalsCard(){
   const now=new Date();
   return `<div class="card"><h2>Daily goals <small>every baby, today</small></h2>${S.babies.map(b=>{const T=target(b,now),o=b.ov&&b.ov.ml>0;
     return `<div class="grow-row" style="--c:${b.color}"><div class="row"><b class="grow">${bdot(b)}${esc(b.name)} <span class="muted" style="font-weight:600">· ${ageLabel(b)}</span></b><span class="fd gbig">${goalAmt(T.ml)}</span></div>
-      <div class="muted">${o?'':'≈ '}${T.src==='set'&&b.ov&&b.ov.mode==='feed'?amt(b.ov.ml):goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br>${esc(T.why)}</div>
+      <div class="muted">${o?'':'≈ '}${T.src==='set'&&b.ov&&b.ov.mode==='feed'?amt(b.ov.ml):goalAmt(T.per)} × ${feedsPerDay(b)} feeds${T.low?` · typical range ${goalAmt(T.low)}–${goalAmt(T.high)}`:''}<br>${esc(T.why)}${isNicu(b)?' NICU mode: PO goal '+poGoal(b)+'%.':''}</div>
       ${T.W&&T.W.stale>21?`<div class="note">Last weigh-in was ${T.W.stale} days ago, so growth since is estimated. A fresh weight sharpens this.</div>`:''}
       ${b.weeksEarly>0&&!o?`<div class="note">Born at ${40-b.weeksEarly} weeks: if your care team set an amount, enter it below and it replaces the guide.</div>`:''}</div>`}).join('')}
     <p class="muted" style="margin:10px 0 0">Appetite varies day to day. Steady weight gain and plenty of wet diapers matter more than hitting a number.</p></div>`;
@@ -1226,7 +1251,7 @@ function viewMore(){
     connecting:`Connecting to the shared milk log…`,
     local:`<b>Saved on this phone only.</b> To log together, open the shared JozLee page instead and everyone's feeds stay in step.`}[sync];
   return `<div class="card"><h2>Sharing</h2><p style="margin:0;font-size:14.5px">${share}</p></div>
-    <div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b><br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
+    <div class="card"><h2>Babies</h2>${S.babies.map(b=>`<button class="feed" data-act="ebaby" data-b="${b.id}" style="--c:${b.color}"><span class="dot"></span><span class="grow"><b>${esc(b.name)}</b>${isNicu(b)?' <b class="nb">NICU</b>':''}<br><span class="muted">${ageLabel(b)}</span></span><span class="muted">edit</span></button>`).join('')}
       ${S.babies.length<3?`<button class="btn alt" style="margin-top:10px;padding:11px" data-act="ebaby">Add a baby</button>`:''}</div>
     <div class="card"><h2>Units</h2><label class="f" style="margin-top:0">Milk</label>${sg('unit',[['ml','Millilitres'],['oz','Ounces']],S.unit)}
       <label class="f">Weight</label>${sg('wunit',[['kg','kg'],['lb','lb + oz']],S.wUnit)}</div>
@@ -1293,10 +1318,15 @@ function readBaby(p,b,i){
 ACT.ebaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,i=b?S.babies.indexOf(b):S.babies.length;
   openSheet(`<h2>${b?'Edit '+esc(b.name):'Add a baby'}</h2>${babyFields('e',b,i)}
     ${b?`<label class="f">Colour</label><div class="row" id="cols">${COLORS.map(c=>`<button class="iconbtn" data-act="col" data-c="${c}" style="background:${c};outline:${c===b.color?'4px solid var(--ink)':'none'};outline-offset:2px" aria-label="colour"></button>`).join('')}</div>`:''}
+    <button class="check ${b&&isNicu(b)?'on':''}" id="nicu" data-act="nicut" style="margin-top:16px"><span class="box">${ic('check')}</span><span>NICU mode<br><span class="muted" style="font-weight:600">Track how much of each feed goes in by mouth (PO%)</span></span></button>
+    <div class="planrow" id="nicug" ${b&&isNicu(b)?'':'hidden'}><b>PO goal<br><span class="muted" style="font-weight:600">percent by mouth</span></b><div class="stepper" style="width:150px"><button data-act="nicustep" data-d="-5" aria-label="Lower goal">−</button><input class="sin" id="nicugoal" type="number" inputmode="numeric" min="10" max="100" value="${b?poGoal(b):80}" aria-label="PO goal percent"><span class="unit">%</span><button data-act="nicustep" data-d="5" aria-label="Raise goal">+</button></div></div>
     <button class="btn" style="margin-top:16px" data-act="sbaby" data-b="${b?b.id:''}" data-i="${i}">Save</button>
     ${b&&S.babies.length>1?`<button class="link" style="display:block;margin:4px auto 0" data-act="dbaby" data-b="${b.id}">Remove ${esc(b.name)}</button>`:''}`)};
 ACT.col=el=>{$$('#cols button').forEach(x=>x.style.outline=x===el?'4px solid var(--ink)':'none');$('#cols').dataset.c=el.dataset.c};
+ACT.nicut=el=>{const on=el.classList.toggle('on');$('#nicug').hidden=!on;sfx.tap()};
+ACT.nicustep=el=>{const i=$('#nicugoal');i.value=clamp((parseInt(i.value)||80)+ +el.dataset.d,10,100);sfx.tap()};
 ACT.sbaby=el=>{const b=el.dataset.b?baby(el.dataset.b):null,o=readBaby('e',b,+el.dataset.i);if(!o){toast('Please add a birthday.');return}
+  o.nicu={on:$('#nicu').classList.contains('on'),goal:clamp(parseInt($('#nicugoal').value)||80,10,100)};
   const c=$('#cols');if(c&&c.dataset.c)o.color=c.dataset.c;if(!b)S.babies.push(o);save();closeSheet();sfx.bloop();render()};
 ACT.dbaby=el=>{const b=baby(el.dataset.b);ask(`Remove ${b.name} and all of their feeds?`,'Remove',()=>{S.babies=S.babies.filter(x=>x!==b);S.feeds=S.feeds.filter(f=>f.b!==b.id);S.sel=S.babies[0].id;save();render()})};
 
